@@ -1,0 +1,4 @@
+{
+  "pattern": "^(feature|bugfix|hotfix|refactor|release)\\/[A-Z]+-[0-9]+-[a-z0-9-]+$",
+  "errorMsg": "Tên nhánh không hợp lệ! Vui lòng đặt tên nhánh theo chuẩn: loại/ID-mô-tả (VD: feature/AIP-12-setup-ci)"
+}

@@ -6,6 +6,8 @@ import path from "path";
 import express from "express";
 
 import app from "./app";
+import { AppError } from "./utils/AppError";
+import { globalErrorHandler } from "./middlewares/error.middleware";
 import { connectDatabase } from "./config/database";
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -46,12 +48,13 @@ const startServer = async () => {
     // ========================================
     // Start Server
     // ========================================
-        app.use("/api", (req, res) => {
-      res.status(404).json({
-        success: false,
-        message: "API endpoint not found"
-      });
+    // Catch-all cho API 404
+    app.use("/api", (req, res, next) => {
+      next(new AppError(`Không tìm thấy API route: ${req.originalUrl}`, 404));
     });
+
+    // Middleware xử lý lỗi toàn cục
+    app.use(globalErrorHandler);
 
     app.listen(PORT, () => {
       console.log(

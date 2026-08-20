@@ -24,7 +24,7 @@ app.use(express.urlencoded({
 app.get("/health", (req, res) => {
   res.json({
     success: true,
-    message: "Real Estate API is running"
+    message: "IT Interview AI API is running"
   });
 });
 
