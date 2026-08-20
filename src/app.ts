@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import apiRoutes from "./routes";
+import { globalErrorHandler } from "./middlewares/error.middleware";
 
 const app = express();
 
@@ -27,5 +29,9 @@ app.get("/health", (req, res) => {
     message: "IT Interview AI API is running"
   });
 });
+
+app.use("/api/v1", apiRoutes);
+
+app.use(globalErrorHandler);
 
 export default app;

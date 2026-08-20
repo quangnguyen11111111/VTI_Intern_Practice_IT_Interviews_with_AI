@@ -1,7 +1,9 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { seedUsers } from './user.seed';
-// Import các seeders khác ở đây (vd: question.seed, session.seed...)
+import { seedRoles } from './role.seed';
+import { seedLevels } from './level.seed';
+import { seedTechnologies } from './technology.seed';
 
 dotenv.config();
 
@@ -16,8 +18,9 @@ const runSeeder = async () => {
     console.log('====================================');
     // Chạy tuần tự các seeder
     await seedUsers();
-    // await seedQuestions();
-    // await seedSessions();
+    await seedLevels();
+    await seedRoles();
+    await seedTechnologies(); // Chạy sau role để lấy ID của role
     console.log('====================================');
 
     console.log('🎉 Đã hoàn tất toàn bộ quá trình Seed!');

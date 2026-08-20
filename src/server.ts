@@ -1,3 +1,5 @@
+import "reflect-metadata";
+import "./config/di";
 import dotenv from "dotenv";
 
 dotenv.config();
