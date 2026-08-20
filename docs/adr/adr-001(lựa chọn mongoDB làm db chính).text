@@ -1,0 +1,12 @@
+ADR-001: Lựa chọn mongoDB làm Database chính 
++ Context: dữ liệu câu hỏi, bài test và log hội thoại AI có tính phi cấu trúc cao, schema có thể thay đổi liên tục
++ Decision: Lựa chọn mongoDB làm Database chính 
++ Consequences: 
+    + Ưu điểm: 
+        - Dễ dàng thay đổi schema 
+        - Dễ dàng mở rộng 
+        - Dễ dàng tích hợp với các service khác 
+    + Nhược điểm: 
+        - Dễ dàng thay đổi schema 
+        - Dễ dàng mở rộng 
+        - Dễ dàng tích hợp với các service khác 

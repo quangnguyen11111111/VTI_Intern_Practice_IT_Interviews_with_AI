@@ -1,0 +1,9 @@
+Một task/ticket chỉ được coi là "Done" khi thỏa mãn:
+
+ Code đã được implement và tuân thủ Coding Standards.
+ Không có lỗi TypeScript (tsc --noEmit pass) và ESLint pass.
+ Đã viết Unit Test (cho core logic/services) và coverage > 70%.
+ API đã được update trên Swagger/Postman collection.
+ Code đã được tạo Pull Request (PR), có ít nhất 1 thành viên review và approve.
+ CI Pipeline build và test thành công.
+ Đã test thành công trên môi trường Staging/Dev.

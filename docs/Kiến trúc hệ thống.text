@@ -1,0 +1,6 @@
+Mô hình: Client-Server (hiện tại).
+Frontend (Client): React.js (Vite), TypeScript, Tailwind CSS, State Management (Zustand/Redux Toolkit).
+Backend (Server): Node.js, Express, TypeScript, kiến trúc 3 lớp (Controller - Service - Model/Repository).
+Database: MongoDB (thông qua Mongoose).
+AI Integration: Tích hợp OpenAI API (hoặc Gemini/Claude) để xử lý NLP.
+Storage: AWS S3 (lưu file ghi âm/ảnh).
