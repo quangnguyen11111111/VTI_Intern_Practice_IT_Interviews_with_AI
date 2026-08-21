@@ -12,6 +12,7 @@ export interface InterviewSetupPayload {
   techStacks: string[]; // array of technology IDs
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const extractArrayData = (json: any, key: string): BaseEntity[] => {
   if (Array.isArray(json)) return json;
   if (json?.data) {
