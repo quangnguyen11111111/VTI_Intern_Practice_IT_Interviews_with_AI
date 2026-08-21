@@ -89,6 +89,7 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
       setSuccessMessage('Thiết lập phỏng vấn thành công!');
       form.reset();
     } catch (err) {
+      console.error('Lỗi thiết lập phỏng vấn:', err);
       setError('Đã có lỗi xảy ra. Vui lòng thử lại sau.');
     } finally {
       setIsLoading(false);
