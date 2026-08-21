@@ -1,0 +1,227 @@
+import React from 'react';
+import { useInterviewSetup } from './useInterviewSetup';
+import { FormProvider, Controller } from 'react-hook-form';
+
+export const InterviewSetupForm: React.FC = () => {
+  const {
+    form,
+    isLoading,
+    isFetchingData,
+    error,
+    successMessage,
+    roles,
+    levels,
+    technologies,
+    onSubmit,
+  } = useInterviewSetup();
+
+  return (
+    <FormProvider {...form}>
+      <div className="max-w-3xl mx-auto p-8 sm:p-10 bg-white/80 backdrop-blur-xl rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/50 relative overflow-hidden">
+        {/* Subtle inner top glow */}
+        <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-indigo-200 to-transparent"></div>
+
+        <div className="mb-10 text-center">
+          <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">Thiết Lập Phỏng Vấn</h2>
+          <p className="text-slate-500 mt-2 font-medium">Vui lòng hoàn thiện hồ sơ kỹ năng của bạn</p>
+        </div>
+
+        {error && (
+          <div className="mb-8 p-4 bg-red-50/80 border border-red-100 rounded-2xl flex items-start gap-3 text-red-600 animate-in fade-in zoom-in duration-300">
+            <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            <p className="font-medium">{error}</p>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="mb-8 p-4 bg-emerald-50/80 border border-emerald-100 rounded-2xl flex items-start gap-3 text-emerald-700 animate-in fade-in zoom-in duration-300">
+            <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <p className="font-medium">{successMessage}</p>
+          </div>
+        )}
+
+        {isFetchingData ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <div className="relative">
+              <div className="w-12 h-12 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin"></div>
+            </div>
+            <p className="text-slate-500 font-medium mt-4">Đang tải cấu hình hệ thống...</p>
+          </div>
+        ) : (
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            
+            {/* Job Position (Role) */}
+            <div className="group">
+              <label htmlFor="jobPosition" className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider">
+                Chức danh ứng tuyển
+              </label>
+              <div className="relative">
+                <select
+                  id="jobPosition"
+                  {...form.register('jobPosition', { required: 'Vui lòng chọn chức danh' })}
+                  className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 hover:bg-slate-100/50 focus:bg-white text-slate-700 font-medium focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm outline-none appearance-none cursor-pointer"
+                  disabled={isLoading}
+                >
+                  <option value="" disabled className="text-slate-400">-- Click để chọn chức danh của bạn --</option>
+                  {roles?.map((role) => (
+                    <option key={role._id} value={role._id}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-5 text-slate-400 group-hover:text-indigo-500 transition-colors">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" /></svg>
+                </div>
+              </div>
+              {form.formState.errors.jobPosition && (
+                <p className="mt-2 text-sm text-red-500 font-medium flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-red-500"></span> {form.formState.errors.jobPosition.message}
+                </p>
+              )}
+            </div>
+
+            {/* Level */}
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider">
+                Trình độ chuyên môn
+              </label>
+              <Controller
+                name="level"
+                control={form.control}
+                rules={{ required: 'Vui lòng chọn cấp độ' }}
+                render={({ field }) => (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {levels?.length > 0 ? levels.map((level) => {
+                      const isSelected = field.value === level._id;
+                      return (
+                        <label 
+                          key={level._id} 
+                          className={`relative flex items-center justify-center p-4 rounded-2xl cursor-pointer transition-all duration-200 border-2 ${
+                            isSelected 
+                              ? 'border-indigo-600 bg-indigo-50/50 shadow-[0_0_0_4px_rgba(79,70,229,0.1)]' 
+                              : 'border-slate-100 bg-white hover:border-indigo-300 hover:bg-slate-50 shadow-sm'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            {...field}
+                            value={level._id}
+                            checked={isSelected}
+                            className="sr-only"
+                            disabled={isLoading}
+                          />
+                          <div className="text-center">
+                            <span className={`block font-bold ${isSelected ? 'text-indigo-700' : 'text-slate-600'}`}>
+                              {level.name}
+                            </span>
+                          </div>
+                          
+                          {/* Check icon indicator */}
+                          {isSelected && (
+                            <div className="absolute top-2 right-2 text-indigo-600">
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                            </div>
+                          )}
+                        </label>
+                      );
+                    }) : (
+                      <p className="text-sm text-slate-400 italic">Dữ liệu cấp độ trống.</p>
+                    )}
+                  </div>
+                )}
+              />
+              {form.formState.errors.level && (
+                <p className="mt-2 text-sm text-red-500 font-medium flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-red-500"></span> {form.formState.errors.level.message}
+                </p>
+              )}
+            </div>
+
+            {/* Tech Stacks */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-sm font-bold text-slate-700 uppercase tracking-wider">
+                  Bộ kỹ năng & Công nghệ
+                </label>
+                <span className="text-xs font-medium px-2 py-1 bg-slate-100 text-slate-500 rounded-md">Chọn nhiều</span>
+              </div>
+              
+              <Controller
+                name="techStacks"
+                control={form.control}
+                render={({ field }) => (
+                  <div className="p-5 border-2 border-slate-100 rounded-2xl bg-slate-50/50 min-h-[120px]">
+                    {technologies?.length > 0 ? (
+                      <div className="flex flex-wrap gap-2.5">
+                        {technologies.map((tech) => {
+                          const isSelected = field.value.includes(tech._id);
+                          return (
+                            <button
+                              key={tech._id}
+                              type="button"
+                              onClick={() => {
+                                const newValue = isSelected
+                                  ? field.value.filter(id => id !== tech._id)
+                                  : [...field.value, tech._id];
+                                field.onChange(newValue);
+                              }}
+                              disabled={isLoading}
+                              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border-2 ${
+                                isSelected 
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20 scale-105' 
+                                  : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:text-indigo-600 shadow-sm'
+                              }`}
+                            >
+                              {tech.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-2 py-4">
+                        <svg className="w-8 h-8 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                        <p className="text-sm font-medium">Vui lòng chọn chức danh để xem công nghệ tương ứng</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              />
+            </div>
+
+            {/* Submit action */}
+            <div className="pt-8 mt-4">
+              <button
+                type="submit"
+                disabled={isLoading}
+                className={`relative w-full flex justify-center items-center px-8 py-4 rounded-2xl text-lg font-bold text-white transition-all overflow-hidden group ${
+                  isLoading 
+                    ? 'bg-slate-400 cursor-not-allowed' 
+                    : 'bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5'
+                }`}
+              >
+                {!isLoading && (
+                  <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                )}
+                
+                {isLoading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Đang thiết lập...
+                  </>
+                ) : (
+                  <>
+                    Bắt Đầu Phỏng Vấn Ngay
+                    <svg className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </FormProvider>
+  );
+};

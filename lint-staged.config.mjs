@@ -1,4 +1,4 @@
 export default {
   "client/**/*.{js,jsx,ts,tsx}": (filenames) => 
-    `cd client && npx eslint --fix ${filenames.join(" ")}`
+    `npm run lint --prefix client -- --fix ${filenames.join(" ")}`
 };

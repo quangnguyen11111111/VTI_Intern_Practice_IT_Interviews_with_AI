@@ -1,10 +1,15 @@
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { HomePage } from './pages/HomePage';
+import { InterviewSetupPage } from './pages/InterviewSetupPage';
+
 function App() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <h1 className="text-5xl font-bold text-orange-500">
-        DeepCode React + Vite + TailwindCSS
-      </h1>
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/setup" element={<InterviewSetupPage />} />
+      </Routes>
+    </Router>
   );
 }
 

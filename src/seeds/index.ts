@@ -11,9 +11,9 @@ const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/it-inter
 
 const runSeeder = async () => {
   try {
-    console.log('🔄 Đang kết nối Database...');
+    console.log(' Đang kết nối Database...');
     await mongoose.connect(MONGO_URI);
-    console.log('✅ Đã kết nối Database');
+    console.log(' Đã kết nối Database');
 
     console.log('====================================');
     // Chạy tuần tự các seeder
@@ -23,12 +23,12 @@ const runSeeder = async () => {
     await seedTechnologies(); // Chạy sau role để lấy ID của role
     console.log('====================================');
 
-    console.log('🎉 Đã hoàn tất toàn bộ quá trình Seed!');
+    console.log(' Đã hoàn tất toàn bộ quá trình Seed!');
   } catch (error) {
-    console.error('❌ Quá trình Seed thất bại:', error);
+    console.error(' Quá trình Seed thất bại:', error);
   } finally {
     await mongoose.disconnect();
-    console.log('🔌 Đã ngắt kết nối Database');
+    console.log(' Đã ngắt kết nối Database');
     process.exit(0); // Bắt buộc thoát chương trình sau khi chạy xong
   }
 };
