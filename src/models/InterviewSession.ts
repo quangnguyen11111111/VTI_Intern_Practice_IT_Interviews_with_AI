@@ -2,18 +2,21 @@ import mongoose, { Schema, Document } from 'mongoose';
 import { InterviewStatus } from '../domain/interview/IInterviewState';
 import { InterviewSetupPayload } from '../domain/interview/types';
 
-export interface IInterviewDocument extends Document {
+export interface IInterviewSessionDocument extends Document {
+  userId: string;
   status: InterviewStatus;
   setupData: InterviewSetupPayload;
-  questions: mongoose.Schema.Types.Mixed[];
-  answers: mongoose.Schema.Types.Mixed[];
-  score: number;
+  overallScore: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const InterviewSchema: Schema = new Schema(
+const InterviewSessionSchema: Schema = new Schema(
   {
+    userId: {
+      type: String,
+      required: false, // Optional for now
+    },
     status: {
       type: String,
       enum: ['PENDING', 'GENERATING', 'IN_PROGRESS', 'EVALUATING', 'COMPLETED', 'FAILED'],
@@ -25,15 +28,7 @@ const InterviewSchema: Schema = new Schema(
       level: { type: String, required: true },
       techStacks: [{ type: String }]
     },
-    questions: {
-      type: [Schema.Types.Mixed],
-      default: []
-    },
-    answers: {
-      type: [Schema.Types.Mixed],
-      default: []
-    },
-    score: {
+    overallScore: {
       type: Number,
       default: null
     }
@@ -43,4 +38,4 @@ const InterviewSchema: Schema = new Schema(
   }
 );
 
-export const InterviewModel = mongoose.model<IInterviewDocument>('Interview', InterviewSchema);
+export const InterviewSessionModel = mongoose.model<IInterviewSessionDocument>('InterviewSession', InterviewSessionSchema);
