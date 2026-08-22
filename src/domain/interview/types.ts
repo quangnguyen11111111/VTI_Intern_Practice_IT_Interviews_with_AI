@@ -4,9 +4,25 @@ export interface InterviewSetupPayload {
   techStacks: string[];
 }
 
+export interface LocalizedContent {
+  en: string;
+  vi: string;
+}
+
+export interface InterviewQuestionPayload {
+  order: number;
+  difficulty: string;
+  content: LocalizedContent;
+}
+
+export interface AnswerPayload {
+  questionId: string;
+  candidateAnswer: string;
+}
+
 export interface IAiService {
   generateQuestions(interviewId: string, setupData: InterviewSetupPayload): Promise<void>;
-  evaluateAnswers(interviewId: string, answers: unknown[]): Promise<void>;
+  evaluateAnswers(interviewId: string, answers: AnswerPayload[]): Promise<void>;
 }
 
 export interface GeneratePayload {
@@ -15,6 +31,6 @@ export interface GeneratePayload {
 }
 
 export interface SubmitPayload {
-  data: unknown[];
+  data: AnswerPayload[];
   aiService: IAiService;
 }

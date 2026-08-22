@@ -10,7 +10,9 @@ export class InterviewController {
    */
   createSession = async (req: Request, res: Response): Promise<void> => {
     try {
-      const session = await this.interviewService.createInterviewSession(req.body);
+      const { jobPosition, level, techStacks, userId } = req.body;
+      const setupData = { jobPosition, level, techStacks };
+      const session = await this.interviewService.createInterviewSession(setupData, userId);
       res.status(201).json({ success: true, data: session });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
