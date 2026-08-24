@@ -18,7 +18,7 @@ export const authenticate = async (
       );
     }
 
-    const token = authHeader.split(' ')[1];
+    const token = authHeader.slice(7).trim();
     if (!token) {
       return next(
         new AppError('Access token không hợp lệ', 401, 'AUTH_UNAUTHORIZED')
@@ -68,38 +68,6 @@ export const authenticate = async (
   }
 };
 
-export const requireAdmin = (
-  req: Request,
-  _res: Response,
-  next: NextFunction
-): void => {
-  if (!req.user) {
-    return next(
-      new AppError('Yêu cầu xác thực', 401, 'AUTH_UNAUTHORIZED')
-    );
-  }
-
-  if (req.user.status === 'LOCKED') {
-    return next(
-      new AppError('Tài khoản đã bị khóa', 403, 'AUTH_ACCOUNT_LOCKED')
-    );
-  }
-
-  if (req.user.status !== 'ACTIVE') {
-    return next(
-      new AppError('Tài khoản không hoạt động', 401, 'AUTH_UNAUTHORIZED')
-    );
-  }
-
-  if (req.user.role !== 'ADMIN') {
-    return next(
-      new AppError('Bạn không có quyền thực hiện hành động này', 403, 'AUTH_FORBIDDEN')
-    );
-  }
-
-  next();
-};
-
 export const authorize = (
   ...roles: Array<'CANDIDATE' | 'INTERVIEWER' | 'ADMIN'>
 ) => {
@@ -131,3 +99,19 @@ export const authorize = (
     next();
   };
 };
+
+export const requireAdmin = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void => {
+  return authorize('ADMIN')(req, res, next);
+};
+
+export {
+  requireOwnership,
+  OwnerResolver,
+  OwnerResolverResult,
+  OwnershipResolution,
+  RequireOwnershipOptions,
+} from './ownership.middleware';
