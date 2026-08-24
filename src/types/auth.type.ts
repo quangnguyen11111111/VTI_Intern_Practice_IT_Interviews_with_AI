@@ -27,6 +27,7 @@ export interface JwtTokenPayload {
   sub: string;
   role: 'CANDIDATE' | 'INTERVIEWER' | 'ADMIN';
   type: 'access' | 'refresh';
+  credentialVersion: number;
   jti?: string;
   sessionId?: string;
 }

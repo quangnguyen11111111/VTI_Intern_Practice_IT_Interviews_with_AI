@@ -14,11 +14,16 @@ Tính đến thời điểm hiện tại, dự án đã hoàn thành các hạng
    - `POST /api/v1/interviews/:id/submit`: Nộp bài và yêu cầu AI chấm điểm.
 4. **Cơ chế Idempotency & Chống Spam:** Khắc phục triệt để lỗi người dùng refresh (F5) trang liên tục hoặc spam click nhờ vào kiến trúc State Pattern. Request gọi sai thời điểm sẽ bị chặn ngay lập tức.
 5. **Typescript Strict Typing:** Đã loại bỏ hoàn toàn kiểu dữ liệu `any`, áp dụng các interface rõ ràng để đảm bảo an toàn mã nguồn.
+6. **Authentication, Session & Password Lifecycle (AIP-15/16/17/19/20):**
+   - **Xác thực & Quản lý phiên:** JWT access tokens (15 phút), refresh tokens (7 ngày) với cơ chế Refresh Token Rotation và Replay Detection tự động thu hồi toàn bộ token family khi phát hiện token tái sử dụng.
+   - **Vô hiệu hóa Stale Access Token:** Quản lý `credentialVersion` độc lập với `authVersion`. Khi người dùng đổi mật khẩu, đặt lại mật khẩu hoặc bị khóa tài khoản, `credentialVersion` được tăng nguyên tử trong transaction để ngay lập tức vô hiệu hóa toàn bộ access token cũ trên mọi thiết bị mà không ảnh hưởng tới multi-session trong quá trình đăng nhập/refresh thông thường.
+   - **Distributed Atomic Rate Limiter:** Cơ chế giới hạn tỷ lệ đặt lại mật khẩu phân tán trên MongoDB (`PasswordResetRateLimit`) với 60 giây cooldown và tối đa 5 yêu cầu/giờ lăn (rolling hour). Sử dụng conditional reservation nguyên tử ngăn chặn hoàn toàn việc gửi email trùng lặp khi có nhiều request đồng thời.
+   - **OpenAPI 3.1 Machine-Verified Specification:** Đặc tả đầy đủ 11 endpoints xác thực, quản trị và hồ sơ tại `docs/openapi-auth-profile.json`, được kiểm thử tự động không phụ thuộc thư viện ngoài qua `tests/openapi-auth-profile.contract.test.ts`.
 
 ## 🛠️ Công nghệ sử dụng
 - **Backend:** Node.js, Express.js, TypeScript.
 - **Frontend:** React, Vite (hoặc tương đương).
-- **Database:** MongoDB (sử dụng Mongoose) - Hiện tại đang dùng In-Memory Mock để test logic.
+- **Database:** MongoDB (sử dụng Mongoose) - Multi-Document Transactions trên Replica Set.
 - **Mẫu Thiết Kế (Design Patterns):** State Pattern, Layered Architecture, Dependency Injection.
 
 ## 📐 Tuân thủ nghiêm ngặt nguyên tắc S.O.L.I.D

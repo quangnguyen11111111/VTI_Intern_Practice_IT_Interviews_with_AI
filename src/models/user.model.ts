@@ -10,6 +10,7 @@ export interface IUser extends Document {
   role: 'CANDIDATE' | 'INTERVIEWER' | 'ADMIN';
   status: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
   authVersion: number;
+  credentialVersion: number;
   avatarUrl?: string | null;
   currentLevel?: UserLevel | null;
   githubUrl?: string | null;
@@ -55,6 +56,11 @@ const userSchema = new Schema<IUser>(
       type: Number,
       default: 0,
     },
+    credentialVersion: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     avatarUrl: {
       type: String,
       trim: true,
@@ -94,6 +100,7 @@ const userSchema = new Schema<IUser>(
         delete ret.__v;
         delete ret.passwordHash;
         delete ret.authVersion;
+        delete ret.credentialVersion;
         return ret;
       },
     },
@@ -104,6 +111,7 @@ const userSchema = new Schema<IUser>(
         delete ret.__v;
         delete ret.passwordHash;
         delete ret.authVersion;
+        delete ret.credentialVersion;
         return ret;
       },
     },

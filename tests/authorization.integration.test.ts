@@ -206,6 +206,7 @@ describe('AIP-17: Authorization Integration Tests (JWT Guard, RBAC & Ownership)'
       role: 'CANDIDATE',
       status: 'ACTIVE',
       authVersion: 0,
+      credentialVersion: 0,
       ...overrides,
     });
   };
@@ -246,7 +247,7 @@ describe('AIP-17: Authorization Integration Tests (JWT Guard, RBAC & Ownership)'
     it('1.3 Token hết hạn → 401 AUTH_UNAUTHORIZED', async () => {
       const user = await createUser();
       const expiredToken = jwt.sign(
-        { sub: user._id.toString(), role: user.role, type: 'access' },
+        { sub: user._id.toString(), role: user.role, type: 'access', credentialVersion: 0 },
         process.env.JWT_ACCESS_SECRET!,
         { algorithm: 'HS256', expiresIn: '-1s' }
       );
@@ -275,7 +276,7 @@ describe('AIP-17: Authorization Integration Tests (JWT Guard, RBAC & Ownership)'
     it('1.4a Token ký với JWT_ACCESS_SECRET nhưng type là refresh → 401 AUTH_UNAUTHORIZED', async () => {
       const user = await createUser();
       const forgedRefreshToken = jwt.sign(
-        { sub: user._id.toString(), role: user.role, type: 'refresh' },
+        { sub: user._id.toString(), role: user.role, type: 'refresh', credentialVersion: 0 },
         process.env.JWT_ACCESS_SECRET!,
         { algorithm: 'HS256', expiresIn: '15m' }
       );
@@ -290,7 +291,7 @@ describe('AIP-17: Authorization Integration Tests (JWT Guard, RBAC & Ownership)'
 
     it('1.5 Access token có malformed sub (không phải ObjectId) → 401 AUTH_UNAUTHORIZED, không thành 500', async () => {
       const malformedSubToken = jwt.sign(
-        { sub: 'invalid-non-hex-object-id', role: 'ADMIN', type: 'access' },
+        { sub: 'invalid-non-hex-object-id', role: 'ADMIN', type: 'access', credentialVersion: 0 },
         process.env.JWT_ACCESS_SECRET!,
         { algorithm: 'HS256', expiresIn: '15m' }
       );
@@ -307,7 +308,7 @@ describe('AIP-17: Authorization Integration Tests (JWT Guard, RBAC & Ownership)'
     it('1.6 User không tồn tại trong DB → 401 AUTH_UNAUTHORIZED', async () => {
       const nonExistentId = new mongoose.Types.ObjectId().toString();
       const token = jwt.sign(
-        { sub: nonExistentId, role: 'CANDIDATE', type: 'access' },
+        { sub: nonExistentId, role: 'CANDIDATE', type: 'access', credentialVersion: 0 },
         process.env.JWT_ACCESS_SECRET!,
         { algorithm: 'HS256', expiresIn: '15m' }
       );
@@ -345,6 +346,51 @@ describe('AIP-17: Authorization Integration Tests (JWT Guard, RBAC & Ownership)'
       expect(res.status).toBe(403);
       expect(res.body.code).toBe('AUTH_ACCOUNT_LOCKED');
       expect(res.body.message).toBe('Tài khoản đã bị khóa');
+    });
+
+    it('1.9 Token có credentialVersion không khớp với User trong DB (stale access token) → 401 AUTH_UNAUTHORIZED', async () => {
+      const user = await createUser({ credentialVersion: 2 });
+      const staleToken = generateAuthTokens(user._id.toString(), user.role, undefined, undefined, 1).accessToken;
+
+      const res = await request(testApp)
+        .get('/api/test/admin-generic')
+        .set('Authorization', `Bearer ${staleToken}`);
+
+      expect(res.status).toBe(401);
+      expect(res.body.code).toBe('AUTH_UNAUTHORIZED');
+      expect(res.body.message).toBe('Access token không hợp lệ hoặc đã hết hạn');
+    });
+
+    it('1.10 Token thiếu claim credentialVersion hoặc có claim không hợp lệ → 401 AUTH_UNAUTHORIZED', async () => {
+      const user = await createUser();
+      const tokenWithoutClaim = jwt.sign(
+        { sub: user._id.toString(), role: user.role, type: 'access' },
+        process.env.JWT_ACCESS_SECRET!,
+        { algorithm: 'HS256', expiresIn: '15m' }
+      );
+
+      const res = await request(testApp)
+        .get('/api/test/admin-generic')
+        .set('Authorization', `Bearer ${tokenWithoutClaim}`);
+
+      expect(res.status).toBe(401);
+      expect(res.body.code).toBe('AUTH_UNAUTHORIZED');
+      expect(res.body.message).toBe('Access token không hợp lệ hoặc đã hết hạn');
+    });
+
+    it('1.11 Legacy User trong DB không có trường credentialVersion mặc định là 0 → xác thực thành công với token version 0', async () => {
+      const user = await createUser({ role: 'ADMIN' });
+      // Remove credentialVersion directly in MongoDB to simulate a legacy record
+      await User.updateOne({ _id: user._id }, { $unset: { credentialVersion: 1 } });
+
+      const token = generateAuthTokens(user._id.toString(), 'ADMIN', undefined, undefined, 0).accessToken;
+
+      const res = await request(testApp)
+        .get('/api/test/admin-generic')
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
     });
   });
 

@@ -1,7 +1,11 @@
+import crypto from 'crypto';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import User, { IUser } from '../models/user.model';
 import RefreshToken from '../models/refresh-token.model';
+import PasswordResetOtp from '../models/password-reset-otp.model';
+import PasswordResetRateLimit from '../models/password-reset-rate-limit.model';
+import { emailService } from './email.service';
 import { getEnv } from '../config/env';
 import {
   generateAuthTokens,
@@ -70,7 +74,7 @@ export const registerUser = async (data: {
         throw new AppError('Email đã được sử dụng', 409, 'AUTH_EMAIL_ALREADY_EXISTS');
       }
 
-      // Đăng ký công khai luôn gán role = CANDIDATE và status = ACTIVE
+      // Đăng ký công khai luôn gán role = CANDIDATE, status = ACTIVE, authVersion = 0, credentialVersion = 0
       const users = await User.create(
         [
           {
@@ -80,6 +84,7 @@ export const registerUser = async (data: {
             role: 'CANDIDATE',
             status: 'ACTIVE',
             authVersion: 0,
+            credentialVersion: 0,
           },
         ],
         { session }
@@ -87,7 +92,13 @@ export const registerUser = async (data: {
       const createdUser = users[0];
 
       const safeUser = formatSafeUser(createdUser);
-      const tokenData = generateAuthTokens(safeUser.id, safeUser.role);
+      const tokenData = generateAuthTokens(
+        safeUser.id,
+        safeUser.role,
+        undefined,
+        undefined,
+        createdUser.credentialVersion ?? 0
+      );
 
       const expiresAt = getRefreshTokenExpiry(tokenData.refreshToken);
 
@@ -178,7 +189,13 @@ export const loginUser = async (data: {
       }
 
       const safeUser = formatSafeUser(freshUser);
-      const tokenData = generateAuthTokens(safeUser.id, safeUser.role);
+      const tokenData = generateAuthTokens(
+        safeUser.id,
+        safeUser.role,
+        undefined,
+        undefined,
+        freshUser.credentialVersion ?? 0
+      );
 
       const expiresAt = getRefreshTokenExpiry(tokenData.refreshToken);
 
@@ -254,6 +271,14 @@ export const refreshAuthTokens = async (
 
       if (user.status !== 'ACTIVE') {
         throw new AppError('Tài khoản không hoạt động', 401, 'AUTH_UNAUTHORIZED');
+      }
+
+      if (payload.credentialVersion !== (user.credentialVersion ?? 0)) {
+        throw new AppError(
+          'Refresh token không hợp lệ hoặc đã hết hạn',
+          401,
+          'AUTH_INVALID_REFRESH_TOKEN'
+        );
       }
 
       // Bắt buộc tra cứu bằng toàn bộ jti, tokenHash, userId và sessionId
@@ -334,11 +359,13 @@ export const refreshAuthTokens = async (
         throw new AppError('Tài khoản không hoạt động', 401, 'AUTH_UNAUTHORIZED');
       }
 
-      // Cấp cặp token mới cho cùng sessionId với role hiện tại trong DB
+      // Cấp cặp token mới cho cùng sessionId với role và credentialVersion hiện tại trong DB
       const tokenData = generateAuthTokens(
         updatedUser._id.toString(),
         updatedUser.role,
-        existingSession.sessionId
+        existingSession.sessionId,
+        undefined,
+        updatedUser.credentialVersion ?? 0
       );
 
       const expiresAt = getRefreshTokenExpiry(tokenData.refreshToken);
@@ -470,7 +497,7 @@ export const lockUser = async (
 
       updatedTargetUser = await User.findByIdAndUpdate(
         targetUserId,
-        { status: 'LOCKED', $inc: { authVersion: 1 } },
+        { status: 'LOCKED', $inc: { authVersion: 1, credentialVersion: 1 } },
         { session, returnDocument: 'after' }
       );
 
@@ -490,4 +517,386 @@ export const lockUser = async (
   }
 
   return formatSafeUser(updatedTargetUser);
+};
+
+export const hashEmail = (email: string): string => {
+  const env = getEnv();
+  const normalized = email.trim().toLowerCase();
+  return crypto.createHmac('sha256', env.PASSWORD_RESET_SECRET).update(normalized).digest('hex');
+};
+
+export const hashOtp = (otp: string): string => {
+  const env = getEnv();
+  return crypto.createHmac('sha256', env.PASSWORD_RESET_SECRET).update(otp.trim()).digest('hex');
+};
+
+export const generateSecureOtp = (): string => {
+  return crypto.randomInt(100000, 1000000).toString();
+};
+
+export const changePassword = async (
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> => {
+  if (!mongoose.isObjectIdOrHexString(userId)) {
+    throw new AppError('Yêu cầu xác thực', 401, 'AUTH_UNAUTHORIZED');
+  }
+
+  const user = await User.findById(userId).select('+passwordHash');
+  if (!user) {
+    throw new AppError('Người dùng không tồn tại', 401, 'AUTH_UNAUTHORIZED');
+  }
+
+  if (user.status === 'LOCKED') {
+    throw new AppError('Tài khoản đã bị khóa', 403, 'AUTH_ACCOUNT_LOCKED');
+  }
+
+  if (user.status !== 'ACTIVE') {
+    throw new AppError('Tài khoản không hoạt động', 401, 'AUTH_UNAUTHORIZED');
+  }
+
+  const isCurrentPasswordCorrect = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!isCurrentPasswordCorrect) {
+    throw new AppError('Mật khẩu hiện tại không chính xác', 400, 'AUTH_INVALID_CURRENT_PASSWORD');
+  }
+
+  const isReusingOldPassword = await bcrypt.compare(newPassword, user.passwordHash);
+  if (isReusingOldPassword) {
+    throw new AppError('Mật khẩu mới không được trùng với mật khẩu hiện tại', 400, 'AUTH_PASSWORD_REUSED');
+  }
+
+  const env = getEnv();
+  const newPasswordHash = await bcrypt.hash(newPassword, env.BCRYPT_SALT_ROUNDS);
+
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      const updatedUser = await User.findOneAndUpdate(
+        { _id: user._id, status: 'ACTIVE', passwordHash: user.passwordHash },
+        { passwordHash: newPasswordHash, $inc: { authVersion: 1, credentialVersion: 1 } },
+        { session, returnDocument: 'after' }
+      );
+
+      if (!updatedUser) {
+        const latestUser = await User.findById(user._id).session(session).select('+passwordHash');
+        if (!latestUser || latestUser.status !== 'ACTIVE') {
+          throw new AppError('Tài khoản không hoạt động', 401, 'AUTH_UNAUTHORIZED');
+        }
+        throw new AppError(
+          'Mật khẩu đã được thay đổi bởi một yêu cầu khác. Vui lòng thử lại.',
+          409,
+          'AUTH_PASSWORD_CHANGED'
+        );
+      }
+
+      await RefreshToken.updateMany(
+        { userId: user._id, isRevoked: false },
+        { isRevoked: true, revokedAt: new Date() },
+        { session }
+      );
+    });
+  } finally {
+    await session.endSession();
+  }
+};
+
+export const acquirePasswordResetReservation = async (
+  emailHmac: string,
+  now: Date
+): Promise<{ acquired: boolean; reservationId?: string }> => {
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  const reservationId = crypto.randomUUID();
+  const cooldownExpiresAt = new Date(now.getTime() + 60 * 1000);
+  const reservationExpiresAt = new Date(now.getTime() + 60 * 1000);
+  const purgeAt = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+
+  // 1. Ensure document exists
+  try {
+    await PasswordResetRateLimit.updateOne(
+      { emailHash: emailHmac },
+      {
+        $setOnInsert: {
+          emailHash: emailHmac,
+          requestTimestamps: [],
+          cooldownExpiresAt: null,
+          reservationId: null,
+          reservationExpiresAt: null,
+          purgeAt,
+        },
+      },
+      { upsert: true }
+    );
+  } catch (err: any) {
+    if (err.code !== 11000) {
+      throw err;
+    }
+  }
+
+  // 2. Prune old timestamps past rolling hour
+  await PasswordResetRateLimit.updateOne(
+    { emailHash: emailHmac },
+    { $pull: { requestTimestamps: { $lt: oneHourAgo } } }
+  );
+
+  // 3. Check current state before attempting atomic reservation
+  const currentRecord = await PasswordResetRateLimit.findOne({ emailHash: emailHmac });
+  if (currentRecord) {
+    const recentTimestamps = currentRecord.requestTimestamps.filter(
+      (ts) => ts >= oneHourAgo
+    );
+    if (recentTimestamps.length >= 5) {
+      throw new AppError(
+        'Bạn đã yêu cầu đặt lại mật khẩu quá số lần cho phép trong 1 giờ. Vui lòng thử lại sau.',
+        429,
+        'AUTH_TOO_MANY_REQUESTS'
+      );
+    }
+
+    const isCooldownActive =
+      currentRecord.cooldownExpiresAt && currentRecord.cooldownExpiresAt > now;
+    const isReservationActive =
+      currentRecord.reservationExpiresAt && currentRecord.reservationExpiresAt > now;
+
+    if (isCooldownActive || isReservationActive) {
+      return { acquired: false };
+    }
+  }
+
+  // 4. Atomic conditional reservation
+  const updated = await PasswordResetRateLimit.findOneAndUpdate(
+    {
+      emailHash: emailHmac,
+      $and: [
+        {
+          $or: [
+            { cooldownExpiresAt: null },
+            { cooldownExpiresAt: { $lte: now } },
+          ],
+        },
+        {
+          $or: [
+            { reservationExpiresAt: null },
+            { reservationExpiresAt: { $lte: now } },
+          ],
+        },
+        {
+          $expr: {
+            $lt: [
+              {
+                $size: {
+                  $filter: {
+                    input: '$requestTimestamps',
+                    as: 'ts',
+                    cond: { $gte: ['$$ts', oneHourAgo] },
+                  },
+                },
+              },
+              5,
+            ],
+          },
+        },
+      ],
+    },
+    {
+      $push: { requestTimestamps: now },
+      $set: {
+        reservationId,
+        reservationExpiresAt,
+        cooldownExpiresAt,
+        purgeAt,
+      },
+    },
+    { returnDocument: 'after' }
+  );
+
+  if (!updated) {
+    // If update failed, determine whether it failed due to hourly cap or cooldown/reservation race
+    const checkRecord = await PasswordResetRateLimit.findOne({ emailHash: emailHmac });
+    if (checkRecord) {
+      const recentTimestamps = checkRecord.requestTimestamps.filter(
+        (ts) => ts >= oneHourAgo
+      );
+      if (recentTimestamps.length >= 5) {
+        throw new AppError(
+          'Bạn đã yêu cầu đặt lại mật khẩu quá số lần cho phép trong 1 giờ. Vui lòng thử lại sau.',
+          429,
+          'AUTH_TOO_MANY_REQUESTS'
+        );
+      }
+    }
+    return { acquired: false };
+  }
+
+  return { acquired: true, reservationId };
+};
+
+export const requestPasswordReset = async (rawEmail: string): Promise<void> => {
+  const normalizedEmail = rawEmail.trim().toLowerCase();
+  const emailHmac = hashEmail(normalizedEmail);
+  const now = new Date();
+
+  let reservationId: string | undefined;
+
+  try {
+    const reservation = await acquirePasswordResetReservation(emailHmac, now);
+    if (!reservation.acquired) {
+      return;
+    }
+    reservationId = reservation.reservationId;
+
+    const user = await User.findOne({ email: normalizedEmail });
+    const isSynthetic = !user || user.status === 'LOCKED' || user.status === 'INACTIVE';
+    const userId = !isSynthetic && user ? user._id : null;
+
+    const rawOtp = generateSecureOtp();
+    const otpHmac = hashOtp(rawOtp);
+
+    const expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
+    const purgeAt = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+
+    const otpRecord = await PasswordResetOtp.create({
+      emailHash: emailHmac,
+      otpHash: otpHmac,
+      userId,
+      isSynthetic,
+      attempts: 0,
+      deliveryState: 'PENDING',
+      usedAt: null,
+      expiresAt,
+      purgeAt,
+    });
+
+    try {
+      await emailService.sendPasswordResetOtp(normalizedEmail, rawOtp, isSynthetic);
+      await PasswordResetOtp.updateOne(
+        { _id: otpRecord._id },
+        { deliveryState: 'SENT' }
+      );
+      await PasswordResetRateLimit.updateOne(
+        { emailHash: emailHmac, reservationId },
+        { $set: { reservationId: null, reservationExpiresAt: null } }
+      );
+    } catch (error) {
+      await PasswordResetOtp.updateOne(
+        { _id: otpRecord._id },
+        { deliveryState: 'FAILED', expiresAt: new Date() }
+      );
+      await PasswordResetRateLimit.updateOne(
+        { emailHash: emailHmac, reservationId },
+        {
+          $set: {
+            reservationId: null,
+            reservationExpiresAt: null,
+            cooldownExpiresAt: null,
+          },
+        }
+      );
+      throw new AppError(
+        'Không thể gửi email xác thực lúc này. Vui lòng thử lại sau.',
+        503,
+        'AUTH_EMAIL_DELIVERY_FAILED'
+      );
+    }
+  } catch (error) {
+    if (
+      reservationId &&
+      !(error instanceof AppError && error.code === 'AUTH_EMAIL_DELIVERY_FAILED')
+    ) {
+      await PasswordResetRateLimit.updateOne(
+        { emailHash: emailHmac, reservationId },
+        {
+          $set: {
+            reservationId: null,
+            reservationExpiresAt: null,
+            cooldownExpiresAt: null,
+          },
+        }
+      );
+    }
+    throw error;
+  }
+};
+
+export const resetPassword = async (
+  rawEmail: string,
+  rawOtp: string,
+  newPassword: string
+): Promise<void> => {
+  const normalizedEmail = rawEmail.trim().toLowerCase();
+  const emailHmac = hashEmail(normalizedEmail);
+  const otpHmac = hashOtp(rawOtp.trim());
+  const now = new Date();
+
+  const CANONICAL_ERROR_MSG = 'Mã xác thực không hợp lệ hoặc đã hết hạn';
+  const CANONICAL_ERROR_CODE = 'AUTH_INVALID_OR_EXPIRED_OTP';
+
+  const record = await PasswordResetOtp.findOne({
+    emailHash: emailHmac,
+    usedAt: null,
+  }).sort({ createdAt: -1 });
+
+  if (!record) {
+    throw new AppError(CANONICAL_ERROR_MSG, 400, CANONICAL_ERROR_CODE);
+  }
+
+  if (record.expiresAt < now || record.attempts >= 5 || record.deliveryState !== 'SENT') {
+    throw new AppError(CANONICAL_ERROR_MSG, 400, CANONICAL_ERROR_CODE);
+  }
+
+  const recordBuf = Buffer.from(record.otpHash, 'hex');
+  const inputBuf = Buffer.from(otpHmac, 'hex');
+  const isMatch = recordBuf.length === inputBuf.length && crypto.timingSafeEqual(recordBuf, inputBuf);
+
+  if (!isMatch) {
+    await PasswordResetOtp.updateOne(
+      { _id: record._id, usedAt: null, attempts: { $lt: 5 } },
+      { $inc: { attempts: 1 } }
+    );
+    throw new AppError(CANONICAL_ERROR_MSG, 400, CANONICAL_ERROR_CODE);
+  }
+
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      const consumedRecord = await PasswordResetOtp.findOneAndUpdate(
+        {
+          _id: record._id,
+          usedAt: null,
+          attempts: { $lt: 5 },
+          expiresAt: { $gt: new Date() },
+          deliveryState: 'SENT',
+        },
+        { $set: { usedAt: new Date() } },
+        { session, returnDocument: 'after' }
+      );
+
+      if (!consumedRecord) {
+        throw new AppError(CANONICAL_ERROR_MSG, 400, CANONICAL_ERROR_CODE);
+      }
+
+      if (consumedRecord.isSynthetic || !consumedRecord.userId) {
+        return;
+      }
+
+      const env = getEnv();
+      const newPasswordHash = await bcrypt.hash(newPassword, env.BCRYPT_SALT_ROUNDS);
+
+      const user = await User.findOneAndUpdate(
+        { _id: consumedRecord.userId, status: 'ACTIVE' },
+        { passwordHash: newPasswordHash, $inc: { authVersion: 1, credentialVersion: 1 } },
+        { session, returnDocument: 'after' }
+      );
+
+      if (user) {
+        await RefreshToken.updateMany(
+          { userId: user._id, isRevoked: false },
+          { isRevoked: true, revokedAt: new Date() },
+          { session }
+        );
+      }
+    });
+  } finally {
+    await session.endSession();
+  }
 };

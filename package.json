@@ -8,6 +8,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "prepare": "husky",
     "db:seed": "tsx src/seeds/index.ts"
   },
@@ -24,6 +25,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.3",
     "morgan": "^1.11.0",
+    "nodemailer": "^9.0.5",
     "reflect-metadata": "^0.2.2",
     "tsyringe": "^4.10.0",
     "zod": "^4.4.3"
@@ -37,7 +39,9 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
     "@types/node": "^26.2.0",
+    "@types/nodemailer": "^8.0.1",
     "@types/supertest": "^7.2.1",
+    "@vitest/coverage-v8": "4.1.11",
     "husky": "^9.1.7",
     "lint-staged": "^17.3.0",
     "mongodb-memory-server": "^11.2.0",

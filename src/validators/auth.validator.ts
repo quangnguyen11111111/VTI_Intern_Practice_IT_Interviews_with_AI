@@ -25,6 +25,65 @@ export const registerSchema = z.object({
     .strict(),
 });
 
+export const changePasswordSchema = z.object({
+  body: z
+    .object({
+      currentPassword: z
+        .string()
+        .min(8, 'Mật khẩu hiện tại phải có ít nhất 8 ký tự')
+        .refine(
+          (val) => Buffer.byteLength(val, 'utf8') <= 72,
+          { message: 'Mật khẩu không được vượt quá 72 byte' }
+        ),
+      newPassword: z
+        .string()
+        .min(8, 'Mật khẩu mới phải có ít nhất 8 ký tự')
+        .refine(
+          (val) => Buffer.byteLength(val, 'utf8') <= 72,
+          { message: 'Mật khẩu không được vượt quá 72 byte' }
+        ),
+    })
+    .strict(),
+});
+
+export const forgotPasswordSchema = z.object({
+  body: z
+    .object({
+      email: z
+        .string()
+        .trim()
+        .toLowerCase()
+        .email('Email không đúng định dạng')
+        .max(255, 'Email không được vượt quá 255 ký tự'),
+    })
+    .strict(),
+});
+
+export const resetPasswordSchema = z.object({
+  body: z
+    .object({
+      email: z
+        .string()
+        .trim()
+        .toLowerCase()
+        .email('Email không đúng định dạng')
+        .max(255, 'Email không được vượt quá 255 ký tự'),
+      otp: z
+        .string()
+        .trim()
+        .regex(/^\d{6}$/, 'Mã xác thực phải gồm đúng 6 chữ số'),
+      newPassword: z
+        .string()
+        .min(8, 'Mật khẩu mới phải có ít nhất 8 ký tự')
+        .refine(
+          (val) => Buffer.byteLength(val, 'utf8') <= 72,
+          { message: 'Mật khẩu không được vượt quá 72 byte' }
+        ),
+    })
+    .strict(),
+});
+
+
 export const loginSchema = z.object({
   body: z
     .object({

@@ -28,22 +28,29 @@ export const generateAuthTokens = (
   userId: string,
   role: 'CANDIDATE' | 'INTERVIEWER' | 'ADMIN',
   sessionId?: string,
-  jti?: string
-): AuthTokens & { jti: string; sessionId: string } => {
+  jti?: string,
+  credentialVersion: number = 0
+): AuthTokens & { jti: string; sessionId: string; credentialVersion: number } => {
   const env = getEnv();
   const tokenJti = jti || crypto.randomUUID();
   const tokenSessionId = sessionId || crypto.randomUUID();
+
+  if (!Number.isInteger(credentialVersion) || credentialVersion < 0) {
+    throw new Error('credentialVersion must be a non-negative integer');
+  }
 
   const accessPayload: JwtTokenPayload = {
     sub: userId,
     role,
     type: 'access',
+    credentialVersion,
   };
 
   const refreshPayload: JwtTokenPayload = {
     sub: userId,
     role,
     type: 'refresh',
+    credentialVersion,
     jti: tokenJti,
     sessionId: tokenSessionId,
   };
@@ -63,6 +70,7 @@ export const generateAuthTokens = (
     refreshToken,
     jti: tokenJti,
     sessionId: tokenSessionId,
+    credentialVersion,
   };
 };
 
@@ -78,7 +86,10 @@ export const verifyAccessToken = (token: string): JwtTokenPayload => {
     typeof (decoded as any).sub !== 'string' ||
     !(decoded as any).sub ||
     !VALID_ROLES.has((decoded as any).role) ||
-    (decoded as any).type !== 'access'
+    (decoded as any).type !== 'access' ||
+    typeof (decoded as any).credentialVersion !== 'number' ||
+    !Number.isInteger((decoded as any).credentialVersion) ||
+    (decoded as any).credentialVersion < 0
   ) {
     throw new jwt.JsonWebTokenError('Invalid access token payload');
   }
@@ -87,6 +98,7 @@ export const verifyAccessToken = (token: string): JwtTokenPayload => {
     sub: (decoded as any).sub,
     role: (decoded as any).role,
     type: 'access',
+    credentialVersion: (decoded as any).credentialVersion,
   };
 };
 
@@ -106,7 +118,10 @@ export const verifyRefreshToken = (token: string): JwtTokenPayload => {
     typeof (decoded as any).jti !== 'string' ||
     !(decoded as any).jti ||
     typeof (decoded as any).sessionId !== 'string' ||
-    !(decoded as any).sessionId
+    !(decoded as any).sessionId ||
+    typeof (decoded as any).credentialVersion !== 'number' ||
+    !Number.isInteger((decoded as any).credentialVersion) ||
+    (decoded as any).credentialVersion < 0
   ) {
     throw new jwt.JsonWebTokenError('Invalid refresh token payload');
   }
@@ -117,5 +132,6 @@ export const verifyRefreshToken = (token: string): JwtTokenPayload => {
     type: 'refresh',
     jti: (decoded as any).jti,
     sessionId: (decoded as any).sessionId,
+    credentialVersion: (decoded as any).credentialVersion,
   };
 };

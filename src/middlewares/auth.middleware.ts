@@ -59,6 +59,13 @@ export const authenticate = async (
       );
     }
 
+    const liveCredentialVersion = user.credentialVersion ?? 0;
+    if (payload.credentialVersion !== liveCredentialVersion) {
+      return next(
+        new AppError('Access token không hợp lệ hoặc đã hết hạn', 401, 'AUTH_UNAUTHORIZED')
+      );
+    }
+
     req.user = user;
     req.tokenPayload = payload;
 

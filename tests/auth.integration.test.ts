@@ -155,6 +155,40 @@ describe('AIP-15 & AIP-16: Authentication & Session Management Tests', () => {
       expect(hash.length).toBe(64);
       expect(hashToken(token)).toBe(hash);
     });
+
+    it('2.7 verifyAccessToken và verifyRefreshToken giữ nguyên credentialVersion claim', () => {
+      const tokens = generateAuthTokens('user-123', 'ADMIN', undefined, undefined, 3);
+      const accessPayload = verifyAccessToken(tokens.accessToken);
+      const refreshPayload = verifyRefreshToken(tokens.refreshToken);
+
+      expect(accessPayload.credentialVersion).toBe(3);
+      expect(refreshPayload.credentialVersion).toBe(3);
+    });
+
+    it('2.8 verifyAccessToken từ chối token thiếu credentialVersion hoặc có giá trị âm', () => {
+      const missingCred = jwt.sign(
+        { sub: 'user-123', role: 'CANDIDATE', type: 'access' },
+        process.env.JWT_ACCESS_SECRET!,
+        { algorithm: 'HS256' }
+      );
+      expect(() => verifyAccessToken(missingCred)).toThrow(/Invalid access token payload/);
+
+      const negativeCred = jwt.sign(
+        { sub: 'user-123', role: 'CANDIDATE', type: 'access', credentialVersion: -1 },
+        process.env.JWT_ACCESS_SECRET!,
+        { algorithm: 'HS256' }
+      );
+      expect(() => verifyAccessToken(negativeCred)).toThrow(/Invalid access token payload/);
+    });
+
+    it('2.9 verifyRefreshToken từ chối token thiếu credentialVersion hoặc có giá trị không hợp lệ', () => {
+      const invalidCred = jwt.sign(
+        { sub: 'user-123', role: 'ADMIN', type: 'refresh', jti: 'jti-1', sessionId: 'sess-1', credentialVersion: 'zero' },
+        process.env.JWT_REFRESH_SECRET!,
+        { algorithm: 'HS256' }
+      );
+      expect(() => verifyRefreshToken(invalidCred)).toThrow(/Invalid refresh token payload/);
+    });
   });
 
   // =================================================================
@@ -1500,6 +1534,136 @@ describe('AIP-15 & AIP-16: Authentication & Session Management Tests', () => {
         expect(loginRes.status).toBe(403);
         expect(loginRes.body.code).toBe('AUTH_ACCOUNT_LOCKED');
       }
+    });
+  });
+
+  // =================================================================
+  // 11. CREDENTIAL VERSION & SESSION ISOLATION TESTS
+  // =================================================================
+  describe('11. Credential Version Lifecycle & Multi-Session Isolation', () => {
+    it('11.1 Đăng ký mới gán credentialVersion = 0 và cấp token version 0', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'credver.new@example.com',
+          password: 'Password123',
+          fullName: 'CredVer User',
+        });
+
+      expect(regRes.status).toBe(201);
+      const user = await User.findOne({ email: 'credver.new@example.com' });
+      expect(user?.credentialVersion).toBe(0);
+
+      const accessPayload = verifyAccessToken(regRes.body.data.tokens.accessToken);
+      expect(accessPayload.credentialVersion).toBe(0);
+
+      // SafeUser does not expose credentialVersion
+      expect(regRes.body.data.user.credentialVersion).toBeUndefined();
+    });
+
+    it('11.2 Người dùng legacy (không có field credentialVersion trong DB) đăng nhập nhận token version 0', async () => {
+      const passwordHash = await bcrypt.hash('LegacyPass123', 10);
+      const legacyUser = await User.create({
+        email: 'legacy.user@example.com',
+        passwordHash,
+        fullName: 'Legacy User',
+        role: 'CANDIDATE',
+        status: 'ACTIVE',
+      });
+      // Unset credentialVersion to simulate legacy record
+      await User.updateOne({ _id: legacyUser._id }, { $unset: { credentialVersion: 1 } });
+
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'legacy.user@example.com',
+          password: 'LegacyPass123',
+        });
+
+      expect(loginRes.status).toBe(200);
+      const accessPayload = verifyAccessToken(loginRes.body.data.tokens.accessToken);
+      expect(accessPayload.credentialVersion).toBe(0);
+    });
+
+    it('11.3 Multi-session: Đăng nhập và refresh độc lập không làm tăng credentialVersion và không làm hỏng access token khác', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'multisession@example.com',
+          password: 'Password123',
+          fullName: 'Multi Session User',
+        });
+
+      const session1AccessToken = regRes.body.data.tokens.accessToken;
+      const session1RefreshToken = regRes.body.data.tokens.refreshToken;
+
+      // Session 2 login
+      const session2Login = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'multisession@example.com',
+          password: 'Password123',
+        });
+      const session2AccessToken = session2Login.body.data.tokens.accessToken;
+      const session2RefreshToken = session2Login.body.data.tokens.refreshToken;
+
+      // Refresh session 1
+      const refresh1Res = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: session1RefreshToken });
+      expect(refresh1Res.status).toBe(200);
+
+      // Session 2 access token remains valid because credentialVersion did not change
+      const user = await User.findOne({ email: 'multisession@example.com' });
+      expect(user?.credentialVersion).toBe(0);
+      expect(verifyAccessToken(session2AccessToken).credentialVersion).toBe(0);
+
+      // Refresh session 2
+      const refresh2Res = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: session2RefreshToken });
+      expect(refresh2Res.status).toBe(200);
+    });
+
+    it('11.4 Khóa tài khoản (lockUser) tăng credentialVersion và thu hồi toàn bộ session', async () => {
+      const adminHash = await bcrypt.hash('AdminPassword123', 10);
+      const admin = await User.create({
+        email: 'admin.lockcred@vti.com.vn',
+        passwordHash: adminHash,
+        fullName: 'Admin Lock Cred',
+        role: 'ADMIN',
+        status: 'ACTIVE',
+      });
+      const adminToken = generateAuthTokens(admin._id.toString(), 'ADMIN').accessToken;
+
+      const targetRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'target.lockcred@example.com',
+          password: 'TargetPassword123',
+          fullName: 'Target User',
+        });
+      const targetUserId = targetRes.body.data.user.id;
+      const targetAccessToken = targetRes.body.data.tokens.accessToken;
+
+      const lockRes = await request(app)
+        .patch(`/api/v1/auth/users/${targetUserId}/lock`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(lockRes.status).toBe(200);
+
+      const targetUser = await User.findById(targetUserId);
+      expect(targetUser?.status).toBe('LOCKED');
+      expect(targetUser?.credentialVersion).toBe(1);
+
+      // Stored token fails on authenticated endpoint
+      const resAfterLock = await request(app)
+        .patch('/api/v1/auth/password')
+        .set('Authorization', `Bearer ${targetAccessToken}`)
+        .send({ currentPassword: 'TargetPassword123', newPassword: 'NewPassword456' });
+
+      expect(resAfterLock.status).toBe(403);
+      expect(resAfterLock.body.code).toBe('AUTH_ACCOUNT_LOCKED');
     });
   });
 });
