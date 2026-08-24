@@ -90,15 +90,31 @@ describe('auth pages', () => {
 
     await user.click(screen.getByRole('button', { name: 'Đăng ký' }));
     expect(await screen.findByText('Họ và tên phải có ít nhất 2 ký tự')).toBeInTheDocument();
+    expect(screen.getByText('Vui lòng nhập lại mật khẩu')).toBeInTheDocument();
     expect(register).not.toHaveBeenCalled();
 
     await user.type(screen.getByLabelText('Họ và tên'), 'A User');
     await user.type(screen.getByLabelText('Email'), candidate.email);
     await user.type(screen.getByLabelText('Mật khẩu'), 'password');
+    await user.type(screen.getByLabelText('Nhập lại mật khẩu'), 'password');
     await user.click(screen.getByRole('button', { name: 'Đăng ký' }));
 
     expect(await screen.findByText('Email đã được sử dụng')).toBeInTheDocument();
     expect(screen.getByText('Đăng ký thất bại')).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('blocks Register when password confirmation does not match', async () => {
+    const user = userEvent.setup();
+    renderPage('/register');
+
+    await user.type(screen.getByLabelText('Họ và tên'), 'A User');
+    await user.type(screen.getByLabelText('Email'), candidate.email);
+    await user.type(screen.getByLabelText('Mật khẩu'), 'password');
+    await user.type(screen.getByLabelText('Nhập lại mật khẩu'), 'different-password');
+    await user.click(screen.getByRole('button', { name: 'Đăng ký' }));
+
+    expect(await screen.findByText('Mật khẩu nhập lại không khớp')).toBeInTheDocument();
+    expect(register).not.toHaveBeenCalled();
   });
 
   it('disables Register while submitting and navigates after success', async () => {
@@ -110,8 +126,14 @@ describe('auth pages', () => {
     await user.type(screen.getByLabelText('Họ và tên'), 'A User');
     await user.type(screen.getByLabelText('Email'), candidate.email);
     await user.type(screen.getByLabelText('Mật khẩu'), 'password');
+    await user.type(screen.getByLabelText('Nhập lại mật khẩu'), 'password');
     await user.click(screen.getByRole('button', { name: 'Đăng ký' }));
     expect(screen.getByRole('button', { name: 'Đang xử lý…' })).toBeDisabled();
+    expect(register).toHaveBeenCalledWith({
+      email: candidate.email,
+      password: 'password',
+      fullName: 'A User',
+    });
 
     resolve(authResponse);
     expect(await screen.findByText('SETUP')).toBeInTheDocument();

@@ -22,15 +22,21 @@ export const loginSchema = z.object({
     .refine(utf8Max72, 'Mật khẩu không được vượt quá 72 byte'),
 });
 
-export const registerSchema = z.object({
-  email: emailSchema,
-  password: passwordSchema,
-  fullName: z
-    .string()
-    .trim()
-    .min(2, 'Họ và tên phải có ít nhất 2 ký tự')
-    .max(100, 'Họ và tên không được vượt quá 100 ký tự'),
-});
+export const registerSchema = z
+  .object({
+    email: emailSchema,
+    password: passwordSchema,
+    confirmPassword: z.string().min(1, 'Vui lòng nhập lại mật khẩu'),
+    fullName: z
+      .string()
+      .trim()
+      .min(2, 'Họ và tên phải có ít nhất 2 ký tự')
+      .max(100, 'Họ và tên không được vượt quá 100 ký tự'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Mật khẩu nhập lại không khớp',
+    path: ['confirmPassword'],
+  });
 
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;

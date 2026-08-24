@@ -48,13 +48,18 @@ export function RegisterPage() {
               { name: 'fullName', label: 'Họ và tên', type: 'text', autoComplete: 'name' },
               { name: 'email', label: 'Email', type: 'email', autoComplete: 'email' },
               { name: 'password', label: 'Mật khẩu', type: 'password', autoComplete: 'new-password' },
+              { name: 'confirmPassword', label: 'Nhập lại mật khẩu', type: 'password', autoComplete: 'new-password' },
             ]}
             submitLabel="Đăng ký"
             serverError={error}
             onSubmit={async (values) => {
               setError(null);
               try {
-                const result = await register(values);
+                const result = await register({
+                  email: values.email,
+                  password: values.password,
+                  fullName: values.fullName,
+                });
                 setAccessToken(result.tokens.accessToken);
                 setRefreshToken(result.tokens.refreshToken);
                 useAuthStore.getState().setUser(result.user);
