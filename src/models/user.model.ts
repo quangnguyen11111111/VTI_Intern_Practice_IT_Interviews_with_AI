@@ -14,6 +14,7 @@ export interface IUser extends Document {
   currentLevel?: UserLevel | null;
   githubUrl?: string | null;
   linkedinUrl?: string | null;
+  bio?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -75,6 +76,12 @@ const userSchema = new Schema<IUser>(
       type: String,
       trim: true,
       maxlength: 2048,
+      default: null,
+    },
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 500,
       default: null,
     },
   },

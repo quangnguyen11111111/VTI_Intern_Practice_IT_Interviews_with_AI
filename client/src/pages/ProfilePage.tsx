@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, useWatch } from 'react-hook-form';
-import { Link } from 'react-router-dom';
-import { getProfile, updateProfile } from '../auth/apiClient';
+import { Link, useNavigate } from 'react-router-dom';
+import { getProfile, logout, updateProfile } from '../auth/apiClient';
 import { useAuthStore } from '../auth/authStore';
 import {
   PROFILE_LEVEL_OPTIONS,
@@ -50,15 +50,18 @@ const emptyProfile: ProfileFormData = {
   currentLevel: '',
   githubUrl: '',
   linkedinUrl: '',
+  bio: '',
 };
 
 export function ProfilePage() {
   const authUser = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const [saved, setSaved] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const {
     register,
@@ -87,6 +90,7 @@ export function ProfilePage() {
         currentLevel: profile.currentLevel ?? '',
         githubUrl: profile.githubUrl ?? '',
         linkedinUrl: profile.linkedinUrl ?? '',
+        bio: profile.bio ?? '',
       });
     } catch (error) {
       setLoadError(toApiError(error));
@@ -94,6 +98,15 @@ export function ProfilePage() {
       setLoading(false);
     }
   }, [reset, setUser]);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      navigate('/login', { replace: true });
+    }
+  };
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => void loadProfile(), 0);
@@ -106,10 +119,11 @@ export function ProfilePage() {
     try {
       const profile = await updateProfile({
         fullName: values.fullName.trim(),
-        avatarUrl: values.avatarUrl.trim() || null,
+        avatarUrl: values.avatarUrl?.trim() || null,
         currentLevel: values.currentLevel || null,
-        githubUrl: values.githubUrl.trim() || null,
-        linkedinUrl: values.linkedinUrl.trim() || null,
+        githubUrl: values.githubUrl?.trim() || null,
+        linkedinUrl: values.linkedinUrl?.trim() || null,
+        bio: values.bio?.trim() || null,
       });
       setUser(profile);
       reset({
@@ -118,6 +132,7 @@ export function ProfilePage() {
         currentLevel: profile.currentLevel ?? '',
         githubUrl: profile.githubUrl ?? '',
         linkedinUrl: profile.linkedinUrl ?? '',
+        bio: profile.bio ?? '',
       });
       setSaved(true);
     } catch (error) {
@@ -141,9 +156,23 @@ export function ProfilePage() {
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 sm:py-12">
       <div className="mx-auto max-w-3xl">
-        <Link to="/" className="mb-5 inline-flex rounded-lg px-2 py-1 font-semibold text-slate-600 hover:text-indigo-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-100">
-          ← Về trang chủ
-        </Link>
+        <div className="mb-5 flex items-center justify-between">
+          <Link to="/" className="inline-flex rounded-lg px-2 py-1 font-semibold text-slate-600 hover:text-indigo-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-100">
+            ← Về trang chủ
+          </Link>
+          <button
+            id="btn-logout"
+            type="button"
+            onClick={() => void handleLogout()}
+            disabled={loggingOut}
+            className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-500/20"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            {loggingOut ? 'Đang đăng xuất…' : 'Đăng xuất'}
+          </button>
+        </div>
 
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60" aria-labelledby="profile-title">
           <header className="flex flex-col items-center gap-4 bg-gradient-to-r from-indigo-50 to-purple-50 px-6 py-8 text-center sm:flex-row sm:text-left">
@@ -206,6 +235,20 @@ export function ProfilePage() {
                     {errors[field] && <p role="alert" className="mt-1 text-sm text-red-700">{errors[field]?.message}</p>}
                   </div>
                 ))}
+
+                <div>
+                  <label htmlFor="bio" className="text-sm font-semibold text-slate-700">Giới thiệu bản thân</label>
+                  <textarea
+                    id="bio"
+                    rows={3}
+                    placeholder="Ví dụ: 3 năm kinh nghiệm backend, đam mê kiến trúc microservices…"
+                    {...register('bio')}
+                    aria-invalid={Boolean(errors.bio)}
+                    className={`${inputClass(Boolean(errors.bio))} resize-none`}
+                  />
+                  {errors.bio && <p role="alert" className="mt-1 text-sm text-red-700">{errors.bio.message}</p>}
+                  <p className="mt-1 text-xs text-slate-400">Tối đa 500 ký tự. Hiển thị trong hồ sơ phỏng vấn của bạn.</p>
+                </div>
 
                 <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-indigo-600 px-5 py-3.5 font-bold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60">
                   {isSubmitting ? 'Đang lưu…' : 'Lưu thay đổi'}

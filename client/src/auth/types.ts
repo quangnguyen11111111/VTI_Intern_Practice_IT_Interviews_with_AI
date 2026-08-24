@@ -12,6 +12,7 @@ export interface User {
   currentLevel?: UserLevel | null;
   githubUrl?: string | null;
   linkedinUrl?: string | null;
+  bio?: string | null;
   createdAt: string;
   updatedAt?: string;
 }

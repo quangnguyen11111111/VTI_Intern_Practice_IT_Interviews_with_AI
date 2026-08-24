@@ -36,6 +36,11 @@ export const updateProfileBodySchema = z
     currentLevel: clearableLevel.optional(),
     githubUrl: clearableUrl.optional(),
     linkedinUrl: clearableUrl.optional(),
+    bio: z.union([
+      z.literal('').transform(() => null),
+      z.null(),
+      z.string().trim().min(1).max(500, 'Giới thiệu không được vượt quá 500 ký tự'),
+    ]).optional(),
   })
   .strict()
   .refine((body) => Object.values(body).some((value) => value !== undefined), {

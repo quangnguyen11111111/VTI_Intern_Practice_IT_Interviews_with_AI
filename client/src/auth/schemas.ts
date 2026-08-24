@@ -74,6 +74,7 @@ export const profileSchema = z.object({
   currentLevel: z.union([z.literal(''), z.enum(PROFILE_LEVELS)]),
   githubUrl: optionalProfileUrl,
   linkedinUrl: optionalProfileUrl,
+  bio: z.string().trim().max(500, 'Giới thiệu không được vượt quá 500 ký tự').optional().or(z.literal('')),
 });
 
 export type ProfileFormData = z.infer<typeof profileSchema>;

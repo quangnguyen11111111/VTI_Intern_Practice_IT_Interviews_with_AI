@@ -13,6 +13,7 @@ const toSafeProfile = (user: IUser): SafeUser => ({
   currentLevel: user.currentLevel ?? null,
   githubUrl: user.githubUrl ?? null,
   linkedinUrl: user.linkedinUrl ?? null,
+  bio: user.bio ?? null,
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,
 });

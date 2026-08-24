@@ -8,6 +8,7 @@ export interface SafeUser {
   currentLevel?: 'FRESHER' | 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD' | 'MANAGER' | null;
   githubUrl?: string | null;
   linkedinUrl?: string | null;
+  bio?: string | null;
   createdAt: Date | string;
   updatedAt?: Date | string;
 }
