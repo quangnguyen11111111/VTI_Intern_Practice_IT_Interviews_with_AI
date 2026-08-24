@@ -7,7 +7,7 @@ import { useAuthStore } from '../auth/authStore';
 import type { User } from '../auth/types';
 import { ProfilePage } from './ProfilePage';
 
-vi.mock('../auth/apiClient', () => ({ getProfile: vi.fn(), updateProfile: vi.fn() }));
+vi.mock('../auth/apiClient', () => ({ getProfile: vi.fn(), logout: vi.fn(), updateProfile: vi.fn() }));
 
 const profile: User = {
   id: 'user-1',
@@ -19,6 +19,7 @@ const profile: User = {
   currentLevel: 'MIDDLE',
   githubUrl: 'https://github.com/candidate',
   linkedinUrl: 'https://linkedin.com/in/candidate',
+  bio: null,
   createdAt: '2026-08-22T00:00:00.000Z',
 };
 
@@ -57,6 +58,7 @@ describe('ProfilePage', () => {
       currentLevel: 'SENIOR',
       githubUrl: 'https://github.com/candidate',
       linkedinUrl: 'https://linkedin.com/in/candidate',
+      bio: null,
     }));
     expect(await screen.findByText('Cập nhật hồ sơ thành công')).toBeInTheDocument();
     expect(useAuthStore.getState().user?.fullName).toBe('Updated User');
