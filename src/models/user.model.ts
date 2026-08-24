@@ -24,6 +24,7 @@ const userSchema = new Schema<IUser>(
     passwordHash: {
       type: String,
       required: true,
+      select: false,
     },
     fullName: {
       type: String,
@@ -43,6 +44,24 @@ const userSchema = new Schema<IUser>(
   },
   {
     timestamps: true, // Tự động tạo createdAt, updatedAt
+    toJSON: {
+      transform: (_doc, ret: any) => {
+        ret.id = ret._id ? ret._id.toString() : ret.id;
+        delete ret._id;
+        delete ret.__v;
+        delete ret.passwordHash;
+        return ret;
+      },
+    },
+    toObject: {
+      transform: (_doc, ret: any) => {
+        ret.id = ret._id ? ret._id.toString() : ret.id;
+        delete ret._id;
+        delete ret.__v;
+        delete ret.passwordHash;
+        return ret;
+      },
+    },
   }
 );
 

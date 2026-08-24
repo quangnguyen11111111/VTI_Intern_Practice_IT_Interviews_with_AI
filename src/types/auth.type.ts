@@ -1,0 +1,24 @@
+export interface SafeUser {
+  id: string;
+  email: string;
+  fullName: string;
+  role: 'CANDIDATE' | 'INTERVIEWER' | 'ADMIN';
+  status: 'ACTIVE' | 'INACTIVE';
+  createdAt: Date | string;
+}
+
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface AuthResponseData {
+  user: SafeUser;
+  tokens: AuthTokens;
+}
+
+export interface JwtTokenPayload {
+  sub: string;
+  role: 'CANDIDATE' | 'INTERVIEWER' | 'ADMIN';
+  type: 'access' | 'refresh';
+}
