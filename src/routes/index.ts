@@ -3,9 +3,11 @@ import roleRoutes from './role.route';
 import levelRoutes from './level.route';
 import technologyRoutes from './technology.route';
 import interviewRoutes from './interview.route';
+import authRoutes from './auth.routes';
 
 const router = Router();
 
+router.use('/auth', authRoutes);
 router.use('/roles', roleRoutes);
 router.use('/levels', levelRoutes);
 router.use('/technologies', technologyRoutes);
