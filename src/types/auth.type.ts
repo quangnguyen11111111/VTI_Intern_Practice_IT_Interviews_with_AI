@@ -4,7 +4,12 @@ export interface SafeUser {
   fullName: string;
   role: 'CANDIDATE' | 'INTERVIEWER' | 'ADMIN';
   status: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
+  avatarUrl?: string | null;
+  currentLevel?: 'FRESHER' | 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD' | 'MANAGER' | null;
+  githubUrl?: string | null;
+  linkedinUrl?: string | null;
   createdAt: Date | string;
+  updatedAt?: Date | string;
 }
 
 export interface AuthTokens {

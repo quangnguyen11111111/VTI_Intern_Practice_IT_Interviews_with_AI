@@ -1,4 +1,4 @@
-import type { ApiError, AuthResponse } from './types';
+import type { ApiError, AuthResponse, User } from './types';
 import { clearSession, getAccessToken, getRefreshToken, setAccessToken, setRefreshToken } from './session';
 import { authBridge } from './authStore';
 
@@ -109,3 +109,8 @@ export const logout = async () => {
     invalidateSession();
   }
 };
+
+export const getProfile = () => request<User>('profile');
+
+export const updateProfile = (body: unknown) =>
+  request<User>('profile', { method: 'PATCH', body: JSON.stringify(body) });
