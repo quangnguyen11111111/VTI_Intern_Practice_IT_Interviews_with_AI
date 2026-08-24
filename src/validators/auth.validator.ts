@@ -44,3 +44,33 @@ export const loginSchema = z.object({
     })
     .strict(),
 });
+
+export const refreshTokenSchema = z.object({
+  body: z
+    .object({
+      refreshToken: z
+        .string()
+        .min(1, 'Refresh token là bắt buộc'),
+    })
+    .strict(),
+});
+
+export const logoutSchema = z.object({
+  body: z
+    .object({
+      refreshToken: z
+        .string()
+        .min(1, 'Refresh token là bắt buộc'),
+    })
+    .strict(),
+});
+
+export const lockUserSchema = z.object({
+  params: z
+    .object({
+      id: z
+        .string()
+        .regex(/^[0-9a-fA-F]{24}$/, 'ID người dùng không đúng định dạng ObjectId'),
+    })
+    .strict(),
+});
