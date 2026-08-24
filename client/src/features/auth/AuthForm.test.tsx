@@ -116,4 +116,15 @@ describe('auth pages', () => {
     resolve(authResponse);
     expect(await screen.findByText('SETUP')).toBeInTheDocument();
   });
+
+  it('provides navigation back home and between auth pages', () => {
+    renderPage('/login');
+    expect(screen.getByRole('link', { name: 'Về trang chủ' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: 'Đăng ký' })).toHaveAttribute('href', '/register');
+
+    cleanup();
+    renderPage('/register');
+    expect(screen.getByRole('link', { name: 'Về trang chủ' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: 'Đăng nhập' })).toHaveAttribute('href', '/login');
+  });
 });
