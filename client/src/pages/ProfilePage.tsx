@@ -250,9 +250,25 @@ export function ProfilePage() {
                   <p className="mt-1 text-xs text-slate-400">Tối đa 500 ký tự. Hiển thị trong hồ sơ phỏng vấn của bạn.</p>
                 </div>
 
-                <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-indigo-600 px-5 py-3.5 font-bold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60">
-                  {isSubmitting ? 'Đang lưu…' : 'Lưu thay đổi'}
-                </button>
+                <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+                  <Link
+                    to="/change-password"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50/50 px-5 py-3 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100/70 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-500/15"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                    Đổi mật khẩu
+                  </Link>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="rounded-xl bg-indigo-600 px-6 py-3.5 font-bold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSubmitting ? 'Đang lưu…' : 'Lưu thay đổi'}
+                  </button>
+                </div>
               </form>
             )}
           </div>

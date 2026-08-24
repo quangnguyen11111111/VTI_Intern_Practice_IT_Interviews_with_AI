@@ -1,0 +1,1193 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "IT Interview AI - Auth & Profile API",
+    "version": "1.0.0",
+    "description": "OpenAPI 3.1 specification for authentication, password lifecycle, session rotation, account administration, and profile management in IT Interview AI."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Local development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Authentication and session management operations"
+    },
+    {
+      "name": "Password Recovery",
+      "description": "Password reset, change, and recovery operations"
+    },
+    {
+      "name": "Admin",
+      "description": "Administrative user management operations"
+    },
+    {
+      "name": "Profile",
+      "description": "Candidate and user profile operations"
+    }
+  ],
+  "paths": {
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register a new candidate user",
+        "description": "Creates a new user account with CANDIDATE role and ACTIVE status. Generates initial access and refresh tokens. Returns SafeUser without sensitive credentials.",
+        "operationId": "registerUser",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registration successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (invalid format, password byte limit exceeded)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email already in use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login with email and password",
+        "description": "Authenticates user credentials using constant-time dummy hashing comparison when email is not found to prevent timing-based user enumeration. Generates a new session and token pair.",
+        "operationId": "loginUser",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Account is locked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Refresh access and refresh token pair",
+        "description": "Rotates refresh token for the active session. If an already revoked token is presented, replay detection revokes all tokens for that session family.",
+        "operationId": "refreshToken",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token refresh successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid, expired, or revoked refresh token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Account is locked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout session",
+        "description": "Revokes the active refresh token session specified in the request body.",
+        "operationId": "logoutUser",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogoutInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Logout successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenericSuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid, expired, or already revoked refresh token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/users/{id}/lock": {
+      "patch": {
+        "tags": ["Admin"],
+        "summary": "Lock user account (canonical route)",
+        "description": "Admin-only endpoint that transitions a target user account to LOCKED, increments credentialVersion, and revokes all active refresh sessions.",
+        "operationId": "lockUserCanonical",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "24-character hexadecimal MongoDB ObjectId of target user",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User locked successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LockUserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid user ID or attempt to lock self",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (non-admin role) or caller account locked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Target user not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/lock/{id}": {
+      "patch": {
+        "tags": ["Admin"],
+        "summary": "Lock user account (compatibility alias)",
+        "description": "Admin-only alias route matching /api/v1/auth/users/{id}/lock behavior.",
+        "operationId": "lockUserAlias",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "24-character hexadecimal MongoDB ObjectId of target user",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{24}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User locked successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LockUserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid user ID or attempt to lock self",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (non-admin role) or caller account locked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Target user not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password": {
+      "patch": {
+        "tags": ["Password Recovery"],
+        "summary": "Change password (authenticated)",
+        "description": "Changes the password of the authenticated user. Verifies current password, rejects password reuse, increments credentialVersion, and revokes all active refresh sessions.",
+        "operationId": "changePassword",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenericSuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid current password, password reused, or validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized or invalid/stale access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Account is locked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Concurrent password update conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password/forgot": {
+      "post": {
+        "tags": ["Password Recovery"],
+        "summary": "Request password reset OTP",
+        "description": "Initiates password reset by dispatching a 6-digit OTP to the specified email. Enforces distributed atomic rate limiting (max 5 requests per rolling hour and 60-second cooldown). Returns identical 202 Accepted response regardless of whether the email exists.",
+        "operationId": "forgotPassword",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Generic accepted response (anti-enumeration)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenericSuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (more than 5 requests in rolling hour)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Email delivery failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password/reset": {
+      "post": {
+        "tags": ["Password Recovery"],
+        "summary": "Reset password with OTP",
+        "description": "Validates 6-digit OTP and sets a new password. Caps failed attempts at 5. On success, updates password hash, increments credentialVersion, and revokes all active sessions. Valid synthetic OTP requests return the same 200 format without modifying users.",
+        "operationId": "resetPassword",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenericSuccessResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Canonical invalid or expired OTP error, or validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profile": {
+      "get": {
+        "tags": ["Profile"],
+        "summary": "Get current user profile",
+        "description": "Retrieves the profile information of the authenticated user.",
+        "operationId": "getCurrentProfile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized or invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Account is locked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Profile"],
+        "summary": "Update current user profile",
+        "description": "Updates profile fields for the authenticated user. All URL fields (avatarUrl, githubUrl, linkedinUrl) must be valid absolute http/https URLs up to 2048 characters or null/empty string to clear.",
+        "operationId": "updateCurrentProfile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error (invalid URL, invalid level enum, or empty payload)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized or invalid access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Account is locked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "HS256 JWT access token provided in Authorization header: Bearer <token>"
+      }
+    },
+    "schemas": {
+      "SafeUser": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "email", "fullName", "role", "status", "createdAt"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "24-character hexadecimal MongoDB ObjectId",
+            "example": "651a1f00b2a3c4d5e6f7a8b9"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "candidate@example.com"
+          },
+          "fullName": {
+            "type": "string",
+            "example": "Nguyen Van A"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["CANDIDATE", "INTERVIEWER", "ADMIN"],
+            "example": "CANDIDATE"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "INACTIVE", "LOCKED"],
+            "example": "ACTIVE"
+          },
+          "avatarUrl": {
+            "type": ["string", "null"],
+            "format": "uri",
+            "example": "https://example.com/avatar.png"
+          },
+          "currentLevel": {
+            "type": ["string", "null"],
+            "enum": ["FRESHER", "JUNIOR", "MIDDLE", "SENIOR", "LEAD", "MANAGER", null],
+            "example": "MIDDLE"
+          },
+          "githubUrl": {
+            "type": ["string", "null"],
+            "format": "uri",
+            "example": "https://github.com/example"
+          },
+          "linkedinUrl": {
+            "type": ["string", "null"],
+            "format": "uri",
+            "example": "https://linkedin.com/in/example"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-08-22T10:00:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-08-22T10:00:00.000Z"
+          }
+        }
+      },
+      "AuthTokens": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["accessToken", "refreshToken"],
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "Signed HS256 JWT access token (15m expiration)",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          },
+          "refreshToken": {
+            "type": "string",
+            "description": "Signed HS256 JWT refresh token (7d expiration)",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          }
+        }
+      },
+      "AuthResponseData": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["user", "tokens"],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/SafeUser"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/AuthTokens"
+          }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message", "data"],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Đăng nhập thành công"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AuthResponseData"
+          }
+        }
+      },
+      "GenericSuccessResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message"],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Thao tác thành công"
+          },
+          "data": {
+            "type": "null",
+            "example": null
+          }
+        }
+      },
+      "ProfileResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data"],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Cập nhật hồ sơ thành công"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SafeUser"
+          }
+        }
+      },
+      "LockUserResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message", "data"],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "message": {
+            "type": "string",
+            "example": "Khóa tài khoản thành công"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["user"],
+            "properties": {
+              "user": {
+                "$ref": "#/components/schemas/SafeUser"
+              }
+            }
+          }
+        }
+      },
+      "ValidationErrorDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "message"],
+        "properties": {
+          "field": {
+            "type": "string",
+            "example": "email"
+          },
+          "message": {
+            "type": "string",
+            "example": "Email không đúng định dạng"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message"],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "message": {
+            "type": "string",
+            "example": "Mô tả lỗi tiếng Việt chuẩn hóa"
+          },
+          "code": {
+            "type": "string",
+            "example": "VALIDATION_ERROR"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationErrorDetail"
+            }
+          }
+        }
+      },
+      "RegisterInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email", "password", "fullName"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "example": "candidate@example.com"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "description": "Password with minimum 8 characters and maximum 72 bytes (bcrypt limit)",
+            "example": "StrongPassword123"
+          },
+          "fullName": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 100,
+            "example": "Nguyen Van A"
+          }
+        }
+      },
+      "LoginInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email", "password"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "example": "candidate@example.com"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Password up to 72 bytes",
+            "example": "StrongPassword123"
+          }
+        }
+      },
+      "RefreshTokenInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["refreshToken"],
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Active refresh token string",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          }
+        }
+      },
+      "LogoutInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["refreshToken"],
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Refresh token string to revoke",
+            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+          }
+        }
+      },
+      "ChangePasswordInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["currentPassword", "newPassword"],
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "minLength": 8,
+            "description": "Current password (min 8 chars, max 72 bytes)",
+            "example": "CurrentPassword123"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 8,
+            "description": "New replacement password (min 8 chars, max 72 bytes, non-reusable)",
+            "example": "BrandNewPassword123"
+          }
+        }
+      },
+      "ForgotPasswordInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "example": "candidate@example.com"
+          }
+        }
+      },
+      "ResetPasswordInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["email", "otp", "newPassword"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "example": "candidate@example.com"
+          },
+          "otp": {
+            "type": "string",
+            "pattern": "^\\d{6}$",
+            "description": "6-digit numeric verification OTP",
+            "example": "123456"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 8,
+            "description": "New replacement password (min 8 chars, max 72 bytes)",
+            "example": "BrandNewPassword123"
+          }
+        }
+      },
+      "UpdateProfileInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 100,
+            "example": "Nguyen Van B"
+          },
+          "avatarUrl": {
+            "type": ["string", "null"],
+            "maxLength": 2048,
+            "description": "Absolute http/https URL or empty string/null to clear",
+            "example": "https://example.com/avatar.png"
+          },
+          "currentLevel": {
+            "type": ["string", "null"],
+            "enum": ["FRESHER", "JUNIOR", "MIDDLE", "SENIOR", "LEAD", "MANAGER", "", null],
+            "example": "SENIOR"
+          },
+          "githubUrl": {
+            "type": ["string", "null"],
+            "maxLength": 2048,
+            "description": "Absolute http/https URL or empty string/null to clear",
+            "example": "https://github.com/example"
+          },
+          "linkedinUrl": {
+            "type": ["string", "null"],
+            "maxLength": 2048,
+            "description": "Absolute http/https URL or empty string/null to clear",
+            "example": "https://linkedin.com/in/example"
+          }
+        }
+      }
+    }
+  }
+}

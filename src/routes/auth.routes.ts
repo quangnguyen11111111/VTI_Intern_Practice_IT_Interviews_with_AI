@@ -5,6 +5,9 @@ import {
   refreshTokenHandler,
   logoutHandler,
   lockUserHandler,
+  changePasswordHandler,
+  forgotPasswordHandler,
+  resetPasswordHandler,
 } from '../controllers/auth.controller';
 import { validate } from '../middlewares/validate.middleware';
 import {
@@ -13,6 +16,9 @@ import {
   refreshTokenSchema,
   logoutSchema,
   lockUserSchema,
+  changePasswordSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 } from '../validators/auth.validator';
 import { authenticate, requireAdmin } from '../middlewares/auth.middleware';
 import { catchAsync } from '../utils/catchAsync';
@@ -25,5 +31,8 @@ router.post('/refresh', validate(refreshTokenSchema), catchAsync(refreshTokenHan
 router.post('/logout', validate(logoutSchema), catchAsync(logoutHandler));
 router.patch('/users/:id/lock', authenticate, requireAdmin, validate(lockUserSchema), catchAsync(lockUserHandler));
 router.patch('/lock/:id', authenticate, requireAdmin, validate(lockUserSchema), catchAsync(lockUserHandler));
+router.patch('/password', authenticate, validate(changePasswordSchema), catchAsync(changePasswordHandler));
+router.post('/password/forgot', validate(forgotPasswordSchema), catchAsync(forgotPasswordHandler));
+router.post('/password/reset', validate(resetPasswordSchema), catchAsync(resetPasswordHandler));
 
 export default router;

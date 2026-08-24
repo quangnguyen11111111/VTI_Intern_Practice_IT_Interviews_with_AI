@@ -6,7 +6,14 @@ const configuredBase = ((import.meta.env.VITE_API_URL as string | undefined) ?? 
 const apiRoot = configuredBase.endsWith('/api/v1') ? configuredBase : `${configuredBase}/api/v1`;
 const normalizePath = (path: string) => path.replace(/^\/+/, '');
 const endpoint = (path: string) => `${apiRoot}/${normalizePath(path)}`;
-const AUTH_ENDPOINTS = new Set(['auth/register', 'auth/login', 'auth/refresh', 'auth/logout']);
+const AUTH_ENDPOINTS = new Set([
+  'auth/register',
+  'auth/login',
+  'auth/refresh',
+  'auth/logout',
+  'auth/password/forgot',
+  'auth/password/reset',
+]);
 
 let refreshPromise: Promise<AuthResponse> | null = null;
 
@@ -109,6 +116,15 @@ export const logout = async () => {
     invalidateSession();
   }
 };
+
+export const forgotPassword = (body: unknown) =>
+  request<null>('auth/password/forgot', { method: 'POST', body: JSON.stringify(body) });
+
+export const resetPassword = (body: unknown) =>
+  request<null>('auth/password/reset', { method: 'POST', body: JSON.stringify(body) });
+
+export const changePassword = (body: unknown) =>
+  request<null>('auth/password', { method: 'PATCH', body: JSON.stringify(body) });
 
 export const getProfile = () => request<User>('profile');
 
