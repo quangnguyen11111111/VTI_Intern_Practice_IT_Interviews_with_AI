@@ -3,7 +3,7 @@ export interface SafeUser {
   email: string;
   fullName: string;
   role: 'CANDIDATE' | 'INTERVIEWER' | 'ADMIN';
-  status: 'ACTIVE' | 'INACTIVE';
+  status: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
   createdAt: Date | string;
 }
 
@@ -21,4 +21,6 @@ export interface JwtTokenPayload {
   sub: string;
   role: 'CANDIDATE' | 'INTERVIEWER' | 'ADMIN';
   type: 'access' | 'refresh';
+  jti?: string;
+  sessionId?: string;
 }
