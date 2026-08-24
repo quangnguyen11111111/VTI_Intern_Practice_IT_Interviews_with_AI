@@ -1,7 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useAuthStore } from '../auth/authStore';
 
 export const HomePage: React.FC = () => {
+  const user = useAuthStore((state) => state.user);
+
   return (
     <div className="min-h-screen relative overflow-hidden bg-slate-50 selection:bg-indigo-500 selection:text-white flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8">
       {/* Decorative blurred backgrounds */}
@@ -35,12 +38,12 @@ export const HomePage: React.FC = () => {
             <svg className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
           </Link>
           
-          <button
-            onClick={() => alert("Tính năng quản lý đang được phát triển...")}
+          <Link
+            to={user ? '/profile' : '/login'}
             className="inline-flex justify-center items-center px-8 py-4 rounded-2xl text-lg font-bold text-slate-700 bg-white hover:bg-slate-50 border-2 border-slate-200 hover:border-slate-300 shadow-sm hover:shadow transition-all"
           >
-            Quản lý hệ thống
-          </button>
+            {user ? 'Hồ sơ cá nhân' : 'Đăng nhập'}
+          </Link>
         </div>
       </div>
     </div>

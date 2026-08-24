@@ -1,5 +1,6 @@
 export type Role = 'CANDIDATE' | 'INTERVIEWER' | 'ADMIN';
 export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'LOCKED';
+export type UserLevel = 'FRESHER' | 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD' | 'MANAGER';
 
 export interface User {
   id: string;
@@ -7,7 +8,13 @@ export interface User {
   fullName: string;
   role: Role;
   status: UserStatus;
+  avatarUrl?: string | null;
+  currentLevel?: UserLevel | null;
+  githubUrl?: string | null;
+  linkedinUrl?: string | null;
+  bio?: string | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface AuthTokens {

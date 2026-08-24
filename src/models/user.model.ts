@@ -1,5 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+export type UserLevel = 'FRESHER' | 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD' | 'MANAGER';
+
 // 1. Interface (Khai báo kiểu dữ liệu chuẩn)
 export interface IUser extends Document {
   email: string;
@@ -8,6 +10,11 @@ export interface IUser extends Document {
   role: 'CANDIDATE' | 'INTERVIEWER' | 'ADMIN';
   status: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
   authVersion: number;
+  avatarUrl?: string | null;
+  currentLevel?: UserLevel | null;
+  githubUrl?: string | null;
+  linkedinUrl?: string | null;
+  bio?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,6 +38,8 @@ const userSchema = new Schema<IUser>(
       type: String,
       required: true,
       trim: true,
+      minlength: 2,
+      maxlength: 100,
     },
     role: {
       type: String,
@@ -46,6 +55,35 @@ const userSchema = new Schema<IUser>(
       type: Number,
       default: 0,
     },
+    avatarUrl: {
+      type: String,
+      trim: true,
+      maxlength: 2048,
+      default: null,
+    },
+    currentLevel: {
+      type: String,
+      enum: ['FRESHER', 'JUNIOR', 'MIDDLE', 'SENIOR', 'LEAD', 'MANAGER'],
+      default: null,
+    },
+    githubUrl: {
+      type: String,
+      trim: true,
+      maxlength: 2048,
+      default: null,
+    },
+    linkedinUrl: {
+      type: String,
+      trim: true,
+      maxlength: 2048,
+      default: null,
+    },
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: null,
+    },
   },
   {
     timestamps: true, // Tự động tạo createdAt, updatedAt
@@ -55,6 +93,7 @@ const userSchema = new Schema<IUser>(
         delete ret._id;
         delete ret.__v;
         delete ret.passwordHash;
+        delete ret.authVersion;
         return ret;
       },
     },
@@ -64,6 +103,7 @@ const userSchema = new Schema<IUser>(
         delete ret._id;
         delete ret.__v;
         delete ret.passwordHash;
+        delete ret.authVersion;
         return ret;
       },
     },

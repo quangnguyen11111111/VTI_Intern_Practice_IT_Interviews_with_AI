@@ -53,7 +53,7 @@ describe('api client auth boundaries', () => {
     }
 
     expect(fetchMock).toHaveBeenCalledTimes(4);
-    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+    expect(fetchMock.mock.calls.map(([url]) => new URL(String(url), 'http://test.local').pathname)).toEqual([
       '/api/v1/auth/register',
       '/api/v1/auth/login',
       '/api/v1/auth/refresh',

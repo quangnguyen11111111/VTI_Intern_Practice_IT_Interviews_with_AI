@@ -34,3 +34,47 @@ export const registerSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
+
+export const PROFILE_LEVELS = [
+  'FRESHER',
+  'JUNIOR',
+  'MIDDLE',
+  'SENIOR',
+  'LEAD',
+  'MANAGER',
+] as const;
+
+export const PROFILE_LEVEL_OPTIONS = [
+  { value: 'FRESHER', label: 'Fresher / Intern' },
+  { value: 'JUNIOR', label: 'Junior' },
+  { value: 'MIDDLE', label: 'Middle' },
+  { value: 'SENIOR', label: 'Senior' },
+  { value: 'LEAD', label: 'Lead' },
+  { value: 'MANAGER', label: 'Manager / Director' },
+] as const;
+
+const httpUrlSchema = z
+  .string()
+  .trim()
+  .max(2048, 'URL không được vượt quá 2048 ký tự')
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }, 'URL phải là đường dẫn tuyệt đối bắt đầu bằng http:// hoặc https://');
+
+const optionalProfileUrl = z.union([z.literal(''), httpUrlSchema]);
+
+export const profileSchema = z.object({
+  fullName: z.string().trim().min(2, 'Họ và tên phải có ít nhất 2 ký tự').max(100, 'Họ và tên không được vượt quá 100 ký tự'),
+  avatarUrl: optionalProfileUrl,
+  currentLevel: z.union([z.literal(''), z.enum(PROFILE_LEVELS)]),
+  githubUrl: optionalProfileUrl,
+  linkedinUrl: optionalProfileUrl,
+  bio: z.string().trim().max(500, 'Giới thiệu không được vượt quá 500 ký tự').optional().or(z.literal('')),
+});
+
+export type ProfileFormData = z.infer<typeof profileSchema>;
