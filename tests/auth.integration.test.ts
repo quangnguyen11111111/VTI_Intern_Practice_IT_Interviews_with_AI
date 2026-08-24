@@ -1,6 +1,6 @@
-﻿import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import request from 'supertest';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -17,21 +17,22 @@ vi.hoisted(() => {
 
 import app from '../src/app';
 import User from '../src/models/user.model';
+import RefreshToken from '../src/models/refresh-token.model';
 import { getEnv } from '../src/config/env';
-import { generateAuthTokens, verifyAccessToken, verifyRefreshToken } from '../src/utils/token';
+import { generateAuthTokens, verifyAccessToken, verifyRefreshToken, hashToken } from '../src/utils/token';
 import { JwtTokenPayload } from '../src/types/auth.type';
 
-let mongoServer: MongoMemoryServer;
+let mongoReplSet: MongoMemoryReplSet;
 
 beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const uri = mongoServer.getUri();
+  mongoReplSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
+  const uri = mongoReplSet.getUri();
   await mongoose.connect(uri);
 });
 
 afterAll(async () => {
   await mongoose.disconnect();
-  await mongoServer.stop();
+  await mongoReplSet.stop();
 });
 
 beforeEach(async () => {
@@ -44,9 +45,10 @@ beforeEach(async () => {
   process.env.BCRYPT_SALT_ROUNDS = '10';
 
   await User.deleteMany({});
+  await RefreshToken.deleteMany({});
 });
 
-describe('AIP-15: Authentication Integration Tests', () => {
+describe('AIP-15 & AIP-16: Authentication & Session Management Tests', () => {
   // =================================================================
   // 1. CONFIGURATION & ENVIRONMENT VALIDATION TESTS
   // =================================================================
@@ -123,6 +125,8 @@ describe('AIP-15: Authentication Integration Tests', () => {
       expect(payload.sub).toBe('user-123');
       expect(payload.role).toBe('ADMIN');
       expect(payload.type).toBe('refresh');
+      expect(payload.jti).toBeDefined();
+      expect(payload.sessionId).toBeDefined();
     });
 
     it('2.3 verifyAccessToken từ chối refresh token (sai type và sai secret)', () => {
@@ -142,6 +146,14 @@ describe('AIP-15: Authentication Integration Tests', () => {
         { algorithm: 'HS256' }
       );
       expect(() => verifyAccessToken(fakeToken)).toThrow(/Invalid access token payload/);
+    });
+
+    it('2.6 hashToken băm token chuẩn xác bằng SHA256', () => {
+      const token = 'sample-refresh-token';
+      const hash = hashToken(token);
+      expect(typeof hash).toBe('string');
+      expect(hash.length).toBe(64);
+      expect(hashToken(token)).toBe(hash);
     });
   });
 
@@ -168,7 +180,7 @@ describe('AIP-15: Authentication Integration Tests', () => {
   // 4. REGISTER HỢP LỆ & DUPLICATE
   // =================================================================
   describe('POST /api/v1/auth/register', () => {
-    it('4.1 Đăng ký thành công: trả về 201, đúng message tiếng Việt UTF-8, lưu đúng 1 user, hash password, trả SafeUser', async () => {
+    it('4.1 Đăng ký thành công: trả về 201, đúng message tiếng Việt UTF-8, lưu đúng 1 user, hash password, trả SafeUser và lưu RefreshToken hash', async () => {
       const payload = {
         email: 'candidate@example.com',
         password: 'StrongPassword123',
@@ -211,6 +223,13 @@ describe('AIP-15: Authentication Integration Tests', () => {
 
       const isMatch = await bcrypt.compare('StrongPassword123', dbUser!.passwordHash);
       expect(isMatch).toBe(true);
+
+      // Verify RefreshToken in DB
+      const session = await RefreshToken.findOne({ userId: dbUser!._id });
+      expect(session).not.toBeNull();
+      expect(session?.isRevoked).toBe(false);
+      expect(session?.tokenHash).toBe(hashToken(tokens.refreshToken));
+      expect(session?.tokenHash).not.toBe(tokens.refreshToken);
     });
 
     it('4.2 Đăng ký với email có khoảng trắng được tự động trim và lowercase', async () => {
@@ -295,10 +314,9 @@ describe('AIP-15: Authentication Integration Tests', () => {
     });
 
     it('5.3 Validation: Mật khẩu Unicode có <= 72 ký tự nhưng > 72 byte bị từ chối với 400, field = password', async () => {
-      // '🔑' có 4 byte UTF-8; 20 ký tự = 80 byte > 72 byte
       const unicodePassword = '🔑'.repeat(20);
-      expect(unicodePassword.length).toBe(40); // UTF-16 code units <= 72
-      expect(Buffer.byteLength(unicodePassword, 'utf8')).toBe(80); // > 72 byte
+      expect(unicodePassword.length).toBe(40);
+      expect(Buffer.byteLength(unicodePassword, 'utf8')).toBe(80);
 
       const res = await request(app)
         .post('/api/v1/auth/register')
@@ -381,7 +399,7 @@ describe('AIP-15: Authentication Integration Tests', () => {
   // 6. LOGIN THÀNH CÔNG & THẤT BẠI
   // =================================================================
   describe('POST /api/v1/auth/login', () => {
-    it('6.1 Login thành công: trả 200, đúng message tiếng Việt UTF-8, JWT payload { sub, role, type }', async () => {
+    it('6.1 Login thành công: trả 200, đúng message tiếng Việt UTF-8, JWT payload { sub, role, type }, tạo session DB', async () => {
       const regRes = await request(app)
         .post('/api/v1/auth/register')
         .send({
@@ -410,17 +428,21 @@ describe('AIP-15: Authentication Integration Tests', () => {
       expect(user.status).toBe('ACTIVE');
       expect(user.passwordHash).toBeUndefined();
 
-      // Verify bằng hàm verifyAccessToken
       const accessPayload = verifyAccessToken(tokens.accessToken);
       expect(accessPayload.sub).toBe(registeredUserId);
       expect(accessPayload.role).toBe('CANDIDATE');
       expect(accessPayload.type).toBe('access');
 
-      // Verify bằng hàm verifyRefreshToken
       const refreshPayload = verifyRefreshToken(tokens.refreshToken);
       expect(refreshPayload.sub).toBe(registeredUserId);
       expect(refreshPayload.role).toBe('CANDIDATE');
       expect(refreshPayload.type).toBe('refresh');
+
+      // Verify DB contains refresh token record
+      const session = await RefreshToken.findOne({ jti: refreshPayload.jti });
+      expect(session).not.toBeNull();
+      expect(session?.userId.toString()).toBe(registeredUserId);
+      expect(session?.isRevoked).toBe(false);
     });
 
     it('6.2 Login thành công đối với Admin đã tồn tại', async () => {
@@ -479,7 +501,6 @@ describe('AIP-15: Authentication Integration Tests', () => {
 
       expect(nonExistentRes.body.message).toBe('Email hoặc mật khẩu không chính xác');
       expect(wrongPasswordRes.body.message).toBe('Email hoặc mật khẩu không chính xác');
-      expect(nonExistentRes.body.message).toBe(wrongPasswordRes.body.message);
     });
 
     it('6.4 User trạng thái INACTIVE không thể login và trả về cùng mã lỗi 401 AUTH_INVALID_CREDENTIALS', async () => {
@@ -515,6 +536,970 @@ describe('AIP-15: Authentication Integration Tests', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('6.6 User trạng thái LOCKED bị từ chối khi login với 403 AUTH_ACCOUNT_LOCKED', async () => {
+      const passwordHash = await bcrypt.hash('LockedUserPassword123', 10);
+      await User.create({
+        email: 'locked@example.com',
+        passwordHash,
+        fullName: 'Locked User',
+        role: 'CANDIDATE',
+        status: 'LOCKED',
+      });
+
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'locked@example.com',
+          password: 'LockedUserPassword123',
+        });
+
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe('AUTH_ACCOUNT_LOCKED');
+      expect(res.body.message).toBe('Tài khoản đã bị khóa');
+    });
+  });
+
+  // =================================================================
+  // 7. AIP-16: REFRESH TOKEN ROTATION & REUSE DETECTION
+  // =================================================================
+  describe('POST /api/v1/auth/refresh', () => {
+    it('7.1 Refresh thành công: Cấp token mới cho cùng phiên (sessionId), thu hồi token cũ', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'rotation@example.com',
+          password: 'StrongPassword123',
+          fullName: 'Rotation User',
+        });
+
+      const initialTokens = regRes.body.data.tokens;
+      const initialRefreshPayload = verifyRefreshToken(initialTokens.refreshToken);
+
+      const refreshRes = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: initialTokens.refreshToken });
+
+      expect(refreshRes.status).toBe(200);
+      expect(refreshRes.body.success).toBe(true);
+      expect(refreshRes.body.message).toBe('Làm mới token thành công');
+
+      const { tokens: newTokens, user } = refreshRes.body.data;
+      expect(newTokens.accessToken).toBeDefined();
+      expect(newTokens.refreshToken).toBeDefined();
+      expect(newTokens.refreshToken).not.toBe(initialTokens.refreshToken);
+      expect(user.email).toBe('rotation@example.com');
+
+      const newRefreshPayload = verifyRefreshToken(newTokens.refreshToken);
+      expect(newRefreshPayload.sessionId).toBe(initialRefreshPayload.sessionId);
+      expect(newRefreshPayload.jti).not.toBe(initialRefreshPayload.jti);
+
+      // Verify old token is marked revoked in DB
+      const oldSession = await RefreshToken.findOne({ jti: initialRefreshPayload.jti });
+      expect(oldSession?.isRevoked).toBe(true);
+      expect(oldSession?.revokedAt).toBeDefined();
+
+      // Verify new token is active in DB
+      const newSession = await RefreshToken.findOne({ jti: newRefreshPayload.jti });
+      expect(newSession?.isRevoked).toBe(false);
+      expect(newSession?.sessionId).toBe(initialRefreshPayload.sessionId);
+    });
+
+    it('7.2 Token Reuse Detection: Dùng lại token cũ sau khi đã rotate sẽ thu hồi đúng session family', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'reuse@example.com',
+          password: 'StrongPassword123',
+          fullName: 'Reuse Tester',
+        });
+
+      const initialRefreshToken = regRes.body.data.tokens.refreshToken;
+
+      // First refresh: rotates successfully
+      const firstRefresh = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: initialRefreshToken });
+
+      expect(firstRefresh.status).toBe(200);
+      const rotatedRefreshToken = firstRefresh.body.data.tokens.refreshToken;
+
+      // Second refresh with initialRefreshToken (REUSE ATTACK!)
+      const reuseRes = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: initialRefreshToken });
+
+      expect(reuseRes.status).toBe(401);
+      expect(reuseRes.body.code).toBe('AUTH_TOKEN_REVOKED');
+
+      // Verify that even the rotatedRefreshToken was revoked due to reuse detection
+      const nextRefreshWithRotated = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: rotatedRefreshToken });
+
+      expect(nextRefreshWithRotated.status).toBe(401);
+    });
+
+    it('7.3 Refresh thất bại: Refresh token không hợp lệ (sai signature) bị từ chối 401', async () => {
+      const invalidToken = jwt.sign(
+        { sub: 'user-123', role: 'CANDIDATE', type: 'refresh', jti: 'fake-jti' },
+        'wrong-secret-that-does-not-match-at-least-32-chars-long',
+        { algorithm: 'HS256' }
+      );
+
+      const res = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: invalidToken });
+
+      expect(res.status).toBe(401);
+      expect(res.body.code).toBe('AUTH_INVALID_REFRESH_TOKEN');
+    });
+
+    it('7.4 Refresh thất bại: Dùng access token thay cho refresh token bị từ chối 401', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'wrongtoken@example.com',
+          password: 'StrongPassword123',
+          fullName: 'Wrong Token User',
+        });
+
+      const accessToken = regRes.body.data.tokens.accessToken;
+
+      const res = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: accessToken });
+
+      expect(res.status).toBe(401);
+      expect(res.body.code).toBe('AUTH_INVALID_REFRESH_TOKEN');
+    });
+
+    it('7.5 Refresh thất bại: User bị LOCKED bị từ chối với 403 AUTH_ACCOUNT_LOCKED', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'lockedrefresh@example.com',
+          password: 'StrongPassword123',
+          fullName: 'Locked Refresh User',
+        });
+
+      const userId = regRes.body.data.user.id;
+      const refreshToken = regRes.body.data.tokens.refreshToken;
+
+      // A lock must take precedence even when its refresh record was already revoked.
+      const refreshPayload = verifyRefreshToken(refreshToken);
+      await RefreshToken.updateOne(
+        { jti: refreshPayload.jti },
+        { isRevoked: true, revokedAt: new Date() }
+      );
+      await User.findByIdAndUpdate(userId, { status: 'LOCKED' });
+
+      const res = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken });
+
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe('AUTH_ACCOUNT_LOCKED');
+      expect(res.body.message).toBe('Tài khoản đã bị khóa');
+    });
+
+    it('7.6 Refresh dùng role hiện tại từ DB thay vì role cũ trong refresh JWT', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'role-change-refresh@example.com',
+          password: 'StrongPassword123',
+          fullName: 'Role Change Refresh User',
+        });
+
+      const userId = regRes.body.data.user.id;
+      const refreshToken = regRes.body.data.tokens.refreshToken;
+      expect(verifyRefreshToken(refreshToken).role).toBe('CANDIDATE');
+
+      await User.findByIdAndUpdate(userId, { role: 'INTERVIEWER' });
+
+      const refreshRes = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken });
+
+      expect(refreshRes.status).toBe(200);
+      expect(refreshRes.body.data.user.role).toBe('INTERVIEWER');
+      expect(verifyAccessToken(refreshRes.body.data.tokens.accessToken).role).toBe('INTERVIEWER');
+    });
+
+    it('7.7 Validation Refresh: Gửi body thiếu refreshToken hoặc có field thừa bị 400', async () => {
+      const emptyRes = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({});
+
+      expect(emptyRes.status).toBe(400);
+      expect(emptyRes.body.code).toBe('VALIDATION_ERROR');
+
+      const extraRes = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: 'some-token', extra: 'not-allowed' });
+
+      expect(extraRes.status).toBe(400);
+      expect(extraRes.body.code).toBe('VALIDATION_ERROR');
+    });
+  });
+
+  // =================================================================
+  // 8. AIP-16: LOGOUT FLOW
+  // =================================================================
+  describe('POST /api/v1/auth/logout', () => {
+    it('8.1 Logout thành công: Thu hồi refresh-token session hiện tại, từ chối refresh sau đó', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'logout@example.com',
+          password: 'StrongPassword123',
+          fullName: 'Logout User',
+        });
+
+      const { refreshToken } = regRes.body.data.tokens;
+
+      const logoutRes = await request(app)
+        .post('/api/v1/auth/logout')
+        .send({ refreshToken });
+
+      expect(logoutRes.status).toBe(200);
+      expect(logoutRes.body.success).toBe(true);
+      expect(logoutRes.body.message).toBe('Đăng xuất thành công');
+
+      // Attempt to refresh with the revoked token
+      const refreshRes = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken });
+
+      expect(refreshRes.status).toBe(401);
+      expect(['AUTH_TOKEN_REVOKED', 'AUTH_INVALID_REFRESH_TOKEN']).toContain(refreshRes.body.code);
+    });
+
+    it('8.2 Logout với token đã thu hồi hoặc không tồn tại trả về 401', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'logout2@example.com',
+          password: 'StrongPassword123',
+          fullName: 'Logout User 2',
+        });
+
+      const { refreshToken } = regRes.body.data.tokens;
+
+      // First logout
+      await request(app)
+        .post('/api/v1/auth/logout')
+        .send({ refreshToken });
+
+      // Second logout with same token
+      const secondLogout = await request(app)
+        .post('/api/v1/auth/logout')
+        .send({ refreshToken });
+
+      expect(secondLogout.status).toBe(401);
+      expect(secondLogout.body.code).toBe('AUTH_INVALID_REFRESH_TOKEN');
+    });
+
+    it('8.3 Validation Logout: Gửi kèm field thừa bị từ chối 400', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/logout')
+        .send({
+          refreshToken: 'token',
+          extraField: 'value',
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('VALIDATION_ERROR');
+    });
+  });
+
+  // =================================================================
+  // 9. AIP-16: ACCOUNT LOCK & ADMIN AUTHORIZATION
+  // =================================================================
+  describe('PATCH /api/v1/auth/users/:id/lock', () => {
+    let adminToken: string;
+    let adminId: string;
+    let candidateToken: string;
+    let candidateId: string;
+    let targetUserId: string;
+    let targetRefreshToken: string;
+
+    beforeEach(async () => {
+      // Create Admin
+      const adminHash = await bcrypt.hash('AdminPassword123', 10);
+      const admin = await User.create({
+        email: 'admin.lock@vti.com.vn',
+        passwordHash: adminHash,
+        fullName: 'Admin User',
+        role: 'ADMIN',
+        status: 'ACTIVE',
+      });
+      adminId = admin._id.toString();
+      const adminTokens = generateAuthTokens(adminId, 'ADMIN');
+      adminToken = adminTokens.accessToken;
+
+      // Create Candidate
+      const candidateHash = await bcrypt.hash('CandidatePassword123', 10);
+      const candidate = await User.create({
+        email: 'candidate.lock@example.com',
+        passwordHash: candidateHash,
+        fullName: 'Candidate User',
+        role: 'CANDIDATE',
+        status: 'ACTIVE',
+      });
+      candidateId = candidate._id.toString();
+      const candidateTokens = generateAuthTokens(candidateId, 'CANDIDATE');
+      candidateToken = candidateTokens.accessToken;
+
+      // Register Target User to have active sessions
+      const targetRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'target.user@example.com',
+          password: 'TargetPassword123',
+          fullName: 'Target User',
+        });
+      targetUserId = targetRes.body.data.user.id;
+      targetRefreshToken = targetRes.body.data.tokens.refreshToken;
+    });
+
+    it('9.1 Admin lock tài khoản thành công: Cập nhật status LOCKED, thu hồi toàn bộ refresh session của user', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/auth/users/${targetUserId}/lock`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toBe('Khóa tài khoản thành công');
+      expect(res.body.data.user.status).toBe('LOCKED');
+
+      // Verify in DB
+      const dbTarget = await User.findById(targetUserId);
+      expect(dbTarget?.status).toBe('LOCKED');
+
+      // Verify all sessions of target user are revoked
+      const activeSessions = await RefreshToken.find({ userId: targetUserId, isRevoked: false });
+      expect(activeSessions.length).toBe(0);
+
+      // Verify target user cannot login
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'target.user@example.com',
+          password: 'TargetPassword123',
+        });
+      expect(loginRes.status).toBe(403);
+      expect(loginRes.body.code).toBe('AUTH_ACCOUNT_LOCKED');
+
+      // Verify target user cannot refresh
+      const refreshRes = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: targetRefreshToken });
+      expect(refreshRes.status).toBe(403);
+      expect(refreshRes.body.code).toBe('AUTH_ACCOUNT_LOCKED');
+    });
+
+    it('9.1a Alias /lock/:id thực hiện cùng contract khóa tài khoản', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/auth/lock/${targetUserId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.user.status).toBe('LOCKED');
+
+      const activeSessions = await RefreshToken.find({ userId: targetUserId, isRevoked: false });
+      expect(activeSessions).toHaveLength(0);
+    });
+
+    it('9.2 Admin không thể tự lock tài khoản của chính mình (Self-lock protection)', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/auth/users/${adminId}/lock`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('AUTH_CANNOT_LOCK_SELF');
+      expect(res.body.message).toBe('Không thể tự khóa tài khoản của chính mình');
+
+      // Verify admin is still active
+      const dbAdmin = await User.findById(adminId);
+      expect(dbAdmin?.status).toBe('ACTIVE');
+    });
+
+    it('9.3 User không phải ADMIN (CANDIDATE) bị từ chối với 403 AUTH_FORBIDDEN', async () => {
+      const res = await request(app)
+        .patch(`/api/v1/auth/users/${targetUserId}/lock`)
+        .set('Authorization', `Bearer ${candidateToken}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe('AUTH_FORBIDDEN');
+    });
+
+    it('9.4 Request không có token hoặc token sai bị từ chối 401 AUTH_UNAUTHORIZED', async () => {
+      const noTokenRes = await request(app)
+        .patch(`/api/v1/auth/users/${targetUserId}/lock`);
+
+      expect(noTokenRes.status).toBe(401);
+      expect(noTokenRes.body.code).toBe('AUTH_UNAUTHORIZED');
+
+      const badTokenRes = await request(app)
+        .patch(`/api/v1/auth/users/${targetUserId}/lock`)
+        .set('Authorization', 'Bearer invalid-token');
+
+      expect(badTokenRes.status).toBe(401);
+      expect(badTokenRes.body.code).toBe('AUTH_UNAUTHORIZED');
+
+      const malformedSubjectAccessToken = jwt.sign(
+        { sub: 'not-a-mongodb-object-id', role: 'ADMIN', type: 'access' },
+        process.env.JWT_ACCESS_SECRET!,
+        { algorithm: 'HS256', expiresIn: '15m' }
+      );
+      const malformedSubjectRes = await request(app)
+        .patch(`/api/v1/auth/users/${targetUserId}/lock`)
+        .set('Authorization', `Bearer ${malformedSubjectAccessToken}`);
+
+      expect(malformedSubjectRes.status).toBe(401);
+      expect(malformedSubjectRes.body.code).toBe('AUTH_UNAUTHORIZED');
+    });
+
+    it('9.5 Admin có status LOCKED trong DB bị từ chối dù token claim là ADMIN', async () => {
+      await User.findByIdAndUpdate(adminId, { status: 'LOCKED' });
+
+      const res = await request(app)
+        .patch(`/api/v1/auth/users/${targetUserId}/lock`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe('AUTH_ACCOUNT_LOCKED');
+    });
+
+    it('9.5a Admin có role bị thay đổi trong DB bị từ chối dù JWT cũ vẫn claim ADMIN', async () => {
+      await User.findByIdAndUpdate(adminId, { role: 'CANDIDATE' });
+
+      const res = await request(app)
+        .patch(`/api/v1/auth/users/${targetUserId}/lock`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe('AUTH_FORBIDDEN');
+    });
+
+    it('9.6 Lock user không tồn tại trả về 404 AUTH_USER_NOT_FOUND', async () => {
+      const fakeObjectId = new mongoose.Types.ObjectId().toString();
+
+      const res = await request(app)
+        .patch(`/api/v1/auth/users/${fakeObjectId}/lock`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe('AUTH_USER_NOT_FOUND');
+    });
+
+    it('9.7 Validation: ID người dùng sai định dạng ObjectId bị từ chối 400', async () => {
+      const res = await request(app)
+        .patch('/api/v1/auth/users/invalid-id-format/lock')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('VALIDATION_ERROR');
+    });
+  });
+
+  // =================================================================
+  // 10. SECURITY BINDINGS, SESSION ISOLATION & CONCURRENCY TESTS
+  // =================================================================
+  describe('Security Token Binding, Multi-Session Isolation & Concurrency', () => {
+    it('10.1 Từ chối refresh và logout khi tokenHash trong DB không khớp với raw token', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'hashmismatch@example.com',
+          password: 'StrongPassword123',
+          fullName: 'Hash Mismatch User',
+        });
+      const refreshToken = regRes.body.data.tokens.refreshToken;
+      const payload = verifyRefreshToken(refreshToken);
+
+      // Mutate the tokenHash in DB to a different hash
+      await RefreshToken.updateOne(
+        { jti: payload.jti },
+        { tokenHash: hashToken('completely-different-token') }
+      );
+
+      const refreshRes = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken });
+
+      expect(refreshRes.status).toBe(401);
+      expect(refreshRes.body.code).toBe('AUTH_INVALID_REFRESH_TOKEN');
+
+      const logoutRes = await request(app)
+        .post('/api/v1/auth/logout')
+        .send({ refreshToken });
+
+      expect(logoutRes.status).toBe(401);
+      expect(logoutRes.body.code).toBe('AUTH_INVALID_REFRESH_TOKEN');
+    });
+
+    it('10.1a Từ chối sessionId DB không khớp và không thu hồi session độc lập', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'session-binding@example.com',
+          password: 'StrongPassword123',
+          fullName: 'Session Binding User',
+        });
+      const firstRefreshToken = regRes.body.data.tokens.refreshToken;
+      const firstPayload = verifyRefreshToken(firstRefreshToken);
+
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'session-binding@example.com',
+          password: 'StrongPassword123',
+        });
+      const secondRefreshToken = loginRes.body.data.tokens.refreshToken;
+      const secondPayload = verifyRefreshToken(secondRefreshToken);
+
+      await RefreshToken.updateOne(
+        { jti: firstPayload.jti },
+        { sessionId: '00000000-0000-4000-8000-000000000001' }
+      );
+
+      const rejectedRefresh = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: firstRefreshToken });
+
+      expect(rejectedRefresh.status).toBe(401);
+      expect(rejectedRefresh.body.code).toBe('AUTH_INVALID_REFRESH_TOKEN');
+
+      const independentSession = await RefreshToken.findOne({ jti: secondPayload.jti });
+      expect(independentSession?.isRevoked).toBe(false);
+
+      const secondRefresh = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: secondRefreshToken });
+      expect(secondRefresh.status).toBe(200);
+    });
+
+    it('10.2 Từ chối token đã ký hợp lệ nhưng sub hoặc sessionId không khớp với record trong DB', async () => {
+      const regRes1 = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'user1.binding@example.com',
+          password: 'StrongPassword123',
+          fullName: 'User 1 Binding',
+        });
+      const regRes2 = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'user2.binding@example.com',
+          password: 'StrongPassword123',
+          fullName: 'User 2 Binding',
+        });
+
+      const user1Token = regRes1.body.data.tokens.refreshToken;
+      const user2Id = regRes2.body.data.user.id;
+      const user1Payload = verifyRefreshToken(user1Token);
+
+      // Sign a valid refresh token with user2's sub but user1's jti and sessionId
+      const forgedSubToken = jwt.sign(
+        {
+          sub: user2Id,
+          role: 'CANDIDATE',
+          type: 'refresh',
+          jti: user1Payload.jti,
+          sessionId: user1Payload.sessionId,
+        },
+        process.env.JWT_REFRESH_SECRET!,
+        { algorithm: 'HS256', expiresIn: '7d' }
+      );
+
+      const refreshRes1 = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: forgedSubToken });
+
+      expect(refreshRes1.status).toBe(401);
+      expect(refreshRes1.body.code).toBe('AUTH_INVALID_REFRESH_TOKEN');
+
+      // Sign a valid refresh token with forged sessionId
+      const forgedSessionToken = jwt.sign(
+        {
+          sub: user1Payload.sub,
+          role: 'CANDIDATE',
+          type: 'refresh',
+          jti: user1Payload.jti,
+          sessionId: 'completely-different-session-id',
+        },
+        process.env.JWT_REFRESH_SECRET!,
+        { algorithm: 'HS256', expiresIn: '7d' }
+      );
+
+      const refreshRes2 = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: forgedSessionToken });
+
+      expect(refreshRes2.status).toBe(401);
+      expect(refreshRes2.body.code).toBe('AUTH_INVALID_REFRESH_TOKEN');
+
+      const originalSession = await RefreshToken.findOne({ jti: user1Payload.jti });
+      expect(originalSession?.isRevoked).toBe(false);
+
+      const legitimateRefresh = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: user1Token });
+      expect(legitimateRefresh.status).toBe(200);
+    });
+
+    it('10.2a Từ chối refresh JWT có sub không hợp lệ thay vì để CastError thành 500', async () => {
+      const malformedSubjectToken = jwt.sign(
+        {
+          sub: 'not-a-mongodb-object-id',
+          role: 'CANDIDATE',
+          type: 'refresh',
+          jti: '00000000-0000-4000-8000-000000000002',
+          sessionId: '00000000-0000-4000-8000-000000000003',
+        },
+        process.env.JWT_REFRESH_SECRET!,
+        { algorithm: 'HS256', expiresIn: '7d' }
+      );
+
+      const res = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: malformedSubjectToken });
+
+      expect(res.status).toBe(401);
+      expect(res.body.code).toBe('AUTH_INVALID_REFRESH_TOKEN');
+    });
+
+    it('10.3 Đa phiên (multi-session): Logout phiên 1 không ảnh hưởng đến phiên 2 độc lập của cùng user', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'multisession@example.com',
+          password: 'StrongPassword123',
+          fullName: 'Multi Session User',
+        });
+      const session1RefreshToken = regRes.body.data.tokens.refreshToken;
+
+      // Second login creates session 2
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'multisession@example.com',
+          password: 'StrongPassword123',
+        });
+      const session2RefreshToken = loginRes.body.data.tokens.refreshToken;
+
+      // Ensure they have different sessionIds
+      const p1 = verifyRefreshToken(session1RefreshToken);
+      const p2 = verifyRefreshToken(session2RefreshToken);
+      expect(p1.sessionId).not.toBe(p2.sessionId);
+
+      // Logout session 1
+      const logoutRes = await request(app)
+        .post('/api/v1/auth/logout')
+        .send({ refreshToken: session1RefreshToken });
+      expect(logoutRes.status).toBe(200);
+
+      // Session 1 cannot be refreshed
+      const refresh1Res = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: session1RefreshToken });
+      expect(refresh1Res.status).toBe(401);
+
+      // Session 2 is still active and can rotate successfully
+      const refresh2Res = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: session2RefreshToken });
+      expect(refresh2Res.status).toBe(200);
+      expect(refresh2Res.body.success).toBe(true);
+    });
+
+    it('10.4 Đa phiên (multi-session): Replay ở phiên 1 chỉ thu hồi family 1, phiên 2 vẫn hoạt động bình thường', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'multireplay@example.com',
+          password: 'StrongPassword123',
+          fullName: 'Multi Replay User',
+        });
+      const session1InitialToken = regRes.body.data.tokens.refreshToken;
+
+      // Session 2 via login
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({
+          email: 'multireplay@example.com',
+          password: 'StrongPassword123',
+        });
+      const session2Token = loginRes.body.data.tokens.refreshToken;
+
+      // Rotate session 1
+      const rotate1Res = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: session1InitialToken });
+      expect(rotate1Res.status).toBe(200);
+
+      // Replay attack on session 1 with old token
+      const replayRes = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: session1InitialToken });
+      expect(replayRes.status).toBe(401);
+      expect(replayRes.body.code).toBe('AUTH_TOKEN_REVOKED');
+
+      // Session 2 is NOT affected by session 1 replay
+      const refresh2Res = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: session2Token });
+      expect(refresh2Res.status).toBe(200);
+      expect(refresh2Res.body.success).toBe(true);
+    });
+
+    it('10.5 Race Refresh đồng thời: Chính xác 1 request trả 200, phát hiện reuse và thu hồi toàn bộ session family', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'race.refresh@example.com',
+          password: 'StrongPassword123',
+          fullName: 'Race Refresh User',
+        });
+      const userId = regRes.body.data.user.id;
+      const refreshToken = regRes.body.data.tokens.refreshToken;
+      const p = verifyRefreshToken(refreshToken);
+
+      // Fire 2 concurrent refresh requests
+      const [res1, res2] = await Promise.all([
+        request(app).post('/api/v1/auth/refresh').send({ refreshToken }),
+        request(app).post('/api/v1/auth/refresh').send({ refreshToken }),
+      ]);
+
+      const responses = [res1, res2];
+      const successfulResponses = responses.filter((res) => res.status === 200);
+      const rejectedResponses = responses.filter((res) => res.status === 401);
+
+      expect(successfulResponses).toHaveLength(1);
+      expect(rejectedResponses).toHaveLength(1);
+      expect(rejectedResponses[0].status).toBe(401);
+      expect(rejectedResponses[0].body.code).toBe('AUTH_TOKEN_REVOKED');
+
+      const oldToken = await RefreshToken.findOne({ jti: p.jti });
+      expect(oldToken?.isRevoked).toBe(true);
+
+      const replacementTokens = await RefreshToken.find({
+        userId,
+        sessionId: p.sessionId,
+        jti: { $ne: p.jti },
+      });
+      expect(replacementTokens).toHaveLength(1);
+      expect(replacementTokens[0].isRevoked).toBe(true);
+      expect(replacementTokens[0].revokedAt).toBeDefined();
+
+      const activeTokens = await RefreshToken.find({
+        userId,
+        sessionId: p.sessionId,
+        isRevoked: false,
+      });
+      expect(activeTokens).toHaveLength(0);
+
+      const winningRefreshToken = successfulResponses[0].body.data.tokens.refreshToken;
+      const replayResult = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: winningRefreshToken });
+      expect(replayResult.status).toBe(401);
+      expect(replayResult.body.code).toBe('AUTH_TOKEN_REVOKED');
+    });
+
+    it('10.6 Race Refresh vs Account Lock: Sau khi cả hai hoàn tất, User phải là LOCKED và không còn active refresh session', async () => {
+      // Create admin
+      const adminHash = await bcrypt.hash('AdminPass123', 10);
+      const admin = await User.create({
+        email: 'admin.race@vti.com.vn',
+        passwordHash: adminHash,
+        fullName: 'Admin Race',
+        role: 'ADMIN',
+        status: 'ACTIVE',
+      });
+      const adminTokens = generateAuthTokens(admin._id.toString(), 'ADMIN');
+
+      // Create target user
+      const targetRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'target.race@example.com',
+          password: 'TargetPassword123',
+          fullName: 'Target Race User',
+        });
+      const targetUserId = targetRes.body.data.user.id;
+      const targetRefreshToken = targetRes.body.data.tokens.refreshToken;
+
+      // Race refresh and lock simultaneously
+      const [refreshRes, lockRes] = await Promise.all([
+        request(app).post('/api/v1/auth/refresh').send({ refreshToken: targetRefreshToken }),
+        request(app)
+          .patch(`/api/v1/auth/users/${targetUserId}/lock`)
+          .set('Authorization', `Bearer ${adminTokens.accessToken}`),
+      ]);
+
+      expect(lockRes.status).toBe(200);
+
+      // Verify target user is LOCKED
+      const finalUser = await User.findById(targetUserId);
+      expect(finalUser?.status).toBe('LOCKED');
+
+      // Verify ZERO active refresh records for target user
+      const activeSessions = await RefreshToken.find({
+        userId: targetUserId,
+        isRevoked: false,
+      });
+      expect(activeSessions.length).toBe(0);
+
+      if (refreshRes.status === 200) {
+        const replacementRefreshToken = refreshRes.body.data.tokens.refreshToken;
+        const refreshAfterLock = await request(app)
+          .post('/api/v1/auth/refresh')
+          .send({ refreshToken: replacementRefreshToken });
+        expect(refreshAfterLock.status).toBe(403);
+        expect(refreshAfterLock.body.code).toBe('AUTH_ACCOUNT_LOCKED');
+      } else {
+        expect(refreshRes.status).toBe(403);
+        expect(refreshRes.body.code).toBe('AUTH_ACCOUNT_LOCKED');
+      }
+    });
+
+    it('10.7 Race Refresh vs Logout: nếu logout thắng thì không còn replacement token active', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'logout-refresh-race@example.com',
+          password: 'StrongPassword123',
+          fullName: 'Logout Refresh Race User',
+        });
+      const userId = regRes.body.data.user.id;
+      const refreshToken = regRes.body.data.tokens.refreshToken;
+      const payload = verifyRefreshToken(refreshToken);
+
+      const [logoutRes, refreshRes] = await Promise.all([
+        request(app).post('/api/v1/auth/logout').send({ refreshToken }),
+        request(app).post('/api/v1/auth/refresh').send({ refreshToken }),
+      ]);
+
+      expect([200, 401]).toContain(logoutRes.status);
+      expect([200, 401]).toContain(refreshRes.status);
+      expect([logoutRes.status, refreshRes.status].filter((status) => status === 200)).toHaveLength(1);
+
+      if (logoutRes.status === 200) {
+        expect(refreshRes.status).toBe(401);
+        const activeTokens = await RefreshToken.find({
+          userId,
+          sessionId: payload.sessionId,
+          isRevoked: false,
+        });
+        expect(activeTokens).toHaveLength(0);
+      } else {
+        expect(logoutRes.status).toBe(401);
+        expect(logoutRes.body.code).toBe('AUTH_INVALID_REFRESH_TOKEN');
+        expect(refreshRes.status).toBe(200);
+
+        const activeTokens = await RefreshToken.find({
+          userId,
+          sessionId: payload.sessionId,
+          isRevoked: false,
+        });
+        expect(activeTokens).toHaveLength(1);
+
+        const replacementRefreshToken = refreshRes.body.data.tokens.refreshToken;
+        expect(hashToken(replacementRefreshToken)).toBe(activeTokens[0].tokenHash);
+
+        const nextRefreshRes = await request(app)
+          .post('/api/v1/auth/refresh')
+          .send({ refreshToken: replacementRefreshToken });
+        expect(nextRefreshRes.status).toBe(200);
+        expect(nextRefreshRes.body.success).toBe(true);
+      }
+    });
+
+    it('10.7a Tuần tự Refresh trước Logout: Refresh thành công thu hồi token cũ, logout bằng token cũ trả 401 AUTH_INVALID_REFRESH_TOKEN, replacement token vẫn refresh thành công', async () => {
+      const regRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'seq-refresh-logout@example.com',
+          password: 'StrongPassword123',
+          fullName: 'Sequential Refresh Logout User',
+        });
+      const initialRefreshToken = regRes.body.data.tokens.refreshToken;
+
+      // 1. Refresh token cũ thành công
+      const refreshRes = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: initialRefreshToken });
+      expect(refreshRes.status).toBe(200);
+      expect(refreshRes.body.success).toBe(true);
+      const replacementRefreshToken = refreshRes.body.data.tokens.refreshToken;
+
+      // 2. Logout bằng token cũ trả 401 AUTH_INVALID_REFRESH_TOKEN
+      const logoutOldRes = await request(app)
+        .post('/api/v1/auth/logout')
+        .send({ refreshToken: initialRefreshToken });
+      expect(logoutOldRes.status).toBe(401);
+      expect(logoutOldRes.body.code).toBe('AUTH_INVALID_REFRESH_TOKEN');
+
+      // 3. Replacement token vẫn refresh thành công
+      const nextRefreshRes = await request(app)
+        .post('/api/v1/auth/refresh')
+        .send({ refreshToken: replacementRefreshToken });
+      expect(nextRefreshRes.status).toBe(200);
+      expect(nextRefreshRes.body.success).toBe(true);
+    });
+
+    it('10.8 Race Login vs Account Lock: không có login replacement sống sau khi lock thắng', async () => {
+      const adminHash = await bcrypt.hash('AdminRaceLogin123', 10);
+      const admin = await User.create({
+        email: 'admin.login-race@vti.com.vn',
+        passwordHash: adminHash,
+        fullName: 'Admin Login Race',
+        role: 'ADMIN',
+        status: 'ACTIVE',
+      });
+      const adminToken = generateAuthTokens(admin._id.toString(), 'ADMIN').accessToken;
+
+      const targetRes = await request(app)
+        .post('/api/v1/auth/register')
+        .send({
+          email: 'target.login-race@example.com',
+          password: 'TargetPassword123',
+          fullName: 'Target Login Race User',
+        });
+      const targetUserId = targetRes.body.data.user.id;
+
+      const [loginRes, lockRes] = await Promise.all([
+        request(app)
+          .post('/api/v1/auth/login')
+          .send({ email: 'target.login-race@example.com', password: 'TargetPassword123' }),
+        request(app)
+          .patch(`/api/v1/auth/users/${targetUserId}/lock`)
+          .set('Authorization', `Bearer ${adminToken}`),
+      ]);
+
+      expect(lockRes.status).toBe(200);
+      const targetUser = await User.findById(targetUserId);
+      expect(targetUser?.status).toBe('LOCKED');
+
+      const activeTokens = await RefreshToken.find({ userId: targetUserId, isRevoked: false });
+      expect(activeTokens).toHaveLength(0);
+
+      if (loginRes.status === 200) {
+        const loginRefreshToken = loginRes.body.data.tokens.refreshToken;
+        const refreshAfterLock = await request(app)
+          .post('/api/v1/auth/refresh')
+          .send({ refreshToken: loginRefreshToken });
+        expect(refreshAfterLock.status).toBe(403);
+        expect(refreshAfterLock.body.code).toBe('AUTH_ACCOUNT_LOCKED');
+      } else {
+        expect(loginRes.status).toBe(403);
+        expect(loginRes.body.code).toBe('AUTH_ACCOUNT_LOCKED');
+      }
     });
   });
 });

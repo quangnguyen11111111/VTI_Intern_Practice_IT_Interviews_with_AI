@@ -6,7 +6,8 @@ export interface IUser extends Document {
   passwordHash: string;
   fullName: string;
   role: 'CANDIDATE' | 'INTERVIEWER' | 'ADMIN';
-  status: 'ACTIVE' | 'INACTIVE';
+  status: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
+  authVersion: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,8 +39,12 @@ const userSchema = new Schema<IUser>(
     },
     status: {
       type: String,
-      enum: ['ACTIVE', 'INACTIVE'],
+      enum: ['ACTIVE', 'INACTIVE', 'LOCKED'],
       default: 'ACTIVE',
+    },
+    authVersion: {
+      type: Number,
+      default: 0,
     },
   },
   {

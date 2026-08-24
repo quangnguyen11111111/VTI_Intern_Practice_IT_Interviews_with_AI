@@ -39,3 +39,11 @@ Dự án được thiết kế cấu trúc thư mục và viết code theo đún
 
 5. **D - Dependency Inversion Principle (Đảo ngược Dependency):**
    - **Cách áp dụng:** `InterviewService` không phụ thuộc trực tiếp vào class `InterviewRepository` (concrete), mà phụ thuộc vào bản vẽ (abstraction) là `IInterviewRepository`. Điều này cho phép chúng ta dễ dàng thực hiện **Dependency Injection (DI)**. Hiện tại hệ thống đang inject bản In-Memory DB, nhưng sau này có thể dễ dàng thay bằng Prisma hay Mongoose Repository mà không cần sửa đổi Service. Tương tự, AI Service cũng được thiết kế dưới dạng interface để Inject vào các hàm `generate` và `submit`.
+
+## Prerequisites & Database Requirements
+
+### MongoDB Replica Set Requirement (AIP-16 Authentication)
+
+- **Multi-Document Transactions:** The AIP-16 authentication module uses MongoDB multi-document transactions for registration, login session creation, refresh-token rotation, replay revocation, logout, and account locking.
+- **Runtime Requirement:** MongoDB must run as a replica set (for example, `--replSet rs0`) or behind `mongos`. Standalone `mongod` instances are not supported for authentication write operations because MongoDB transactions require a replica set or sharded cluster.
+- **Testing Setup:** `tests/auth.integration.test.ts` uses `MongoMemoryReplSet` from `mongodb-memory-server`, so the integration tests do not require an external MongoDB instance.
