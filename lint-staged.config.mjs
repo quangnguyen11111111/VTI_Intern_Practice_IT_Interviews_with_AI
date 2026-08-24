@@ -1,4 +1,6 @@
 export default {
-  "client/**/*.{js,jsx,ts,tsx}": (filenames) => 
-    `npm run lint --prefix client -- --fix ${filenames.join(" ")}`
+  "client/**/*.{js,jsx,ts,tsx}": (filenames) => {
+    const quotedFilenames = filenames.map((filename) => `"${filename.replaceAll('"', '\\"')}"`);
+    return `npm run lint --prefix client -- --fix ${quotedFilenames.join(" ")}`;
+  },
 };
