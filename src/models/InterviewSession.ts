@@ -7,6 +7,7 @@ export interface IInterviewSessionDocument extends Document {
   status: InterviewStatus;
   setupData: InterviewSetupPayload;
   overallScore: number | null;
+  learningPath: { topic: string; priority: string; suggestion: string }[] | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,7 +32,12 @@ const InterviewSessionSchema: Schema = new Schema(
     overallScore: {
       type: Number,
       default: null
-    }
+    },
+    learningPath: [{
+      topic: { type: String },
+      priority: { type: String, enum: ['High', 'Medium', 'Low'] },
+      suggestion: { type: String }
+    }]
   },
   {
     timestamps: true

@@ -21,6 +21,7 @@ export interface InterviewEntity {
   setupData: InterviewSetupPayload;
   questions?: InterviewQuestionEntity[];
   overallScore?: number | null;
+  learningPath?: { topic: string; priority: string; suggestion: string }[] | null;
   createdAt: Date;
   updatedAt: Date;
 }

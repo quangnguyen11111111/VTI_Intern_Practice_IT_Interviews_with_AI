@@ -1,48 +1,14 @@
+import { injectable, inject } from 'tsyringe';
 import { IInterviewRepository } from '../repositories/IInterviewRepository';
 import { InterviewContext } from '../domain/interview/InterviewContext';
-import { InterviewSetupPayload, AnswerPayload, LocalizedContent } from '../domain/interview/types';
+import { InterviewSetupPayload, AnswerPayload, IAiProvider } from '../domain/interview/types';
 
+@injectable()
 export class InterviewService {
-  constructor(private interviewRepo: IInterviewRepository) {}
-
-  private mockAiService = {
-    generateQuestions: async (interviewId: string, setupData: InterviewSetupPayload) => {
-      console.log(`[MockAI] Generating questions for ${interviewId} with data:`, setupData);
-      // Simulate background work...
-      await new Promise<void>(resolve => setTimeout(resolve, 2000));
-      
-      // Save generated questions to DB
-      await this.interviewRepo.createQuestions(interviewId, [
-        {
-          order: 1,
-          difficulty: 'Easy',
-          content: { en: 'What is a variable?', vi: 'Biến là gì?' }
-        },
-        {
-          order: 2,
-          difficulty: 'Medium',
-          content: { en: 'Explain closure in JavaScript.', vi: 'Giải thích closure trong JavaScript.' }
-        }
-      ]);
-    },
-    evaluateAnswers: async (interviewId: string, answers: AnswerPayload[]) => {
-      console.log(`[MockAI] Evaluating answers for ${interviewId}`);
-      await new Promise<void>(resolve => setTimeout(resolve, 2000));
-      
-      // Save feedback to DB
-      for (const ans of answers) {
-        const feedback: LocalizedContent = {
-          en: `Feedback for answer: ${ans.candidateAnswer}`,
-          vi: `Nhận xét cho câu trả lời: ${ans.candidateAnswer}`
-        };
-        const score = Math.floor(Math.random() * 10) + 1; // Random score 1-10
-        await this.interviewRepo.updateQuestionFeedback(ans.questionId, feedback, score);
-      }
-      
-      // Update overall score
-      await this.interviewRepo.update(interviewId, { overallScore: 8 }); // Mock overall score
-    }
-  };
+  constructor(
+    @inject('IInterviewRepository') private interviewRepo: IInterviewRepository,
+    @inject('IAiProvider') private aiProvider: IAiProvider
+  ) {}
 
   /**
    * Khởi tạo phiên phỏng vấn mới (Trạng thái mặc định: PENDING)
@@ -79,7 +45,7 @@ export class InterviewService {
 
     await context.generate({
       setupData: sessionData.setupData,
-      aiService: this.mockAiService 
+      aiProvider: this.aiProvider
     });
 
     return await this.getInterviewSession(id);
@@ -103,10 +69,9 @@ export class InterviewService {
     // Kích hoạt action nộp bài
     await context.submit({
       data: answers,
-      aiService: this.mockAiService
+      aiProvider: this.aiProvider
     });
 
     return await this.getInterviewSession(id);
   }
 }
-

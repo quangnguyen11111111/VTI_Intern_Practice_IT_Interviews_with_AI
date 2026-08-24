@@ -20,17 +20,35 @@ export interface AnswerPayload {
   candidateAnswer: string;
 }
 
-export interface IAiService {
-  generateQuestions(interviewId: string, setupData: InterviewSetupPayload): Promise<void>;
-  evaluateAnswers(interviewId: string, answers: AnswerPayload[]): Promise<void>;
+export interface GeneratedQuestion {
+  order: number;
+  difficulty: string;
+  content: LocalizedContent;
+}
+
+export interface EvaluatedAnswer {
+  questionId: string;
+  feedback: LocalizedContent;
+  score: number;
+}
+
+export interface EvaluationResult {
+  evaluations: EvaluatedAnswer[];
+  overallScore: number;
+  learningPath: { topic: string; priority: string; suggestion: string }[];
+}
+
+export interface IAiProvider {
+  generateQuestions(setupData: InterviewSetupPayload): Promise<GeneratedQuestion[]>;
+  evaluateAnswers(questions: any[], answers: AnswerPayload[]): Promise<EvaluationResult>;
 }
 
 export interface GeneratePayload {
   setupData: InterviewSetupPayload;
-  aiService: IAiService;
+  aiProvider?: IAiProvider; // Optional because we might inject it in service now
 }
 
 export interface SubmitPayload {
   data: AnswerPayload[];
-  aiService: IAiService;
+  aiProvider?: IAiProvider;
 }
