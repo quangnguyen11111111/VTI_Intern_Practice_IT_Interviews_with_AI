@@ -23,7 +23,7 @@ Tính đến thời điểm hiện tại, dự án đã hoàn thành các hạng
 ## 🛠️ Công nghệ sử dụng
 - **Backend:** Node.js, Express.js, TypeScript.
 - **Frontend:** React, Vite (hoặc tương đương).
-- **Database:** MongoDB (sử dụng Mongoose) - Hiện tại đang dùng In-Memory Mock để test logic.
+- **Database:** MongoDB (sử dụng Mongoose) - Multi-Document Transactions trên Replica Set.
 - **Mẫu Thiết Kế (Design Patterns):** State Pattern, Layered Architecture, Dependency Injection.
 
 ## 📐 Tuân thủ nghiêm ngặt nguyên tắc S.O.L.I.D

@@ -14,10 +14,25 @@ export const validate =
         params: req.params,
       });
       
-      // Gán lại dữ liệu đã được Zod parse/transform (vd: ép kiểu string thành number)
-      req.body = validatedData.body;
-      req.query = validatedData.query;
-      req.params = validatedData.params;
+      // Gán lại dữ liệu đã được Zod parse/transform (vd: ép kiểu string thành number, trim string)
+      if (validatedData.body !== undefined) {
+        req.body = validatedData.body;
+      }
+      if (validatedData.params !== undefined) {
+        req.params = validatedData.params;
+      }
+      if (validatedData.query !== undefined) {
+        try {
+          req.query = validatedData.query;
+        } catch {
+          Object.defineProperty(req, 'query', {
+            value: validatedData.query,
+            writable: true,
+            enumerable: true,
+            configurable: true,
+          });
+        }
+      }
       
       next();
     } catch (error) {

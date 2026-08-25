@@ -4,72 +4,23 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-import path from "path";
-import express from "express";
-
 import app from "./app";
-import { AppError } from "./utils/AppError";
-import { globalErrorHandler } from "./middlewares/error.middleware";
 import { connectDatabase } from "./config/database";
+import { getEnv } from "./config/env";
 
-const PORT = Number(process.env.PORT) || 3000;
+const env = getEnv();
 
 const startServer = async () => {
   try {
     // MongoDB
     await connectDatabase();
 
-    // ========================================
-    // React Client
-    // ========================================
-
-    const clientPath = path.join(
-      process.cwd(),
-      "client",
-      "dist"
-    );
-
-    // Serve React static files
-    app.use(
-      express.static(clientPath)
-    );
-
-    // React SPA
-     app.get(/.*/, (req, res, next) => {
-      if (req.path.startsWith("/api")) {
-        return next();
-      }
-      res.sendFile(
-        path.join(
-          clientPath,
-          "index.html"
-        )
-      );
-    });
-
-    // ========================================
     // Start Server
-    // ========================================
-    // Catch-all cho API 404
-    app.use("/api", (req, res, next) => {
-      next(new AppError(`Không tìm thấy API route: ${req.originalUrl}`, 404));
+    app.listen(env.PORT, () => {
+      console.log(`Server running: http://localhost:${env.PORT}`);
     });
-
-    // Middleware xử lý lỗi toàn cục
-    app.use(globalErrorHandler);
-
-    app.listen(PORT, () => {
-      console.log(
-        `Server running: http://localhost:${PORT}`
-      );
-    });
-
   } catch (error) {
-    console.error(
-      "Server startup failed:",
-      error
-    );
-
+    console.error("Server startup failed:", error);
     process.exit(1);
   }
 };
