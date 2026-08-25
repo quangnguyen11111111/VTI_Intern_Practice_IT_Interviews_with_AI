@@ -1,14 +1,11 @@
 import { Router } from 'express';
 import { InterviewController } from '../controllers/InterviewController';
-import { InterviewService } from '../services/InterviewService';
-import { MongoInterviewRepository } from '../repositories/MongoInterviewRepository';
+import { container } from '../config/di';
 
 const router = Router();
 
-// Khởi tạo dependencies thủ công (Basic Dependency Injection)
-const interviewRepository = new MongoInterviewRepository();
-const interviewService = new InterviewService(interviewRepository);
-const interviewController = new InterviewController(interviewService);
+// Retrieve controller from DI container
+const interviewController = container.resolve(InterviewController);
 
 // Routes
 router.post('/', interviewController.createSession);

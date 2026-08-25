@@ -22,8 +22,24 @@ export class InProgressState implements IInterviewState {
     
     // Gọi logic AI chấm bài ở đây
     try {
-      if (payload && payload.aiService) {
-         await payload.aiService.evaluateAnswers(context.getInterviewId(), payload.data);
+      if (payload && payload.aiProvider) {
+         const session = await context.getRepository().findById(context.getInterviewId());
+         if (!session || !session.questions) {
+           throw new Error("Cannot find questions for this session.");
+         }
+         
+         const evaluationResult = await payload.aiProvider.evaluateAnswers(session.questions, payload.data);
+         
+         // save feedback
+         for (const evalResult of evaluationResult.evaluations) {
+            await context.getRepository().updateQuestionFeedback(evalResult.questionId, evalResult.feedback, evalResult.score);
+         }
+         
+         // save overallScore and learningPath
+         await context.getRepository().update(context.getInterviewId(), { 
+            overallScore: evaluationResult.overallScore,
+            learningPath: evaluationResult.learningPath 
+         });
       }
       // Success -> COMPLETED
       const { CompletedState } = await import('./CompletedState');

@@ -1,9 +1,11 @@
+import { injectable, inject } from 'tsyringe';
 import { Request, Response } from 'express';
 import { InterviewService } from '../services/InterviewService';
 import { InvalidStateTransitionException } from '../domain/interview/exceptions/InvalidStateTransitionException';
 
+@injectable()
 export class InterviewController {
-  constructor(private interviewService: InterviewService) {}
+  constructor(@inject(InterviewService) private interviewService: InterviewService) {}
 
   /**
    * POST /api/interviews
