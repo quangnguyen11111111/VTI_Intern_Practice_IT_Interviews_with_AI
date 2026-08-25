@@ -3,7 +3,8 @@ async function sleep(ms) {
 }
 
 async function runTest() {
-  const baseUrl = 'http://localhost:3000/api/v1/interviews';
+  const API_URL = process.env.API_URL || 'http://localhost:3000/api/v1';
+  const baseUrl = `${API_URL}/interviews`;
   
   console.log('1. Khởi tạo Interview Session...');
   let res = await fetch(baseUrl, {

@@ -1,0 +1,41 @@
+name: Deploy Node.js App to Tenten VPS
+
+on:
+  push:
+    branches:
+      - main # Hoặc master tùy nhánh chính của bạn
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          script: |
+            # 1. Di chuyển vào thư mục dự án
+            cd /var/www/VTI_Intern_Practice_IT_Interviews_with_AI
+
+            # 2. Pull code mới nhất từ GitHub
+            git pull origin main
+
+            # 3. Xử lý Backend (Thư mục gốc)
+            npm install
+            npm run build # Cần có lệnh này nếu Backend của bạn viết bằng TypeScript
+
+            # 4. Xử lý Frontend (Thư mục client)
+            cd client
+            npm install
+            npm run build # Vite sẽ build giao diện ra thư mục client/dist/
+
+            # 5. Quay lại thư mục gốc và khởi động lại PM2
+            cd ..
+            pm2 restart vti-app
