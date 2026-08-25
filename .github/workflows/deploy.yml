@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@master
@@ -38,4 +38,4 @@ jobs:
 
             # 5. Quay lại thư mục gốc và khởi động lại PM2
             cd ..
-            pm2 restart vti-app
+            pm2 restart vti-app || pm2 start dist/server.js --name "vti-app"
