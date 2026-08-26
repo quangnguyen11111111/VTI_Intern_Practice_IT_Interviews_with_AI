@@ -18,8 +18,9 @@ export class PendingState implements IInterviewState {
     // Ở đây ta gọi hàm trigger logic phía service
     try {
       if (payload && payload.aiProvider) {
-         const generatedQuestions = await payload.aiProvider.generateQuestions(payload.setupData);
+         const { data: generatedQuestions, audit } = await payload.aiProvider.generateQuestions(payload.setupData);
          await context.getRepository().createQuestions(context.getInterviewId(), generatedQuestions);
+         await context.getRepository().updateTokenUsage(context.getInterviewId(), audit);
       }
       // If success, transition to InProgressState
       const { InProgressState } = await import('./InProgressState');

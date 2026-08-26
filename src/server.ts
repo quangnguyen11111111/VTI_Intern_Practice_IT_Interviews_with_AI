@@ -1,8 +1,6 @@
+import "dotenv/config"; // Load env vars immediately
 import "reflect-metadata";
 import "./config/di";
-import dotenv from "dotenv";
-
-dotenv.config();
 
 import app from "./app";
 import { connectDatabase } from "./config/database";

@@ -1,14 +1,14 @@
 import { injectable } from 'tsyringe';
-import { IAiProvider, InterviewSetupPayload, GeneratedQuestion, AnswerPayload, EvaluationResult } from '../../../domain/interview/types';
+import { IAiProvider, InterviewSetupPayload, GeneratedQuestion, AnswerPayload, EvaluationResult, AiUsageMetadata } from '../../../domain/interview/types';
 
 @injectable()
 export class MockAiProvider implements IAiProvider {
-  async generateQuestions(setupData: InterviewSetupPayload): Promise<GeneratedQuestion[]> {
+  async generateQuestions(setupData: InterviewSetupPayload): Promise<{ data: GeneratedQuestion[], audit: AiUsageMetadata }> {
     console.log(`[MockAI] Generating questions with data:`, setupData);
     // Simulate background work...
     await new Promise<void>(resolve => setTimeout(resolve, 2000));
     
-    return [
+    const data = [
       {
         order: 1,
         difficulty: 'Easy',
@@ -35,9 +35,14 @@ export class MockAiProvider implements IAiProvider {
         content: { en: 'How does prototypal inheritance work?', vi: 'Kế thừa nguyên mẫu (prototypal inheritance) hoạt động như thế nào?' }
       }
     ];
+
+    return {
+      data,
+      audit: { promptTokenCount: 10, candidatesTokenCount: 50, totalTokenCount: 60 }
+    };
   }
 
-  async evaluateAnswers(questions: any[], answers: AnswerPayload[]): Promise<EvaluationResult> {
+  async evaluateAnswers(questions: any[], answers: AnswerPayload[]): Promise<{ data: EvaluationResult, audit: AiUsageMetadata }> {
     console.log(`[MockAI] Evaluating answers...`);
     await new Promise<void>(resolve => setTimeout(resolve, 2000));
     
@@ -53,7 +58,7 @@ export class MockAiProvider implements IAiProvider {
       };
     });
 
-    return {
+    const data: EvaluationResult = {
       evaluations,
       overallScore: 8,
       learningPath: [
@@ -63,6 +68,11 @@ export class MockAiProvider implements IAiProvider {
           suggestion: 'Review closure and event loop.'
         }
       ]
+    };
+
+    return {
+      data,
+      audit: { promptTokenCount: 20, candidatesTokenCount: 100, totalTokenCount: 120 }
     };
   }
 }

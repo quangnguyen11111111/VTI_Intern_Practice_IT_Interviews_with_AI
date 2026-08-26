@@ -28,7 +28,7 @@ export class InProgressState implements IInterviewState {
            throw new Error("Cannot find questions for this session.");
          }
          
-         const evaluationResult = await payload.aiProvider.evaluateAnswers(session.questions, payload.data);
+         const { data: evaluationResult, audit } = await payload.aiProvider.evaluateAnswers(session.questions, payload.data);
          
          // save feedback
          for (const evalResult of evaluationResult.evaluations) {
@@ -40,6 +40,9 @@ export class InProgressState implements IInterviewState {
             overallScore: evaluationResult.overallScore,
             learningPath: evaluationResult.learningPath 
          });
+
+         // save token usage
+         await context.getRepository().updateTokenUsage(context.getInterviewId(), audit);
       }
       // Success -> COMPLETED
       const { CompletedState } = await import('./CompletedState');
