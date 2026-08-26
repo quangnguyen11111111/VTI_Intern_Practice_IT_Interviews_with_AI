@@ -23,6 +23,7 @@ export interface AnswerPayload {
 export interface GeneratedQuestion {
   order: number;
   difficulty: string;
+  category?: string;
   content: LocalizedContent;
 }
 
@@ -38,9 +39,15 @@ export interface EvaluationResult {
   learningPath: { topic: string; priority: string; suggestion: string }[];
 }
 
+export interface AiUsageMetadata {
+  promptTokenCount: number;
+  candidatesTokenCount: number;
+  totalTokenCount: number;
+}
+
 export interface IAiProvider {
-  generateQuestions(setupData: InterviewSetupPayload): Promise<GeneratedQuestion[]>;
-  evaluateAnswers(questions: any[], answers: AnswerPayload[]): Promise<EvaluationResult>;
+  generateQuestions(setupData: InterviewSetupPayload): Promise<{ data: GeneratedQuestion[], audit: AiUsageMetadata }>;
+  evaluateAnswers(questions: any[], answers: AnswerPayload[]): Promise<{ data: EvaluationResult, audit: AiUsageMetadata }>;
 }
 
 export interface GeneratePayload {

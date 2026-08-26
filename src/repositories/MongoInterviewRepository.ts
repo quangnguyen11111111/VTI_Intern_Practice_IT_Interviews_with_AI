@@ -59,6 +59,16 @@ export class MongoInterviewRepository implements IInterviewRepository {
     await InterviewQuestionModel.findByIdAndUpdate(questionId, { feedback, score });
   }
 
+  async updateTokenUsage(id: string, usage: import('../domain/interview/types').AiUsageMetadata): Promise<void> {
+    await InterviewSessionModel.findByIdAndUpdate(id, {
+      $inc: {
+        'metadata.promptTokens': usage.promptTokenCount,
+        'metadata.candidatesTokens': usage.candidatesTokenCount,
+        'metadata.totalTokens': usage.totalTokenCount,
+      }
+    });
+  }
+
   private mapToEntity(doc: any): InterviewEntity {
     return {
       id: doc._id.toString(),
@@ -66,6 +76,8 @@ export class MongoInterviewRepository implements IInterviewRepository {
       status: doc.status as InterviewStatus,
       setupData: doc.setupData,
       overallScore: doc.overallScore,
+      learningPath: doc.learningPath,
+      metadata: doc.metadata,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt
     };

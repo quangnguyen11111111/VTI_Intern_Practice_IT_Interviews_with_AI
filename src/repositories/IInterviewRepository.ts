@@ -22,6 +22,7 @@ export interface InterviewEntity {
   questions?: InterviewQuestionEntity[];
   overallScore?: number | null;
   learningPath?: { topic: string; priority: string; suggestion: string }[] | null;
+  metadata?: import('../domain/interview/types').AiUsageMetadata;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,6 +32,7 @@ export interface IInterviewRepository {
   findById(id: string): Promise<InterviewEntity | null>;
   updateStatus(id: string, status: InterviewStatus): Promise<void>;
   update(id: string, data: Partial<InterviewEntity>): Promise<void>;
+  updateTokenUsage(id: string, usage: import('../domain/interview/types').AiUsageMetadata): Promise<void>;
   
   // Question management
   createQuestions(sessionId: string, questions: Omit<InterviewQuestionEntity, 'id' | 'sessionId' | 'createdAt' | 'updatedAt' | 'candidateAnswer' | 'feedback' | 'score'>[]): Promise<InterviewQuestionEntity[]>;

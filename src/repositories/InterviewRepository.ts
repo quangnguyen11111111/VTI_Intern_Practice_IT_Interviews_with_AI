@@ -1,91 +1,93 @@
 import { IInterviewRepository, InterviewEntity, InterviewQuestionEntity } from './IInterviewRepository';
 import { InterviewStatus } from '../domain/interview/IInterviewState';
-import { InterviewSetupPayload, LocalizedContent } from '../domain/interview/types';
+import { InterviewSetupPayload, LocalizedContent, AiUsageMetadata } from '../domain/interview/types';
+import { InterviewSessionModel } from '../models/InterviewSession';
+import { InterviewQuestionModel } from '../models/InterviewQuestion';
 
 export class InterviewRepository implements IInterviewRepository {
-  // Giả lập In-Memory Database
-  private static sessionStore: Map<string, InterviewEntity> = new Map();
-  private static questionStore: Map<string, InterviewQuestionEntity[]> = new Map();
-
   async create(data: InterviewSetupPayload, userId?: string): Promise<InterviewEntity> {
-    const id = Date.now().toString(); // Simple ID generation for mockup
-    const newSession: InterviewEntity = {
-      id,
+    const session = await InterviewSessionModel.create({
       userId,
       status: 'PENDING',
       setupData: data,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      questions: []
-    };
-    InterviewRepository.sessionStore.set(id, newSession);
-    InterviewRepository.questionStore.set(id, []);
-    return newSession;
+    });
+    return this.mapSessionToEntity(session, []);
   }
 
   async findById(id: string): Promise<InterviewEntity | null> {
-    const session = InterviewRepository.sessionStore.get(id);
+    const session = await InterviewSessionModel.findById(id).lean();
     if (!session) return null;
-    
-    // Deep clone to avoid mutating the store directly
-    const sessionCopy = JSON.parse(JSON.stringify(session));
-    sessionCopy.questions = InterviewRepository.questionStore.get(id) || [];
-    return sessionCopy;
+
+    const questions = await InterviewQuestionModel.find({ sessionId: id }).sort({ order: 1 }).lean();
+    return this.mapSessionToEntity(session, questions);
   }
 
   async updateStatus(id: string, status: InterviewStatus): Promise<void> {
-    const session = InterviewRepository.sessionStore.get(id);
-    if (session) {
-      session.status = status;
-      session.updatedAt = new Date();
-    }
+    await InterviewSessionModel.findByIdAndUpdate(id, { status });
   }
 
   async update(id: string, data: Partial<InterviewEntity>): Promise<void> {
-    const session = InterviewRepository.sessionStore.get(id);
-    if (session) {
-      Object.assign(session, data);
-      session.updatedAt = new Date();
-    }
+    await InterviewSessionModel.findByIdAndUpdate(id, { $set: data });
+  }
+
+  async updateTokenUsage(id: string, usage: AiUsageMetadata): Promise<void> {
+    await InterviewSessionModel.findByIdAndUpdate(id, {
+      $inc: {
+        'metadata.promptTokens': usage.promptTokenCount,
+        'metadata.candidatesTokens': usage.candidatesTokenCount,
+        'metadata.totalTokens': usage.totalTokenCount,
+      }
+    });
   }
 
   async createQuestions(sessionId: string, questionsData: Omit<InterviewQuestionEntity, 'id' | 'sessionId' | 'createdAt' | 'updatedAt' | 'candidateAnswer' | 'feedback' | 'score'>[]): Promise<InterviewQuestionEntity[]> {
-    const questions = questionsData.map((q, idx) => ({
-      id: `${sessionId}-q${idx}`,
+    const docsToInsert = questionsData.map(q => ({
       sessionId,
-      ...q,
-      candidateAnswer: null,
-      feedback: null,
-      score: null,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      order: q.order,
+      difficulty: q.difficulty,
+      content: q.content,
     }));
-    
-    InterviewRepository.questionStore.set(sessionId, questions);
-    return questions;
+
+    const insertedDocs = await InterviewQuestionModel.insertMany(docsToInsert);
+    return insertedDocs.map(doc => this.mapQuestionToEntity(doc));
   }
 
   async updateQuestionAnswer(questionId: string, answer: string): Promise<void> {
-    for (const [sessionId, questions] of InterviewRepository.questionStore.entries()) {
-      const q = questions.find(q => q.id === questionId);
-      if (q) {
-        q.candidateAnswer = answer;
-        q.updatedAt = new Date();
-        break;
-      }
-    }
+    await InterviewQuestionModel.findByIdAndUpdate(questionId, { candidateAnswer: answer });
   }
 
   async updateQuestionFeedback(questionId: string, feedback: LocalizedContent, score: number): Promise<void> {
-    for (const [sessionId, questions] of InterviewRepository.questionStore.entries()) {
-      const q = questions.find(q => q.id === questionId);
-      if (q) {
-        q.feedback = feedback;
-        q.score = score;
-        q.updatedAt = new Date();
-        break;
-      }
-    }
+    await InterviewQuestionModel.findByIdAndUpdate(questionId, { feedback, score });
+  }
+
+  private mapSessionToEntity(sessionDoc: any, questionsDoc: any[]): InterviewEntity {
+    return {
+      id: sessionDoc._id.toString(),
+      userId: sessionDoc.userId,
+      status: sessionDoc.status,
+      setupData: sessionDoc.setupData,
+      overallScore: sessionDoc.overallScore,
+      learningPath: sessionDoc.learningPath,
+      metadata: sessionDoc.metadata,
+      createdAt: sessionDoc.createdAt,
+      updatedAt: sessionDoc.updatedAt,
+      questions: questionsDoc.map(q => this.mapQuestionToEntity(q))
+    };
+  }
+
+  private mapQuestionToEntity(questionDoc: any): InterviewQuestionEntity {
+    return {
+      id: questionDoc._id.toString(),
+      sessionId: questionDoc.sessionId.toString(),
+      order: questionDoc.order,
+      difficulty: questionDoc.difficulty,
+      content: questionDoc.content,
+      candidateAnswer: questionDoc.candidateAnswer,
+      feedback: questionDoc.feedback,
+      score: questionDoc.score,
+      createdAt: questionDoc.createdAt,
+      updatedAt: questionDoc.updatedAt,
+    };
   }
 }
 
