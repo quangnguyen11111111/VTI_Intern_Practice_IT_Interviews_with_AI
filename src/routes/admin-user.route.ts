@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { container } from 'tsyringe';
+import { authenticate, requireAdmin } from '../middlewares/auth.middleware';
 
 import { AdminUserController } from '../controllers/admin-user.controller';
 
@@ -7,6 +8,8 @@ const router = Router();
 
 const controller =
   container.resolve(AdminUserController);
+
+router.use(authenticate, requireAdmin);
 
 router.get(
   '/users',

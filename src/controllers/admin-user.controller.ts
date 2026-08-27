@@ -48,12 +48,12 @@ export class AdminUserController {
       });
     }
 
-    const actorId = req.header('x-actor-id');
+    const actorId = req.user?._id?.toString();
 
     if (!actorId) {
-      return res.status(400).json({
+      return res.status(401).json({
         success: false,
-        message: 'Actor ID is required',
+        message: 'Unauthorized',
       });
     }
 
@@ -89,12 +89,12 @@ export class AdminUserController {
       });
     }
 
-    const actorId = req.header('x-actor-id');
+    const actorId = req.user?._id?.toString();
 
     if (!actorId) {
-      return res.status(400).json({
+      return res.status(401).json({
         success: false,
-        message: 'Actor ID is required',
+        message: 'Unauthorized',
       });
     }
 
