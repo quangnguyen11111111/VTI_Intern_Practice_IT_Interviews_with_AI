@@ -2,6 +2,7 @@ export interface InterviewSetupPayload {
   jobPosition: string;
   level: string;
   techStacks: string[];
+  jdText?: string;
 }
 
 export interface LocalizedContent {
