@@ -1,7 +1,7 @@
 export interface InterviewSetupPayload {
-  jobPosition: string;
-  level: string;
-  techStacks: string[];
+  jobPosition?: string;
+  level?: string;
+  techStacks?: string[];
   jdText?: string;
 }
 

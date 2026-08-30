@@ -1,14 +1,24 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { interviewApi, type BaseEntity } from '../../services/api/interviewApi';
-import { type InterviewSetupFormData, type UseInterviewSetupReturn } from './types';
+import { SetupMode, type ManualSetupFormData, type JDUploadFormData, type UseInterviewSetupReturn } from './types';
+import { useAuthStore } from '../../auth/authStore';
 
 export const useInterviewSetup = (): UseInterviewSetupReturn => {
-  const form = useForm<InterviewSetupFormData>({
+  const [activeMode, setActiveMode] = useState<SetupMode>(SetupMode.MANUAL);
+  const { user } = useAuthStore();
+
+  const manualForm = useForm<ManualSetupFormData>({
     defaultValues: {
       jobPosition: '',
       level: '',
       techStacks: [],
+    }
+  });
+
+  const jdForm = useForm<JDUploadFormData>({
+    defaultValues: {
+      jdFile: null,
     }
   });
 
@@ -22,6 +32,7 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   // Fetch initial data (Roles & Levels)
   useEffect(() => {
@@ -46,13 +57,13 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
   }, []);
 
   // Watch jobPosition to fetch related technologies
-  const jobPosition = form.watch('jobPosition');
+  const jobPosition = manualForm.watch('jobPosition');
 
   useEffect(() => {
     const fetchTechsByRole = async () => {
       if (!jobPosition) {
         setTechnologies([]);
-        form.setValue('techStacks', []);
+        manualForm.setValue('techStacks', []);
         return;
       }
       
@@ -60,19 +71,19 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
         const fetchedTechs = await interviewApi.fetchTechnologies(jobPosition);
         setTechnologies(fetchedTechs);
         // Clear selected tech stacks that are no longer in the new list
-        const currentTechs = form.getValues('techStacks');
+        const currentTechs = manualForm.getValues('techStacks');
         const validTechIds = fetchedTechs.map(t => t._id);
         const newTechs = currentTechs.filter(id => validTechIds.includes(id));
-        form.setValue('techStacks', newTechs);
+        manualForm.setValue('techStacks', newTechs);
       } catch (err) {
         console.error('Lỗi khi lấy công nghệ:', err);
       }
     };
 
     fetchTechsByRole();
-  }, [jobPosition, form]);
+  }, [jobPosition, manualForm]);
 
-  const onSubmit = async (data: InterviewSetupFormData) => {
+  const onSubmitManual = async (data: ManualSetupFormData) => {
     // Validate manually for techStacks since it's a custom field
     if (data.techStacks.length === 0) {
       setError('Vui lòng chọn ít nhất một công nghệ (Tech Stack).');
@@ -84,10 +95,12 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
     setSuccessMessage(null);
 
     try {
-      await interviewApi.setupInterview(data);
+      const payload = { ...data, userId: user?.id };
+      const session = await interviewApi.setupInterview(payload);
       
+      setSessionId(session._id);
       setSuccessMessage('Thiết lập phỏng vấn thành công!');
-      form.reset();
+      manualForm.reset();
     } catch (err) {
       console.error('Lỗi thiết lập phỏng vấn:', err);
       setError('Đã có lỗi xảy ra. Vui lòng thử lại sau.');
@@ -96,15 +109,51 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
     }
   };
 
+  const onSubmitJd = async (data: JDUploadFormData) => {
+    if (!data.jdFile || data.jdFile.length === 0) {
+      setError('Vui lòng chọn file Job Description (JD).');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      // Create FormData to upload file
+      const formData = new FormData();
+      formData.append('jdFile', data.jdFile[0]);
+      if (user?.id) {
+        formData.append('userId', user.id);
+      }
+
+      const session = await interviewApi.uploadJdInterview(formData);
+      
+      setSessionId(session._id);
+      setSuccessMessage('Tải lên JD thành công! Hệ thống đang phân tích...');
+      jdForm.reset();
+    } catch (err) {
+      console.error('Lỗi tải lên JD:', err);
+      setError(err instanceof Error ? err.message : 'Đã có lỗi xảy ra trong quá trình tải lên JD.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
-    form,
+    manualForm,
+    jdForm,
+    activeMode,
+    setActiveMode,
     isLoading,
     isFetchingData,
     error,
     successMessage,
+    sessionId,
     roles,
     levels,
     technologies,
-    onSubmit,
+    onSubmitManual,
+    onSubmitJd,
   };
 };
