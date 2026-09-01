@@ -115,4 +115,30 @@ export const interviewApi = {
     const body = await response.json();
     return body.data;
   },
+
+  /**
+   * Fetch an existing interview session by ID
+   */
+  fetchInterviewSession: async (sessionId: string): Promise<any> => {
+    return request<any>(`interviews/${sessionId}`);
+  },
+
+  /**
+   * Save interview progress
+   */
+  saveInterviewProgress: async (sessionId: string, answers: any[]): Promise<any> => {
+    return request<any>(`interviews/${sessionId}/progress`, {
+      method: 'POST',
+      body: JSON.stringify({ answers }),
+    });
+  },
+
+  /**
+   * Generate interview questions for a session
+   */
+  generateQuestions: async (sessionId: string): Promise<any> => {
+    return request<any>(`interviews/${sessionId}/generate`, {
+      method: 'POST',
+    });
+  },
 };

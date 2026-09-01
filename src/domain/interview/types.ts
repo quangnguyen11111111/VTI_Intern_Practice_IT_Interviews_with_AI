@@ -60,3 +60,7 @@ export interface SubmitPayload {
   data: AnswerPayload[];
   aiProvider?: IAiProvider;
 }
+
+export interface SaveProgressPayload {
+  answers: AnswerPayload[];
+}

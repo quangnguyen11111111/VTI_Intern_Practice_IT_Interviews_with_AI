@@ -54,4 +54,12 @@ export class InProgressState implements IInterviewState {
       throw error;
     }
   }
+
+  async saveProgress(context: InterviewContext, payload: import('../types').SaveProgressPayload): Promise<void> {
+    console.log(`[InProgressState] Saving progress for interview: ${context.getInterviewId()}`);
+    // Cập nhật câu trả lời vào DB mà không chuyển trạng thái
+    for (const ans of payload.answers) {
+      await context.getRepository().updateQuestionAnswer(ans.questionId, ans.candidateAnswer);
+    }
+  }
 }

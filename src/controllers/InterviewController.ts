@@ -98,4 +98,21 @@ export class InterviewController {
       res.status(500).json({ success: false, message: error.message });
     }
   };
+  /**
+   * POST /api/interviews/:id/progress
+   */
+  saveProgress = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const { answers } = req.body;
+      const result = await this.interviewService.saveProgress(id, answers);
+      res.status(200).json({ success: true, data: result });
+    } catch (error: any) {
+      if (error instanceof InvalidStateTransitionException) {
+        res.status(400).json({ success: false, message: error.message, errorType: 'InvalidState' });
+        return;
+      }
+      res.status(500).json({ success: false, message: error.message });
+    }
+  };
 }

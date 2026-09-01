@@ -98,4 +98,22 @@ export class InterviewService {
 
     return await this.getInterviewSession(id);
   }
+
+  /**
+   * Lưu tiến trình (Autosave)
+   */
+  async saveProgress(id: string, answers: AnswerPayload[]) {
+    const sessionData = await this.getInterviewSession(id);
+    
+    // Phục hồi State Machine
+    const currentState = InterviewContext.createStateFromStatus(sessionData.status);
+    const context = new InterviewContext(id, this.interviewRepo, currentState);
+
+    // Kích hoạt action lưu tiến trình
+    await context.saveProgress({
+      answers
+    });
+
+    return { message: 'Progress saved successfully' };
+  }
 }

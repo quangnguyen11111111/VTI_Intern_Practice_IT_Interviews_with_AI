@@ -59,6 +59,13 @@ export class InterviewContext {
   }
 
   /**
+   * Delegate action 'saveProgress' to current state
+   */
+  public async saveProgress(payload: import('./types').SaveProgressPayload): Promise<void> {
+    await this.state.saveProgress(this, payload);
+  }
+
+  /**
    * Static factory method to instantiate correct state based on status string from DB
    */
   public static createStateFromStatus(status: InterviewStatus): IInterviewState {

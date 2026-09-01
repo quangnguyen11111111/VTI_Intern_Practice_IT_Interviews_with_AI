@@ -36,4 +36,8 @@ export class PendingState implements IInterviewState {
   async submit(context: InterviewContext, payload: SubmitPayload): Promise<void> {
     throw new InvalidStateTransitionException('Cannot submit answers while in PENDING state.');
   }
+
+  async saveProgress(context: InterviewContext, payload: import('../types').SaveProgressPayload): Promise<void> {
+    throw new InvalidStateTransitionException('Cannot save progress while in PENDING state.');
+  }
 }

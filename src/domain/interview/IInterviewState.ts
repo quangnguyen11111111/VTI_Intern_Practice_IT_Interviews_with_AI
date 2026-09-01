@@ -3,7 +3,7 @@
 
 
 import { InterviewContext } from './InterviewContext';
-import { GeneratePayload, SubmitPayload } from './types';
+import { GeneratePayload, SubmitPayload, SaveProgressPayload } from './types';
 
 export type InterviewStatus = 
   | 'PENDING'
@@ -25,4 +25,9 @@ export interface IInterviewState {
    * Action to submit answers and trigger evaluation
    */
   submit(context: InterviewContext, payload: SubmitPayload): Promise<void>;
+
+  /**
+   * Action to save progress incrementally
+   */
+  saveProgress(context: InterviewContext, payload: SaveProgressPayload): Promise<void>;
 }

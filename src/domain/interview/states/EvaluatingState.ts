@@ -15,4 +15,8 @@ export class EvaluatingState implements IInterviewState {
   async submit(context: InterviewContext, payload: SubmitPayload): Promise<void> {
     throw new InvalidStateTransitionException('Interview is already in EVALUATING state. Answers were already submitted.');
   }
+
+  async saveProgress(context: InterviewContext, payload: import('../types').SaveProgressPayload): Promise<void> {
+    throw new InvalidStateTransitionException('Cannot save progress while EVALUATING.');
+  }
 }

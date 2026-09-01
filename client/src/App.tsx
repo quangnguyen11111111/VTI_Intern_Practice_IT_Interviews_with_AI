@@ -6,6 +6,7 @@ import {
 
 import { HomePage } from './pages/HomePage';
 import { InterviewSetupPage } from './pages/InterviewSetupPage';
+import { InterviewRoomPage } from './pages/InterviewRoomPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -92,6 +93,11 @@ function App() {
             <Route
               path="/setup"
               element={<InterviewSetupPage />}
+            />
+
+            <Route
+              path="/interview/:sessionId"
+              element={<InterviewRoomPage />}
             />
           </Route>
         </Routes>
