@@ -30,9 +30,10 @@ const InterviewSessionSchema: Schema = new Schema(
       required: true
     },
     setupData: {
-      jobPosition: { type: String, required: true },
-      level: { type: String, required: true },
-      techStacks: [{ type: String }]
+      jobPosition: { type: String },
+      level: { type: String },
+      techStacks: [{ type: String }],
+      jdText: { type: String }
     },
     overallScore: {
       type: Number,

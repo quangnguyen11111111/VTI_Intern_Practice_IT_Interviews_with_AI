@@ -19,6 +19,30 @@ export class InterviewService {
   }
 
   /**
+   * Khởi tạo phiên phỏng vấn mới từ file JD
+   */
+  async createInterviewSessionFromJD(
+    setupData: Omit<InterviewSetupPayload, 'jdText'>, 
+    fileBuffer: Buffer, 
+    mimeType: string, 
+    userId?: string
+  ) {
+    const { FileParserFactory } = await import('../utils/parsers/FileParserFactory');
+    const parser = FileParserFactory.getParser(mimeType);
+    const jdText = await parser.parse(fileBuffer);
+    
+    // Giới hạn độ dài jdText để tránh payload quá lớn cho AI (ví dụ 10000 ký tự)
+    const truncatedJdText = jdText.substring(0, 10000);
+
+    const fullSetupData: InterviewSetupPayload = {
+      ...setupData,
+      jdText: truncatedJdText
+    };
+
+    return this.createInterviewSession(fullSetupData, userId);
+  }
+
+  /**
    * Lấy thông tin phiên
    */
   async getInterviewSession(id: string) {

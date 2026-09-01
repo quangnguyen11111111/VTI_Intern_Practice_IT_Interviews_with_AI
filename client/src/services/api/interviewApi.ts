@@ -1,3 +1,6 @@
+import { request } from '../../auth/apiClient';
+import { getAccessToken } from '../../auth/session';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
 
 export interface BaseEntity {
@@ -10,6 +13,13 @@ export interface InterviewSetupPayload {
   jobPosition: string; // role ID
   level: string; // level ID
   techStacks: string[]; // array of technology IDs
+  userId?: string;
+}
+
+export interface InterviewSessionData {
+  _id: string;
+  status?: string;
+  // include other fields as needed
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,12 +82,37 @@ export const interviewApi = {
   /**
    * Submit interview setup configuration
    */
-  setupInterview: async (payload: InterviewSetupPayload): Promise<void> => {
-    return new Promise((resolve) => {
-      console.log('Sending API Request with payload:', payload);
-      setTimeout(() => {
-        resolve();
-      }, 1000);
+  setupInterview: async (payload: InterviewSetupPayload): Promise<InterviewSessionData> => {
+    console.log('Sending API Request with payload:', payload);
+    return request<InterviewSessionData>('interviews', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
+  },
+
+  /**
+   * Upload JD file for interview setup
+   */
+  uploadJdInterview: async (payload: FormData): Promise<InterviewSessionData> => {
+    console.log('Sending JD Upload Request');
+    const accessToken = getAccessToken();
+    const headers = new Headers();
+    if (accessToken) {
+      headers.set('Authorization', `Bearer ${accessToken}`);
+    }
+    
+    const response = await fetch(`${API_URL}/interviews/generate-from-jd`, {
+      method: 'POST',
+      headers,
+      body: payload,
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to upload JD');
+    }
+    
+    const body = await response.json();
+    return body.data;
   },
 };

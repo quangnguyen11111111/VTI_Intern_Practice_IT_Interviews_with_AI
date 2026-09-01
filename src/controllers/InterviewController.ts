@@ -22,6 +22,36 @@ export class InterviewController {
   };
 
   /**
+   * POST /api/interviews/generate-from-jd
+   */
+  createSessionFromJD = async (req: Request, res: Response): Promise<void> => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ success: false, message: 'JD file is required' });
+        return;
+      }
+      
+      const { jobPosition, level, techStacks, userId } = req.body;
+      
+      // Parse techStacks which might be sent as string from FormData
+      const parsedTechStacks = typeof techStacks === 'string' ? JSON.parse(techStacks) : techStacks;
+      
+      const setupData = { jobPosition, level, techStacks: parsedTechStacks || [] };
+      
+      const session = await this.interviewService.createInterviewSessionFromJD(
+        setupData,
+        req.file.buffer,
+        req.file.mimetype,
+        userId
+      );
+      
+      res.status(201).json({ success: true, data: session });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  };
+
+  /**
    * GET /api/interviews/:id
    */
   getSession = async (req: Request, res: Response): Promise<void> => {

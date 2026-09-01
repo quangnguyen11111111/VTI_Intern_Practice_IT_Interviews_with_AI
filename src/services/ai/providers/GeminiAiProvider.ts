@@ -125,10 +125,47 @@ export class GeminiAiProvider implements IAiProvider {
       "Deployment & Infrastructure",
     ];
     const selectedDomains = this.pickRandom(allDomains, 5);
-    const levelGuidance = this.getLevelGuidance(setupData.level);
+    const levelGuidance = setupData.level ? this.getLevelGuidance(setupData.level) : `LEVEL GUIDANCE (From JD):
+- Depth and difficulty: Base the technical depth and difficulty of questions entirely on the context and requirements stated in the Job Description.
+- Focus: Ask practical questions that evaluate the candidate's ability to perform the exact responsibilities mentioned.`;
 
-    const prompt = `You are a Senior Tech Lead with 15 years of experience conducting technical interviews at top-tier companies. You are interviewing a candidate for a **${setupData.jobPosition}** position at the **${setupData.level}** level.
-The candidate's tech stacks are: **${setupData.techStacks.join(", ")}**.
+    let prompt = "";
+
+    if (setupData.jdText) {
+      // JD-based prompt
+      const positionText = setupData.jobPosition ? `a **${setupData.jobPosition}** position` : `a position`;
+      const levelText = setupData.level ? ` at the **${setupData.level}** level` : ``;
+      const techStacksText = setupData.techStacks && setupData.techStacks.length > 0 
+        ? `\nThe candidate's tech stacks are: **${setupData.techStacks.join(", ")}**.` 
+        : ``;
+
+      prompt = `You are a Senior Tech Lead with 15 years of experience conducting technical interviews at top-tier companies. You are interviewing a candidate for ${positionText}${levelText}.${techStacksText}
+
+Here is the Job Description (JD) for the role:
+---
+${setupData.jdText}
+---
+
+YOUR TASK: Generate EXACTLY 5 interview questions that simulate a real-world technical interview, strictly tailored to the requirements, skills, and context found in the JD above.
+
+${levelGuidance}
+
+QUESTION DESIGN RULES:
+1. **JD Alignment**: Each question MUST target a specific skill, responsibility, or technology mentioned in the JD. The category should describe the specific skill from the JD being tested.
+2. **Theory vs Practice Mix**: At least 2 questions must be theoretical (concepts, mechanisms, "explain how X works") and at least 2 must be practical/scenario-based (debugging a real bug, making an architecture decision, optimizing a slow query). The 5th can be either.
+3. **Realistic Interview Tone**: Write questions the way a real interviewer would ask them — conversational but precise. For scenario questions, provide a brief realistic context (e.g., "Your team's API response time has degraded from 200ms to 2s after a recent deployment. How would you diagnose and fix this?").
+4. **No Repetition**: Do NOT ask generic textbook questions. Ask questions that require the candidate to demonstrate applied understanding of the JD requirements.
+5. **Bilingual Output**: Provide each question in both English (content.en) and Vietnamese (content.vi). The Vietnamese version must be a natural translation, not a word-for-word translation.
+
+OUTPUT FORMAT: Return an array of EXACTLY 5 JSON objects with fields: order (1-5), difficulty, category (the skill/domain from the JD), and content ({en, vi}).
+
+Unique Session ID: ${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+    } else {
+      // Standard tech-stack based prompt
+      const techStacksText = setupData.techStacks && setupData.techStacks.length > 0 
+        ? `\nThe candidate's tech stacks are: **${setupData.techStacks.join(", ")}**.` 
+        : ``;
+      prompt = `You are a Senior Tech Lead with 15 years of experience conducting technical interviews at top-tier companies. You are interviewing a candidate for a **${setupData.jobPosition || 'Software Engineer'}** position at the **${setupData.level || 'Mid'}** level.${techStacksText}
 
 YOUR TASK: Generate EXACTLY 5 interview questions that simulate a real-world technical interview.
 
@@ -149,6 +186,7 @@ QUESTION DESIGN RULES:
 OUTPUT FORMAT: Return an array of EXACTLY 5 JSON objects with fields: order (1-5), difficulty, category (the domain name), and content ({en, vi}).
 
 Unique Session ID: ${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+    }
 
     return await this.retryWithBackoff(async () => {
       const result = await model.generateContent(prompt);
