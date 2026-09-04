@@ -19,6 +19,7 @@ import {
 } from './auth/ProtectedRoute';
 
 import { AdminUsersPage } from './pages/AdminUsersPage';
+import { AdminMetricsPage } from './pages/AdminMetricsPage';
 
 function App() {
   return (
@@ -76,6 +77,19 @@ function App() {
             <Route
               path="/admin/users"
               element={<AdminUsersPage />}
+            />
+          </Route>
+
+          <Route
+            element={
+              <ProtectedRoute
+                allowedRoles={['ADMIN']}
+              />
+            }
+          >
+            <Route
+              path="/admin/metrics"
+              element={<AdminMetricsPage />}
             />
           </Route>
 
