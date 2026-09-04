@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { interviewApi } from '../../services/api/interviewApi';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useInterviewSession } from './hooks/useInterviewSession';
@@ -32,16 +32,10 @@ export const InterviewRoom: React.FC = () => {
 
   const { isSaving, saveError, forceSave } = useAutosave(sessionId || '', answers, 1500);
 
-  // Timer: 20 minutes (1200 seconds)
-  const { formattedTime, progressRatio, stopTimer } = useInterviewTimer(1200, session?.createdAt || null, async () => {
-    // Auto-submit when time is up
-    await handleSubmit(true);
-  });
-
   // Enable F5 protection
   useBeforeUnload(true);
 
-  const answeredIndices = useMemo(() => {
+  const answeredIndices = (() => {
     const indices = new Set<number>();
     if (session?.questions) {
       session.questions.forEach((q, idx) => {
@@ -53,15 +47,22 @@ export const InterviewRoom: React.FC = () => {
       });
     }
     return indices;
-  }, [answers, session?.questions]);
+  })();
 
-  const handleSubmit = async (isAutoSubmit = false) => {
+  const submitRef = useRef<((isAutoSubmit?: boolean) => Promise<void>) | null>(null);
+  // Timer: 20 minutes (1200 seconds)
+  const { formattedTime, progressRatio, stopTimer } = useInterviewTimer(1200, session?.createdAt || null, async () => {
+    // Auto-submit when time is up
+    if (submitRef.current) { await submitRef.current(true); }
+  });
+
+  const handleSubmit = useCallback(async (isAutoSubmit = false) => {
     if (!isAutoSubmit && session?.questions) {
       const unansweredIndex = session.questions.findIndex((_, idx) => !answeredIndices.has(idx));
       
       if (unansweredIndex !== -1) {
         setCurrentQuestionIndex(unansweredIndex);
-        alert(`Bạn chưa trả lời câu hỏi số ${unansweredIndex + 1}. Vui lòng hoàn thiện nốt trước khi nộp bài.`);
+        alert(`B?n chua tr? l?i c�u h?i s? ${unansweredIndex + 1}. Vui l�ng ho�n thi?n n?t tru?c khi n?p b�i.`);
         return;
       }
     }
@@ -71,14 +72,18 @@ export const InterviewRoom: React.FC = () => {
       await forceSave();
       
       // Submit to backend (this will set state to EVALUATING and queue a job)
-      await interviewApi.submitInterview(sessionId || '', answers);
+      await interviewApi.submitInterview(sessionId || "", answers);
       
       // Let the page reload so useInterviewSession handles the EVALUATING polling state
       refetch();
-    } catch (err) {
-      alert('Có lỗi xảy ra khi nộp bài. Vui lòng thử lại.');
+    } catch {
+      alert("C� l?i x?y ra khi n?p b�i. Vui l�ng th? l?i.");
     }
-  };
+  }, [session?.questions, answeredIndices, stopTimer, forceSave, sessionId, answers, refetch]);
+
+  useEffect(() => {
+    submitRef.current = handleSubmit;
+  }, [handleSubmit]);
 
   if (isLoading) {
     return (
@@ -195,3 +200,5 @@ export const InterviewRoom: React.FC = () => {
     </div>
   );
 };
+
+

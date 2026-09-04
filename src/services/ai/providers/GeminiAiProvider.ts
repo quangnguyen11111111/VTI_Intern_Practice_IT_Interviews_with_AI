@@ -8,7 +8,7 @@ const RETRY_DELAY_MS = 2000;
 @injectable()
 export class GeminiAiProvider implements IAiProvider {
   private genAI: GoogleGenerativeAI;
-  private modelName = 'gemini-2.5-flash';
+  private modelName = 'gemini-3.6-flash';
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY || '';

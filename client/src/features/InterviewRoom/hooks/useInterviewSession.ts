@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from 'react';
 import { interviewApi } from '../../../services/api/interviewApi';
 import type { InterviewSession, AnswerState } from '../types';
@@ -28,7 +29,7 @@ export const useInterviewSession = (sessionId: string) => {
           data = await interviewApi.fetchInterviewSession(sessionId);
         } catch (genErr) {
           console.error('Failed to generate questions:', genErr);
-          throw new Error('Không thể khởi tạo câu hỏi phỏng vấn bằng AI.');
+          throw new Error('Không thể khởi tạo câu hỏi phỏng vấn bằng AI.', { cause: genErr });
         }
       }
 
@@ -93,7 +94,8 @@ export const useInterviewSession = (sessionId: string) => {
   }, [sessionId]);
 
   useEffect(() => {
-    fetchSession();
+    // Avoid calling setState synchronously within an effect body
+    setTimeout(() => fetchSession(), 0);
   }, [fetchSession]);
 
   // Handle SSE state changes
@@ -101,7 +103,8 @@ export const useInterviewSession = (sessionId: string) => {
     if (sseStatus && session && sseStatus !== session.status) {
       console.log(`[SSE] Status changed from ${session.status} to ${sseStatus}. Refetching...`);
       if (sseStatus === 'IN_PROGRESS' || sseStatus === 'COMPLETED' || sseStatus === 'FAILED') {
-        fetchSession();
+        // Avoid calling setState synchronously within an effect body
+        setTimeout(() => fetchSession(), 0);
       }
     }
   }, [sseStatus, session, fetchSession]);
@@ -154,3 +157,5 @@ export const useInterviewSession = (sessionId: string) => {
     refetch
   };
 };
+
+

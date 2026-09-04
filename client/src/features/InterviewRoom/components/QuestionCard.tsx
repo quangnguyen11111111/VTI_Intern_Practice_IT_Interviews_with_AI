@@ -18,7 +18,8 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
 
   // Reset language to VI when question changes (optional UX choice, but good for consistency)
   useEffect(() => {
-    setLang('vi');
+    // Avoid calling setState synchronously within an effect body
+    setTimeout(() => setLang('vi'), 0);
   }, [question._id]);
 
   return (

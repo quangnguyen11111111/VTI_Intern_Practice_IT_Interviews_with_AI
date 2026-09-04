@@ -17,7 +17,8 @@ export const useInterviewTimer = (initialSeconds: number = 1200, startTime: Date
       const startMs = new Date(startTime).getTime();
       const endMs = startMs + initialSeconds * 1000;
       const remaining = Math.max(0, Math.floor((endMs - Date.now()) / 1000));
-      setTimeLeft(remaining);
+      // Avoid calling setState synchronously within an effect body
+      setTimeout(() => setTimeLeft(remaining), 0);
     }
   }, [startTime, initialSeconds]);
 

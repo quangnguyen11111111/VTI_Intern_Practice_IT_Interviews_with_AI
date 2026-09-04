@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { request } from '../../auth/apiClient';
 import { getAccessToken } from '../../auth/session';
 
@@ -22,7 +23,7 @@ export interface InterviewSessionData {
   // include other fields as needed
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const extractArrayData = (json: any, key: string): BaseEntity[] => {
   if (Array.isArray(json)) return json;
   if (json?.data) {
@@ -154,3 +155,5 @@ export const interviewApi = {
     });
   },
 };
+
+

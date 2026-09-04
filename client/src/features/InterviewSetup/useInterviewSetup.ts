@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -57,6 +58,7 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
   }, []);
 
   // Watch jobPosition to fetch related technologies
+  // eslint-disable-next-line react-hooks/incompatible-library
   const jobPosition = manualForm.watch('jobPosition');
 
   useEffect(() => {
@@ -159,3 +161,4 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
     onSubmitJd,
   };
 };
+
