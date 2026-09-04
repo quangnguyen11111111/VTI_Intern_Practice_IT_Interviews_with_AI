@@ -37,7 +37,11 @@ export interface EvaluatedAnswer {
 export interface EvaluationResult {
   evaluations: EvaluatedAnswer[];
   overallScore: number;
-  learningPath: { topic: string; priority: string; suggestion: string }[];
+  learningPath: {
+    topic: string;
+    priority: string;
+    suggestion: string;
+  }[];
 }
 
 export interface AiUsageMetadata {
@@ -46,17 +50,40 @@ export interface AiUsageMetadata {
   totalTokenCount: number;
 }
 
+export interface SystemPromptContext {
+  content: string;
+  promptId: string;
+  version: number;
+  language: 'EN' | 'VI';
+}
+
 export interface IAiProvider {
-  generateQuestions(setupData: InterviewSetupPayload): Promise<{ data: GeneratedQuestion[], audit: AiUsageMetadata }>;
-  evaluateAnswers(questions: any[], answers: AnswerPayload[]): Promise<{ data: EvaluationResult, audit: AiUsageMetadata }>;
+  generateQuestions(
+    setupData: InterviewSetupPayload,
+    systemPrompt?: SystemPromptContext
+  ): Promise<{
+    data: GeneratedQuestion[];
+    audit: AiUsageMetadata;
+  }>;
+
+  evaluateAnswers(
+    questions: any[],
+    answers: AnswerPayload[],
+    systemPrompt?: SystemPromptContext
+  ): Promise<{
+    data: EvaluationResult;
+    audit: AiUsageMetadata;
+  }>;
 }
 
 export interface GeneratePayload {
   setupData: InterviewSetupPayload;
-  aiProvider?: IAiProvider; // Optional because we might inject it in service now
+  aiProvider?: IAiProvider;
+  systemPrompt?: SystemPromptContext;
 }
 
 export interface SubmitPayload {
   data: AnswerPayload[];
   aiProvider?: IAiProvider;
+  systemPrompt?: SystemPromptContext;
 }

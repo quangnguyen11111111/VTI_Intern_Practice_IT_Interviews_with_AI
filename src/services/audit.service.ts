@@ -10,7 +10,9 @@ import {
   CreateAuditLogInput
 } from './interfaces/IAuditService';
 
-import { IAuditRepository } from '../repositories/interfaces/IAuditRepository';
+import {
+  IAuditRepository
+} from '../repositories/interfaces/IAuditRepository';
 
 @injectable()
 export class AuditService
@@ -28,8 +30,10 @@ export class AuditService
     const {
       actor,
       target,
+      targetType = 'USER',
       action,
-      outcome
+      outcome,
+      version
     } = input;
 
     if (!mongoose.isValidObjectId(actor)) {
@@ -49,9 +53,11 @@ export class AuditService
         new mongoose.Types.ObjectId(actor),
       target:
         new mongoose.Types.ObjectId(target),
+      targetType,
       action,
       outcome,
-      timestamp: new Date(),
+      version,
+      timestamp: new Date()
     });
   }
 }

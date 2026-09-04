@@ -7,12 +7,14 @@ import { TechnologyRepository } from '../repositories/technology.repository';
 import { MongoInterviewRepository } from '../repositories/MongoInterviewRepository';
 import { UserRepository } from '../repositories/user.repository';
 import { AuditRepository } from '../repositories/audit.repository';
+import { SystemPromptRepository } from '../repositories/system-prompt.repository';
 
 // Services
 import { RoleService } from '../services/role.service';
 import { LevelService } from '../services/level.service';
 import { TechnologyService } from '../services/technology.service';
 import { InterviewService } from '../services/InterviewService';
+import { SystemPromptService } from '../services/system-prompt.service';
 
 // AI Providers
 import { MockAiProvider } from '../services/ai/providers/MockAiProvider';
@@ -40,6 +42,10 @@ container.register('IAuditRepository', {
   useClass: AuditRepository
 });
 
+container.register('ISystemPromptRepository', {
+  useClass: SystemPromptRepository
+});
+
 // Register Services
 container.register('IRoleService', { useClass: RoleService });
 container.register('ILevelService', { useClass: LevelService });
@@ -51,6 +57,10 @@ container.register('IAdminUserService', {
 
 container.register('IAuditService', {
   useClass: AuditService
+});
+
+container.register('ISystemPromptService', {
+  useClass: SystemPromptService
 });
 
 export { container };
