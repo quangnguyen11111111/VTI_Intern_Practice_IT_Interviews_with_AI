@@ -94,13 +94,26 @@ export interface IAiProvider {
 
 export interface GeneratePayload {
   setupData: InterviewSetupPayload;
+
   aiProvider?: IAiProvider;
+
   systemPrompt?: SystemPromptContext;
+
+  jobScheduler?: import('../jobs/IJobScheduler').IJobScheduler;
 }
 
 export interface SubmitPayload {
   data: AnswerPayload[];
+
   aiProvider?: IAiProvider;
+
   systemPrompt?: SystemPromptContext;
+
   learningPathPrompt?: SystemPromptContext;
+
+  jobScheduler?: import('../jobs/IJobScheduler').IJobScheduler;
+}
+
+export interface SaveProgressPayload {
+  answers: AnswerPayload[];
 }

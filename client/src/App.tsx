@@ -6,6 +6,7 @@ import {
 
 import { HomePage } from './pages/HomePage';
 import { InterviewSetupPage } from './pages/InterviewSetupPage';
+import { InterviewRoomPage } from './pages/InterviewRoomPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -19,6 +20,7 @@ import {
 } from './auth/ProtectedRoute';
 
 import { AdminUsersPage } from './pages/AdminUsersPage';
+import { AdminMetricsPage } from './pages/AdminMetricsPage';
 
 function App() {
   return (
@@ -82,6 +84,19 @@ function App() {
           <Route
             element={
               <ProtectedRoute
+                allowedRoles={['ADMIN']}
+              />
+            }
+          >
+            <Route
+              path="/admin/metrics"
+              element={<AdminMetricsPage />}
+            />
+          </Route>
+
+          <Route
+            element={
+              <ProtectedRoute
                 allowedRoles={[
                   'CANDIDATE',
                   'INTERVIEWER'
@@ -92,6 +107,11 @@ function App() {
             <Route
               path="/setup"
               element={<InterviewSetupPage />}
+            />
+
+            <Route
+              path="/interview/:sessionId"
+              element={<InterviewRoomPage />}
             />
           </Route>
         </Routes>

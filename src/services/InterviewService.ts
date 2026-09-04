@@ -3,6 +3,8 @@ import {
   inject
 } from 'tsyringe';
 
+import mongoose from 'mongoose';
+
 import {
   IInterviewRepository
 } from '../repositories/IInterviewRepository';
@@ -17,6 +19,18 @@ import {
   IAiProvider,
   SystemPromptContext
 } from '../domain/interview/types';
+
+import Role from '../models/role.model';
+import Level from '../models/level.model';
+import Technology from '../models/technology.model';
+
+import {
+  IJobScheduler
+} from '../domain/jobs/IJobScheduler';
+
+import {
+  IEventPublisher
+} from '../domain/events/IEventPublisher';
 
 import {
   ISystemPromptService
@@ -36,6 +50,14 @@ export class InterviewService {
     @inject('IAiProvider')
     private readonly aiProvider:
       IAiProvider,
+
+    @inject('IJobScheduler')
+    private readonly jobScheduler:
+      IJobScheduler,
+
+    @inject('IEventPublisher')
+    private readonly eventPublisher:
+      IEventPublisher,
 
     @inject('ISystemPromptService')
     private readonly systemPromptService:
@@ -92,9 +114,9 @@ export class InterviewService {
 
     const fullSetupData:
       InterviewSetupPayload = {
-        ...setupData,
-        jdText: truncatedJdText
-      };
+      ...setupData,
+      jdText: truncatedJdText
+    };
 
     return this.createInterviewSession(
       fullSetupData,
@@ -134,8 +156,7 @@ export class InterviewService {
   ): SystemPromptContext {
     return {
       content: prompt.content,
-      promptId:
-        String(prompt._id),
+      promptId: String(prompt._id),
       version: prompt.version,
       language: prompt.language
     };
@@ -178,9 +199,8 @@ export class InterviewService {
   /**
    * Lấy published LEARNING_PATH prompt.
    *
-   * Trả undefined nếu project chưa có prompt loại này.
-   * Điều này giúp giữ backward compatibility với
-   * các interview flow cũ.
+   * Optional để không phá flow cũ nếu chưa có
+   * prompt LEARNING_PATH trong database.
    */
   private async getLearningPathPrompt():
     Promise<SystemPromptContext | undefined> {
@@ -208,6 +228,98 @@ export class InterviewService {
   }
 
   /**
+   * Chuẩn hóa dữ liệu setup trước khi gửi AI.
+   *
+   * main đã cho phép job/user request truyền
+   * ObjectId của role, level và technology.
+   * Chuyển các ID này thành tên để AI nhận được
+   * dữ liệu có nghĩa.
+   */
+  private async resolveAiSetupData(
+    setupData: InterviewSetupPayload
+  ): Promise<InterviewSetupPayload> {
+    const aiSetupData = {
+      ...setupData
+    };
+
+    if (
+      mongoose.Types.ObjectId.isValid(
+        aiSetupData.jobPosition || ''
+      )
+    ) {
+      const role =
+        await Role.findById(
+          aiSetupData.jobPosition
+        );
+
+      if (role) {
+        aiSetupData.jobPosition =
+          role.name;
+      }
+    }
+
+    if (
+      mongoose.Types.ObjectId.isValid(
+        aiSetupData.level || ''
+      )
+    ) {
+      const level =
+        await Level.findById(
+          aiSetupData.level
+        );
+
+      if (level) {
+        aiSetupData.level =
+          level.name;
+      }
+    }
+
+    if (
+      aiSetupData.techStacks &&
+      Array.isArray(
+        aiSetupData.techStacks
+      )
+    ) {
+      const techNames: string[] = [];
+
+      for (
+        const techId of
+          aiSetupData.techStacks
+      ) {
+        if (
+          mongoose.Types.ObjectId.isValid(
+            techId
+          )
+        ) {
+          const tech =
+            await Technology.findById(
+              techId
+            );
+
+          if (tech) {
+            techNames.push(
+              tech.name
+            );
+          } else {
+            techNames.push(
+              techId
+            );
+          }
+        } else {
+          techNames.push(
+            techId
+          );
+        }
+      }
+
+      aiSetupData.techStacks =
+        techNames;
+    }
+
+    return aiSetupData;
+  }
+
+  /**
    * Sinh câu hỏi.
    *
    * PENDING -> GENERATING -> IN_PROGRESS
@@ -227,7 +339,8 @@ export class InterviewService {
       new InterviewContext(
         id,
         this.interviewRepo,
-        currentState
+        currentState,
+        this.eventPublisher
       );
 
     if (!sessionData.setupData) {
@@ -236,17 +349,25 @@ export class InterviewService {
       );
     }
 
+    const aiSetupData =
+      await this.resolveAiSetupData(
+        sessionData.setupData
+      );
+
     const systemPrompt =
       await this.getGenerationPrompt();
 
     await context.generate({
       setupData:
-        sessionData.setupData,
+        aiSetupData,
 
       aiProvider:
         this.aiProvider,
 
-      systemPrompt
+      systemPrompt,
+
+      jobScheduler:
+        this.jobScheduler
     });
 
     return this.getInterviewSession(id);
@@ -264,17 +385,6 @@ export class InterviewService {
     const sessionData =
       await this.getInterviewSession(id);
 
-    /*
-     * Lưu câu trả lời trước khi bắt đầu evaluation.
-     */
-    for (const answer of answers) {
-      await this.interviewRepo
-        .updateQuestionAnswer(
-          answer.questionId,
-          answer.candidateAnswer
-        );
-    }
-
     const currentState =
       InterviewContext.createStateFromStatus(
         sessionData.status
@@ -284,18 +394,19 @@ export class InterviewService {
       new InterviewContext(
         id,
         this.interviewRepo,
-        currentState
+        currentState,
+        this.eventPublisher
       );
 
     /*
-     * Prompt bắt buộc cho evaluation.
+     * Lấy published evaluation prompt.
      */
     const evaluationPrompt =
       await this.getEvaluationPrompt();
 
     /*
-     * Prompt learning path là optional để
-     * không phá interview flow cũ.
+     * Lấy published learning-path prompt.
+     * Optional nếu database chưa có prompt loại này.
      */
     const learningPathPrompt =
       await this.getLearningPathPrompt();
@@ -309,9 +420,45 @@ export class InterviewService {
       systemPrompt:
         evaluationPrompt,
 
-      learningPathPrompt
+      learningPathPrompt,
+
+      jobScheduler:
+        this.jobScheduler
     });
 
     return this.getInterviewSession(id);
+  }
+
+  /**
+   * Lưu tiến trình (Autosave).
+   */
+  async saveProgress(
+    id: string,
+    answers: AnswerPayload[]
+  ) {
+    const sessionData =
+      await this.getInterviewSession(id);
+
+    const currentState =
+      InterviewContext.createStateFromStatus(
+        sessionData.status
+      );
+
+    const context =
+      new InterviewContext(
+        id,
+        this.interviewRepo,
+        currentState,
+        this.eventPublisher
+      );
+
+    await context.saveProgress({
+      answers
+    });
+
+    return {
+      message:
+        'Progress saved successfully'
+    };
   }
 }

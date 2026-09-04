@@ -16,4 +16,8 @@ export class GeneratingState implements IInterviewState {
   async submit(context: InterviewContext, payload: SubmitPayload): Promise<void> {
     throw new InvalidStateTransitionException('Cannot submit answers while questions are being generated.');
   }
+
+  async saveProgress(context: InterviewContext, payload: import('../types').SaveProgressPayload): Promise<void> {
+    throw new InvalidStateTransitionException('Cannot save progress while questions are being generated.');
+  }
 }

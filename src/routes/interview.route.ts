@@ -12,7 +12,10 @@ const interviewController = container.resolve(InterviewController);
 router.post('/', interviewController.createSession);
 router.post('/generate-from-jd', uploadMiddleware.single('jdFile'), interviewController.createSessionFromJD);
 router.get('/:id', interviewController.getSession);
+router.get('/:id/stream', interviewController.streamStatus);
 router.post('/:id/generate', interviewController.generateQuestions);
+router.post('/:id/progress', interviewController.saveProgress);
 router.post('/:id/submit', interviewController.submitAnswers);
+
 
 export default router;

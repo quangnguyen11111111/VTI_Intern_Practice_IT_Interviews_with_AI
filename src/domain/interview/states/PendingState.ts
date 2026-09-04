@@ -17,7 +17,8 @@ import {
 
 import {
   GeneratePayload,
-  SubmitPayload
+  SubmitPayload,
+  SaveProgressPayload
 } from '../types';
 
 export class PendingState
@@ -41,11 +42,53 @@ export class PendingState
     );
 
     try {
-      if (payload && payload.aiProvider) {
+      /*
+       * main:
+       * Prefer background job execution when a scheduler
+       * is available.
+       *
+       * ADM-04:
+       * Pass the selected system prompt along with the job
+       * so the exact prompt/version can still be used by
+       * the async generation flow.
+       *
+       * Test environment:
+       * Keep the synchronous MockAiProvider flow so
+       * integration tests remain deterministic and do not
+       * require Agenda to be started.
+       */
+      if (
+        process.env.NODE_ENV !== 'test' &&
+        payload &&
+        payload.jobScheduler
+      ) {
+        await payload.jobScheduler.enqueue(
+          'GENERATE_QUESTIONS',
+          {
+            interviewId:
+              context.getInterviewId(),
+
+            setupData:
+              payload.setupData,
+
+            systemPrompt:
+              payload.systemPrompt
+          }
+        );
+
+        return;
+      }
+
+      /*
+       * Fallback synchronous generation.
+       */
+      if (
+        payload &&
+        payload.aiProvider
+      ) {
         /*
          * ADM-04:
-         * Generation must use a managed published
-         * system prompt.
+         * Managed prompt is required for generation.
          */
         if (!payload.systemPrompt) {
           throw new Error(
@@ -77,8 +120,8 @@ export class PendingState
           );
 
         /*
-         * Store the exact prompt version used
-         * by this generation run.
+         * Store the exact system prompt version
+         * used for this generation run.
          */
         await context
           .getRepository()
@@ -87,25 +130,32 @@ export class PendingState
             'generation',
             {
               promptId:
-                payload.systemPrompt.promptId,
+                payload.systemPrompt
+                  .promptId,
+
               version:
-                payload.systemPrompt.version,
+                payload.systemPrompt
+                  .version,
+
               language:
-                payload.systemPrompt.language
+                payload.systemPrompt
+                  .language
             }
           );
+
+        /*
+         * Synchronous fallback succeeds immediately.
+         */
+        const {
+          InProgressState
+        } = await import(
+          './InProgressState'
+        );
+
+        await context.changeState(
+          new InProgressState()
+        );
       }
-
-      // If success, transition to InProgressState
-      const {
-        InProgressState
-      } = await import(
-        './InProgressState'
-      );
-
-      await context.changeState(
-        new InProgressState()
-      );
     } catch (error) {
       // If fail, transition to FailedState
       const {
@@ -130,4 +180,14 @@ export class PendingState
       'Cannot submit answers while in PENDING state.'
     );
   }
+
+  async saveProgress(
+    _context: InterviewContext,
+    _payload: SaveProgressPayload
+  ): Promise<void> {
+    throw new InvalidStateTransitionException(
+      'Cannot save progress while in PENDING state.'
+    );
+  }
 }
+

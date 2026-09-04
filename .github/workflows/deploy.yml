@@ -13,7 +13,40 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy to VPS
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install and Build Backend
+        run: |
+          npm ci
+          npm run build
+          npm prune --production # Chỉ giữ lại các thư viện cần thiết cho production
+
+      - name: Install and Build Frontend
+        run: |
+          cd client
+          npm ci
+          npm run build
+          rm -rf node_modules # Xóa node_modules của frontend vì không cần thiết trên server
+
+      - name: Prepare Deployment Package
+        run: |
+          # Nén các file và thư mục cần thiết để copy lên server cho nhanh
+          tar -czf deploy.tar.gz dist/ node_modules/ package.json client/dist/
+
+      - name: Copy Deployment Package to VPS
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "deploy.tar.gz"
+          target: "/var/www/VTI_Intern_Practice_IT_Interviews_with_AI"
+
+      - name: Extract and Restart PM2
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -21,21 +54,13 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
-            # 1. Di chuyển vào thư mục dự án
             cd /var/www/VTI_Intern_Practice_IT_Interviews_with_AI
-
-            # 2. Pull code mới nhất từ GitHub
-            git pull origin main
-
-            # 3. Xử lý Backend (Thư mục gốc)
-            npm install
-            npm run build # Cần có lệnh này nếu Backend của bạn viết bằng TypeScript
-
-            # 4. Xử lý Frontend (Thư mục client)
-            cd client
-            npm install
-            npm run build # Vite sẽ build giao diện ra thư mục client/dist/
-
-            # 5. Quay lại thư mục gốc và khởi động lại PM2
-            cd ..
+            
+            # Giải nén package
+            tar -xzf deploy.tar.gz
+            
+            # Xóa file nén để tiết kiệm dung lượng
+            rm deploy.tar.gz
+            
+            # Khởi động lại ứng dụng qua PM2
             pm2 restart vti-app || pm2 start dist/server.js --name "vti-app"

@@ -26,11 +26,9 @@ export interface UseInterviewSetupReturn {
   isLoading: boolean;
   isFetchingData: boolean;
   error: string | null;
-  successMessage: string | null;
-  sessionId: string | null;
   roles: BaseEntity[];
   levels: BaseEntity[];
   technologies: BaseEntity[];
-  onSubmitManual: (data: ManualSetupFormData) => void;
-  onSubmitJd: (data: JDUploadFormData) => void;
+  onSubmitManual: (data: ManualSetupFormData) => Promise<void>;
+  onSubmitJd: (data: JDUploadFormData) => Promise<void>;
 }
