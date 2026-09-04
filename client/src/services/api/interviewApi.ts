@@ -120,7 +120,9 @@ export const interviewApi = {
    * Fetch an existing interview session by ID
    */
   fetchInterviewSession: async (sessionId: string): Promise<any> => {
-    return request<any>(`interviews/${sessionId}`);
+    return request<any>(`interviews/${sessionId}?t=${Date.now()}`, {
+      cache: 'no-store'
+    });
   },
 
   /**
@@ -139,6 +141,16 @@ export const interviewApi = {
   generateQuestions: async (sessionId: string): Promise<any> => {
     return request<any>(`interviews/${sessionId}/generate`, {
       method: 'POST',
+    });
+  },
+
+  /**
+   * Submit interview answers
+   */
+  submitInterview: async (sessionId: string, answers: any[]): Promise<any> => {
+    return request<any>(`interviews/${sessionId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ answers }),
     });
   },
 };

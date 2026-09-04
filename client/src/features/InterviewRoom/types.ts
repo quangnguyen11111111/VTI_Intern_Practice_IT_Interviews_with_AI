@@ -4,11 +4,13 @@ export interface LocalizedContent {
 }
 
 export interface Question {
-  _id: string;
+  id?: string;
+  _id?: string;
   order: number;
   difficulty: string;
   category?: string;
   content: LocalizedContent;
+  candidateAnswer?: string;
 }
 
 export interface AnswerState {
@@ -17,8 +19,10 @@ export interface AnswerState {
 }
 
 export interface InterviewSession {
-  _id: string;
+  id?: string;
+  _id?: string;
   status: string;
+  createdAt?: string | Date;
   setupData: {
     jobPosition?: string;
     level?: string;

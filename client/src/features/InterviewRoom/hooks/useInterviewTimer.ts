@@ -1,7 +1,26 @@
 import { useState, useEffect } from 'react';
 
-export const useInterviewTimer = (initialSeconds: number = 1200, onTimeUp?: () => void) => {
-  const [timeLeft, setTimeLeft] = useState(initialSeconds);
+export const useInterviewTimer = (initialSeconds: number = 1200, startTime: Date | string | null, onTimeUp?: () => void) => {
+  const [timeLeft, setTimeLeft] = useState(() => {
+    if (!startTime) return initialSeconds;
+    
+    // Calculate end time based on the server's start time
+    const startMs = new Date(startTime).getTime();
+    const endMs = startMs + initialSeconds * 1000;
+    const remaining = Math.max(0, Math.floor((endMs - Date.now()) / 1000));
+    return remaining;
+  });
+
+  // Re-calculate when startTime becomes available
+  useEffect(() => {
+    if (startTime) {
+      const startMs = new Date(startTime).getTime();
+      const endMs = startMs + initialSeconds * 1000;
+      const remaining = Math.max(0, Math.floor((endMs - Date.now()) / 1000));
+      setTimeLeft(remaining);
+    }
+  }, [startTime, initialSeconds]);
+
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {

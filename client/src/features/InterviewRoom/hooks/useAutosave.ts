@@ -15,7 +15,8 @@ export const useAutosave = (sessionId: string, answers: AnswerState[], debounceM
     answersRef.current = answers;
     
     // Save to local session storage for F5 protection
-    if (sessionId) {
+    // Don't overwrite with empty array on initial mount before data is loaded
+    if (sessionId && answers.length > 0) {
       sessionStorage.setItem(`interview_${sessionId}_answers`, JSON.stringify(answers));
     }
   }, [answers, sessionId]);

@@ -14,17 +14,22 @@ export class PendingState implements IInterviewState {
     // Transition to Generating State
     await context.changeState(new GeneratingState());
     
-    // Khởi động quá trình sinh câu hỏi (có thể thông qua AI Service được inject vào payload hoặc context)
-    // Ở đây ta gọi hàm trigger logic phía service
+    // Ở đây ta gọi hàm trigger logic phía service hoặc job scheduler
     try {
-      if (payload && payload.aiProvider) {
+      if (payload && payload.jobScheduler) {
+         // Queue job Instead of waiting for AI directly
+         await payload.jobScheduler.enqueue('GENERATE_QUESTIONS', {
+           interviewId: context.getInterviewId(),
+           setupData: payload.setupData
+         });
+      } else if (payload && payload.aiProvider) {
+         // Fallback to sync generation if no scheduler
          const { data: generatedQuestions, audit } = await payload.aiProvider.generateQuestions(payload.setupData);
          await context.getRepository().createQuestions(context.getInterviewId(), generatedQuestions);
          await context.getRepository().updateTokenUsage(context.getInterviewId(), audit);
+         const { InProgressState } = await import('./InProgressState');
+         await context.changeState(new InProgressState());
       }
-      // If success, transition to InProgressState
-      const { InProgressState } = await import('./InProgressState');
-      await context.changeState(new InProgressState());
     } catch (error) {
       // If fail, transition to FailedState
       const { FailedState } = await import('./FailedState');

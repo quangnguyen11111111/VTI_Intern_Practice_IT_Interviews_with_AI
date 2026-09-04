@@ -2,10 +2,55 @@ import { injectable, inject } from 'tsyringe';
 import { Request, Response } from 'express';
 import { InterviewService } from '../services/InterviewService';
 import { InvalidStateTransitionException } from '../domain/interview/exceptions/InvalidStateTransitionException';
+import { IEventPublisher } from '../domain/events/IEventPublisher';
 
 @injectable()
 export class InterviewController {
-  constructor(@inject(InterviewService) private interviewService: InterviewService) {}
+  constructor(
+    @inject(InterviewService) private interviewService: InterviewService,
+    @inject('IEventPublisher') private eventPublisher?: IEventPublisher
+  ) {}
+
+  /**
+   * GET /api/interviews/:id/stream
+   * Stream interview state changes via SSE
+   */
+  streamStatus = async (req: Request, res: Response): Promise<void> => {
+    const id = req.params.id as string;
+    
+    // Set headers for SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders(); // flush the headers to establish SSE connection
+
+    // Send initial status immediately
+    try {
+      const session = await this.interviewService.getInterviewSession(id);
+      res.write(`data: ${JSON.stringify({ status: session.status })}\n\n`);
+    } catch (err) {
+      res.write(`data: ${JSON.stringify({ error: 'Session not found' })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const listener = (payload: any) => {
+      if (payload.interviewId === id) {
+        res.write(`data: ${JSON.stringify({ status: payload.status })}\n\n`);
+      }
+    };
+
+    if (this.eventPublisher) {
+      this.eventPublisher.subscribe('STATE_CHANGED', listener);
+    }
+
+    req.on('close', () => {
+      if (this.eventPublisher) {
+        this.eventPublisher.unsubscribe('STATE_CHANGED', listener);
+      }
+      res.end();
+    });
+  };
 
   /**
    * POST /api/interviews

@@ -8,7 +8,7 @@ const RETRY_DELAY_MS = 2000;
 @injectable()
 export class GeminiAiProvider implements IAiProvider {
   private genAI: GoogleGenerativeAI;
-  private modelName = 'gemini-3.6-flash';
+  private modelName = 'gemini-2.5-flash';
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY || '';
@@ -41,38 +41,47 @@ export class GeminiAiProvider implements IAiProvider {
     return shuffled.slice(0, count);
   }
 
-  /**
-   * Maps candidate level to appropriate difficulty distribution and depth guidance.
-   */
   private getLevelGuidance(level: string): string {
     const normalized = level.toLowerCase();
     if (normalized.includes('intern') || normalized.includes('fresher')) {
-      return `LEVEL GUIDANCE (Intern/Fresher):
-- Difficulty distribution: 3 Easy + 2 Medium. No Hard questions.
-- Depth: Focus on foundational understanding. Ask "what is" and "how does it work" style questions.
-- Practical questions should involve simple, everyday scenarios (e.g., fixing a common bug, reading a short code snippet).
-- Do NOT ask about system design, distributed systems, or advanced architectural patterns.`;
+      return `LEVEL GUIDANCE (Intern/Fresher - 0 to 6 months experience):
+- Difficulty distribution: 4 Easy + 1 Medium. STRICTLY NO HARD QUESTIONS.
+- Tone & Expectation: The candidate is a student or recent graduate. Treat them as a beginner.
+- Depth: Focus ONLY on very basic, foundational concepts (e.g., "What is OOP?", "Difference between let and var", "What is a primary key?").
+- Practical questions: Keep it extremely simple (e.g., reading a 5-line code snippet, writing a basic SELECT SQL query, or finding a simple syntax/logic bug).
+- RESTRICTION: DO NOT ask about system design, microservices, clean architecture, design patterns, or complex performance optimization.`;
     }
     if (normalized.includes('junior')) {
-      return `LEVEL GUIDANCE (Junior):
-- Difficulty distribution: 2 Easy + 2 Medium + 1 Hard.
-- Depth: Expect working knowledge. Ask "how would you implement" and "what happens when" style questions.
-- Practical questions should involve real project scenarios (e.g., debugging a production issue, choosing between two approaches).
-- Avoid deep system design but may include simple component-level design decisions.`;
+      return `LEVEL GUIDANCE (Junior - 1 to 2 years experience):
+- Difficulty distribution: 2 Easy + 3 Medium. STRICTLY NO HARD QUESTIONS.
+- Tone & Expectation: The candidate has limited working experience. They know how to code but need guidance on architecture.
+- Depth: Focus on everyday practical tasks and framework basics. Ask "How do you implement X?" or "How do you debug Y?".
+- Practical questions: Real project scenarios but localized to a single component (e.g., handling form validation, writing a simple CRUD API, fixing a UI bug).
+- RESTRICTION: DO NOT ask about deep system design, distributed systems, or high-scale performance tuning.`;
     }
     if (normalized.includes('mid') || normalized.includes('middle')) {
-      return `LEVEL GUIDANCE (Middle/Mid-level):
-- Difficulty distribution: 1 Easy + 2 Medium + 2 Hard.
-- Depth: Expect solid understanding of trade-offs. Ask "why would you choose X over Y" and "how would you optimize" style questions.
-- Practical questions should involve multi-component scenarios (e.g., refactoring legacy code, handling race conditions, optimizing a slow API endpoint).
-- Include at least one question about architectural decisions.`;
+      return `LEVEL GUIDANCE (Middle/Mid-level - 3 to 5 years experience):
+- Difficulty distribution: 1 Easy + 3 Medium + 1 Hard.
+- Tone & Expectation: The candidate is an independent contributor.
+- Depth: Expect solid understanding of trade-offs. Ask "Why would you choose X over Y?" and "How would you optimize this?".
+- Practical questions: Multi-component scenarios (e.g., refactoring legacy code, handling database race conditions, optimizing a slow API endpoint).
+- Include basic architectural decisions (e.g., caching strategies, database indexing).`;
     }
-    // Senior / Lead / Principal / Architect
-    return `LEVEL GUIDANCE (Senior/Lead):
+    if (normalized.includes('senior') || normalized.includes('lead') || normalized.includes('principal') || normalized.includes('architect')) {
+      return `LEVEL GUIDANCE (Senior/Lead - 5+ years experience):
 - Difficulty distribution: 0 Easy + 2 Medium + 3 Hard.
-- Depth: Expect deep expertise, mentorship ability, and strategic thinking. Ask "how would you design", "how would you lead a team to solve", and "what are the long-term trade-offs" style questions.
-- Practical questions should involve system-level challenges (e.g., designing for scale, handling data consistency across microservices, making build-vs-buy decisions).
-- Include at least one question about mentoring, code review strategy, or technical leadership.`;
+- Tone & Expectation: The candidate is an expert, mentor, and technical leader.
+- Depth: Expect deep expertise and strategic thinking. Ask "How would you design a scalable system for...", "How would you handle data consistency across microservices?".
+- Practical questions: System-level challenges (e.g., designing for high availability, handling bottlenecks, making build-vs-buy decisions).
+- Include questions about mentoring, code review strategy, and technical leadership.`;
+    }
+    
+    // Default fallback if level is unrecognized (e.g. an ID was passed instead of a string)
+    return `LEVEL GUIDANCE (General / Unknown Level):
+- Difficulty distribution: 2 Easy + 2 Medium + 1 Hard.
+- Tone & Expectation: Assess core knowledge and some practical problem-solving.
+- Depth: Ensure foundational concepts are strong before moving to complex scenarios.
+- Make sure to keep the questions balanced.`;
   }
 
   async generateQuestions(setupData: InterviewSetupPayload): Promise<{ data: GeneratedQuestion[], audit: AiUsageMetadata }> {
@@ -152,10 +161,10 @@ ${levelGuidance}
 
 QUESTION DESIGN RULES:
 1. **JD Alignment**: Each question MUST target a specific skill, responsibility, or technology mentioned in the JD. The category should describe the specific skill from the JD being tested.
-2. **Theory vs Practice Mix**: At least 2 questions must be theoretical (concepts, mechanisms, "explain how X works") and at least 2 must be practical/scenario-based (debugging a real bug, making an architecture decision, optimizing a slow query). The 5th can be either.
-3. **Realistic Interview Tone**: Write questions the way a real interviewer would ask them — conversational but precise. For scenario questions, provide a brief realistic context (e.g., "Your team's API response time has degraded from 200ms to 2s after a recent deployment. How would you diagnose and fix this?").
-4. **No Repetition**: Do NOT ask generic textbook questions. Ask questions that require the candidate to demonstrate applied understanding of the JD requirements.
-5. **Bilingual Output**: Provide each question in both English (content.en) and Vietnamese (content.vi). The Vietnamese version must be a natural translation, not a word-for-word translation.
+2. **Theory vs Practice Mix**: At least 2 questions must be theoretical (concepts, mechanisms, "explain how X works") and at least 2 must be practical/scenario-based. The 5th can be either.
+3. **Realistic Interview Tone**: Write questions the way a real interviewer would ask them. For practical questions, provide a brief realistic context.
+4. **Strict Difficulty Enforcement**: You MUST respect the LEVEL GUIDANCE above. Do not ask architecture questions to an Intern. Do not ask syntax questions to a Senior. Tailor the depth strictly to the experience level.
+5. **Bilingual Output**: Provide each question in both English (content.en) and Vietnamese (content.vi). The Vietnamese version must be a natural translation.
 
 OUTPUT FORMAT: Return an array of EXACTLY 5 JSON objects with fields: order (1-5), difficulty, category (the skill/domain from the JD), and content ({en, vi}).
 
@@ -178,10 +187,10 @@ QUESTION DESIGN RULES:
    - Q3: ${selectedDomains[2]}
    - Q4: ${selectedDomains[3]}
    - Q5: ${selectedDomains[4]}
-2. **Theory vs Practice Mix**: At least 2 questions must be theoretical (concepts, mechanisms, "explain how X works") and at least 2 must be practical/scenario-based (debugging a real bug, making an architecture decision, optimizing a slow query). The 5th can be either.
-3. **Realistic Interview Tone**: Write questions the way a real interviewer would ask them — conversational but precise. For scenario questions, provide a brief realistic context (e.g., "Your team's API response time has degraded from 200ms to 2s after a recent deployment. How would you diagnose and fix this?").
-4. **No Repetition**: Do NOT ask generic textbook questions like "What is a closure?" or "Explain OOP". Instead, ask questions that require the candidate to demonstrate applied understanding.
-5. **Bilingual Output**: Provide each question in both English (content.en) and Vietnamese (content.vi). The Vietnamese version must be a natural translation, not a word-for-word translation.
+2. **Theory vs Practice Mix**: At least 2 questions must be theoretical (concepts, mechanisms) and at least 2 must be practical/scenario-based.
+3. **Realistic Interview Tone**: Write questions the way a real interviewer would ask them.
+4. **Strict Difficulty Enforcement**: You MUST respect the LEVEL GUIDANCE above. Do not ask system design to an Intern. Do not ask generic syntax questions to a Senior. Tailor the depth strictly to the experience level.
+5. **Bilingual Output**: Provide each question in both English (content.en) and Vietnamese (content.vi). The Vietnamese version must be a natural translation.
 
 OUTPUT FORMAT: Return an array of EXACTLY 5 JSON objects with fields: order (1-5), difficulty, category (the domain name), and content ({en, vi}).
 

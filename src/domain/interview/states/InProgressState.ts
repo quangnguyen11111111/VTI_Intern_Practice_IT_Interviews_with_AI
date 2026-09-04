@@ -22,7 +22,14 @@ export class InProgressState implements IInterviewState {
     
     // Gọi logic AI chấm bài ở đây
     try {
-      if (payload && payload.aiProvider) {
+      if (payload && payload.jobScheduler) {
+          // Queue job instead of waiting
+          await payload.jobScheduler.enqueue('EVALUATE_ANSWERS', {
+            interviewId: context.getInterviewId(),
+            data: payload.data
+          });
+      } else if (payload && payload.aiProvider) {
+         // Fallback sync logic
          const session = await context.getRepository().findById(context.getInterviewId());
          if (!session || !session.questions) {
            throw new Error("Cannot find questions for this session.");
@@ -43,10 +50,11 @@ export class InProgressState implements IInterviewState {
 
          // save token usage
          await context.getRepository().updateTokenUsage(context.getInterviewId(), audit);
+         
+         // Success -> COMPLETED
+         const { CompletedState } = await import('./CompletedState');
+         await context.changeState(new CompletedState());
       }
-      // Success -> COMPLETED
-      const { CompletedState } = await import('./CompletedState');
-      await context.changeState(new CompletedState());
     } catch (error) {
       // Fail -> FAILED
       const { FailedState } = await import('./FailedState');

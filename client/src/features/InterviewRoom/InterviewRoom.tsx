@@ -1,10 +1,12 @@
 import React, { useMemo } from 'react';
+import { interviewApi } from '../../services/api/interviewApi';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useInterviewSession } from './hooks/useInterviewSession';
 import { useInterviewTimer } from './hooks/useInterviewTimer';
 import { useAutosave } from './hooks/useAutosave';
 import { useBeforeUnload } from './hooks/useBeforeUnload';
 import { ProgressBar } from './components/ProgressBar';
+import { InterviewLoadingScreen } from './components/InterviewLoadingScreen';
 import { QuestionNavigator } from './components/QuestionNavigator';
 import { QuestionCard } from './components/QuestionCard';
 
@@ -24,13 +26,14 @@ export const InterviewRoom: React.FC = () => {
     currentAnswer,
     handleAnswerChange,
     totalQuestions,
-    answeredCount
+    answeredCount,
+    refetch
   } = useInterviewSession(sessionId || '');
 
   const { isSaving, saveError, forceSave } = useAutosave(sessionId || '', answers, 1500);
 
   // Timer: 20 minutes (1200 seconds)
-  const { formattedTime, progressRatio, stopTimer } = useInterviewTimer(1200, async () => {
+  const { formattedTime, progressRatio, stopTimer } = useInterviewTimer(1200, session?.createdAt || null, async () => {
     // Auto-submit when time is up
     await handleSubmit(true);
   });
@@ -42,7 +45,8 @@ export const InterviewRoom: React.FC = () => {
     const indices = new Set<number>();
     if (session?.questions) {
       session.questions.forEach((q, idx) => {
-        const answer = answers.find(a => a.questionId === q._id);
+        const qId = q.id || q._id;
+        const answer = answers.find(a => a.questionId === qId);
         if (answer && answer.candidateAnswer.trim().length > 0) {
           indices.add(idx);
         }
@@ -65,10 +69,12 @@ export const InterviewRoom: React.FC = () => {
     stopTimer();
     try {
       await forceSave();
-      // Assume API endpoint to submit interview will be implemented in future
-      // interviewApi.submitInterview(sessionId, answers);
-      alert('Nộp bài thành công!');
-      navigate('/');
+      
+      // Submit to backend (this will set state to EVALUATING and queue a job)
+      await interviewApi.submitInterview(sessionId || '', answers);
+      
+      // Let the page reload so useInterviewSession handles the EVALUATING polling state
+      refetch();
     } catch (err) {
       alert('Có lỗi xảy ra khi nộp bài. Vui lòng thử lại.');
     }
@@ -84,23 +90,8 @@ export const InterviewRoom: React.FC = () => {
   }
 
   if (isGenerating) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
-        <div className="relative mb-8">
-          <div className="absolute inset-0 bg-indigo-500 rounded-full blur-xl opacity-20 animate-pulse"></div>
-          <div className="w-20 h-20 bg-slate-800 rounded-2xl flex items-center justify-center border border-slate-700/50 shadow-2xl relative z-10">
-            <svg className="w-10 h-10 text-indigo-400 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          </div>
-        </div>
-        <h2 className="text-2xl font-bold text-white mb-3">Hệ thống AI đang chuẩn bị...</h2>
-        <p className="text-slate-400 max-w-md mx-auto text-lg leading-relaxed">
-          Chúng tôi đang phân tích hồ sơ và soạn bộ câu hỏi phỏng vấn dành riêng cho bạn. Vui lòng đợi trong giây lát.
-        </p>
-      </div>
-    );
+    const isEvaluating = session?.status === 'EVALUATING' || !session; // approximate it
+    return <InterviewLoadingScreen isEvaluating={isEvaluating} />;
   }
 
   if (error || !session) {
@@ -187,6 +178,7 @@ export const InterviewRoom: React.FC = () => {
           <main className="flex-1 min-h-[500px]">
             {currentQuestion ? (
               <QuestionCard
+                key={currentQuestion.id || currentQuestion._id || currentQuestionIndex}
                 question={currentQuestion}
                 currentAnswer={currentAnswer}
                 onAnswerChange={handleAnswerChange}

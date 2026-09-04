@@ -54,11 +54,13 @@ export interface IAiProvider {
 export interface GeneratePayload {
   setupData: InterviewSetupPayload;
   aiProvider?: IAiProvider; // Optional because we might inject it in service now
+  jobScheduler?: import('../jobs/IJobScheduler').IJobScheduler;
 }
 
 export interface SubmitPayload {
   data: AnswerPayload[];
   aiProvider?: IAiProvider;
+  jobScheduler?: import('../jobs/IJobScheduler').IJobScheduler;
 }
 
 export interface SaveProgressPayload {
