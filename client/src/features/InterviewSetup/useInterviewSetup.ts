@@ -1,10 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import { interviewApi, type BaseEntity } from '../../services/api/interviewApi';
 import { SetupMode, type ManualSetupFormData, type JDUploadFormData, type UseInterviewSetupReturn } from './types';
 import { useAuthStore } from '../../auth/authStore';
 
 export const useInterviewSetup = (): UseInterviewSetupReturn => {
+  const navigate = useNavigate();
   const [activeMode, setActiveMode] = useState<SetupMode>(SetupMode.MANUAL);
   const { user } = useAuthStore();
 
@@ -31,8 +34,6 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
   // States for form submission
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
 
   // Fetch initial data (Roles & Levels)
   useEffect(() => {
@@ -57,6 +58,7 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
   }, []);
 
   // Watch jobPosition to fetch related technologies
+  // eslint-disable-next-line react-hooks/incompatible-library
   const jobPosition = manualForm.watch('jobPosition');
 
   useEffect(() => {
@@ -92,15 +94,17 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
 
     setIsLoading(true);
     setError(null);
-    setSuccessMessage(null);
 
     try {
       const payload = { ...data, userId: user?.id };
       const session = await interviewApi.setupInterview(payload);
       
-      setSessionId(session._id);
-      setSuccessMessage('Thiết lập phỏng vấn thành công!');
-      manualForm.reset();
+      const id = (session as any)._id || (session as any).id;
+      if (id) {
+        navigate(`/interview/${id}`);
+      } else {
+        throw new Error("Không lấy được ID phiên phỏng vấn.");
+      }
     } catch (err) {
       console.error('Lỗi thiết lập phỏng vấn:', err);
       setError('Đã có lỗi xảy ra. Vui lòng thử lại sau.');
@@ -117,7 +121,6 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
 
     setIsLoading(true);
     setError(null);
-    setSuccessMessage(null);
 
     try {
       // Create FormData to upload file
@@ -129,9 +132,12 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
 
       const session = await interviewApi.uploadJdInterview(formData);
       
-      setSessionId(session._id);
-      setSuccessMessage('Tải lên JD thành công! Hệ thống đang phân tích...');
-      jdForm.reset();
+      const id = (session as any)._id || (session as any).id;
+      if (id) {
+        navigate(`/interview/${id}`);
+      } else {
+        throw new Error("Không lấy được ID phiên phỏng vấn.");
+      }
     } catch (err) {
       console.error('Lỗi tải lên JD:', err);
       setError(err instanceof Error ? err.message : 'Đã có lỗi xảy ra trong quá trình tải lên JD.');
@@ -148,8 +154,6 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
     isLoading,
     isFetchingData,
     error,
-    successMessage,
-    sessionId,
     roles,
     levels,
     technologies,
@@ -157,3 +161,4 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
     onSubmitJd,
   };
 };
+

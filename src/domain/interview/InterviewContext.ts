@@ -10,15 +10,23 @@ import { EvaluatingState } from './states/EvaluatingState';
 import { CompletedState } from './states/CompletedState';
 import { FailedState } from './states/FailedState';
 import { IInterviewRepository } from '../../repositories/IInterviewRepository';
+import { IEventPublisher } from '../events/IEventPublisher';
 
 export class InterviewContext {
   private state: IInterviewState;
   private interviewId: string;
   private repository: IInterviewRepository;
+  private eventPublisher?: IEventPublisher;
 
-  constructor(interviewId: string, repository: IInterviewRepository, initialState?: IInterviewState) {
+  constructor(
+    interviewId: string, 
+    repository: IInterviewRepository, 
+    initialState?: IInterviewState,
+    eventPublisher?: IEventPublisher
+  ) {
     this.interviewId = interviewId;
     this.repository = repository;
+    this.eventPublisher = eventPublisher;
     // Default state is PENDING if not provided
     this.state = initialState || new PendingState();
   }
@@ -42,6 +50,14 @@ export class InterviewContext {
     this.state = newState;
     // Update state to persistent storage
     await this.repository.updateStatus(this.interviewId, this.state.getName());
+    
+    // Publish state change event for SSE
+    if (this.eventPublisher) {
+      this.eventPublisher.publish('STATE_CHANGED', {
+        interviewId: this.interviewId,
+        status: this.state.getName()
+      });
+    }
   }
 
   /**
@@ -56,6 +72,13 @@ export class InterviewContext {
    */
   public async submit(payload: SubmitPayload): Promise<void> {
     await this.state.submit(this, payload);
+  }
+
+  /**
+   * Delegate action 'saveProgress' to current state
+   */
+  public async saveProgress(payload: import('./types').SaveProgressPayload): Promise<void> {
+    await this.state.saveProgress(this, payload);
   }
 
   /**

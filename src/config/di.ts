@@ -1,4 +1,8 @@
 import { container } from 'tsyringe';
+import { AgendaJobScheduler } from '../infrastructure/jobs/AgendaJobScheduler';
+import { GenerateQuestionJobHandler } from '../domain/jobs/handlers/GenerateQuestionJobHandler';
+
+import { InterviewEventBus } from '../infrastructure/events/InterviewEventBus';
 
 // Repositories
 import { RoleRepository } from '../repositories/role.repository';
@@ -21,6 +25,7 @@ import { MockAiProvider } from '../services/ai/providers/MockAiProvider';
 import { GeminiAiProvider } from '../services/ai/providers/GeminiAiProvider';
 import { AdminUserService } from '../services/admin-user.service';
 import { AuditService } from '../services/audit.service';
+import { EvaluateAnswersJobHandler } from '../domain/jobs/handlers/EvaluateAnswersJobHandler';
 
 // Register Repositories
 container.register('IRoleRepository', { useClass: RoleRepository });
@@ -30,11 +35,22 @@ container.register('IInterviewRepository', { useClass: MongoInterviewRepository 
 
 
 // Register AI Provider based on .env
-if (process.env.AI_PROVIDER === 'gemini') {
-  container.register('IAiProvider', { useClass: GeminiAiProvider });
-} else {
+if (process.env.NODE_ENV === 'test') {
   container.register('IAiProvider', { useClass: MockAiProvider });
+} else {
+
+  container.register('IAiProvider', { useClass: GeminiAiProvider });
 }
+
+// Background Jobs
+container.registerSingleton('IJobScheduler', AgendaJobScheduler);
+container.registerSingleton(GenerateQuestionJobHandler);
+container.registerSingleton(EvaluateAnswersJobHandler);
+
+// Event Bus
+container.registerSingleton('IEventPublisher', InterviewEventBus);
+
+
 container.register('IUserRepository', {
   useClass: UserRepository
 });

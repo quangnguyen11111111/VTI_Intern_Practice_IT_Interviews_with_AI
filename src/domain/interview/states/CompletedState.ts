@@ -13,6 +13,10 @@ export class CompletedState implements IInterviewState {
   }
 
   async submit(context: InterviewContext, payload: SubmitPayload): Promise<void> {
-    throw new InvalidStateTransitionException('Interview is already COMPLETED. Cannot submit answers again.');
+    throw new InvalidStateTransitionException('Cannot submit answers for a COMPLETED interview.');
+  }
+
+  async saveProgress(context: InterviewContext, payload: import('../types').SaveProgressPayload): Promise<void> {
+    throw new InvalidStateTransitionException('Cannot save progress for a COMPLETED interview.');
   }
 }
