@@ -88,7 +88,9 @@ export class InProgressState
             payload.systemPrompt
           );
 
-        // Save feedback
+        /*
+         * Save feedback for each answer.
+         */
         for (
           const evalResult of
             evaluationResult.evaluations
@@ -102,7 +104,82 @@ export class InProgressState
             );
         }
 
-        // Save overall score and learning path
+        /*
+         * Keep the evaluation result as the
+         * default learning path.
+         *
+         * If a dedicated LEARNING_PATH prompt
+         * exists, it will be replaced below.
+         */
+        let learningPath =
+          evaluationResult.learningPath;
+
+        /*
+         * ADM-04:
+         * If a dedicated learning-path prompt
+         * is available, generate the learning
+         * path using that prompt.
+         *
+         * This is optional so existing interview
+         * flows are not broken when there is no
+         * published LEARNING_PATH prompt.
+         */
+        if (
+          payload.learningPathPrompt
+        ) {
+          const {
+            data: learningPathResult,
+            audit:
+              learningPathAudit
+          } =
+            await payload.aiProvider
+              .generateLearningPath(
+                session.questions,
+                payload.data,
+                evaluationResult,
+                payload.learningPathPrompt
+              );
+
+          learningPath =
+            learningPathResult.learningPath;
+
+          /*
+           * Add token usage from the dedicated
+           * learning-path AI call.
+           */
+          await context
+            .getRepository()
+            .updateTokenUsage(
+              context.getInterviewId(),
+              learningPathAudit
+            );
+
+          /*
+           * Store exact learning-path prompt
+           * version used by this AI run.
+           */
+          await context
+            .getRepository()
+            .updatePromptVersion(
+              context.getInterviewId(),
+              'learningPath',
+              {
+                promptId:
+                  payload.learningPathPrompt
+                    .promptId,
+                version:
+                  payload.learningPathPrompt
+                    .version,
+                language:
+                  payload.learningPathPrompt
+                    .language
+              }
+            );
+        }
+
+        /*
+         * Save overall score and learning path.
+         */
         await context
           .getRepository()
           .update(
@@ -110,12 +187,14 @@ export class InProgressState
             {
               overallScore:
                 evaluationResult.overallScore,
-              learningPath:
-                evaluationResult.learningPath
+
+              learningPath
             }
           );
 
-        // Save token usage
+        /*
+         * Save token usage from evaluation.
+         */
         await context
           .getRepository()
           .updateTokenUsage(
@@ -134,11 +213,16 @@ export class InProgressState
             'evaluation',
             {
               promptId:
-                payload.systemPrompt.promptId,
+                payload.systemPrompt
+                  .promptId,
+
               version:
-                payload.systemPrompt.version,
+                payload.systemPrompt
+                  .version,
+
               language:
-                payload.systemPrompt.language
+                payload.systemPrompt
+                  .language
             }
           );
       }

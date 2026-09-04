@@ -1,4 +1,5 @@
 import { injectable } from 'tsyringe';
+
 import {
   GoogleGenerativeAI,
   SchemaType
@@ -11,7 +12,8 @@ import {
   AnswerPayload,
   EvaluationResult,
   AiUsageMetadata,
-  SystemPromptContext
+  SystemPromptContext,
+  LearningPathResult
 } from '../../../domain/interview/types';
 
 const MAX_RETRIES = 3;
@@ -143,44 +145,54 @@ export class GeminiAiProvider
           temperature: 1.0,
           responseMimeType:
             'application/json',
+
           responseSchema: {
             type: SchemaType.ARRAY,
+
             items: {
               type: SchemaType.OBJECT,
+
               properties: {
                 order: {
                   type: SchemaType.INTEGER
                 },
+
                 difficulty: {
                   type: SchemaType.STRING,
                   description:
                     'Easy, Medium, or Hard'
                 },
+
                 category: {
                   type: SchemaType.STRING,
                   description:
                     'The knowledge domain this question belongs to'
                 },
+
                 content: {
                   type: SchemaType.OBJECT,
+
                   properties: {
                     en: {
                       type: SchemaType.STRING,
                       description:
                         'Question in English'
                     },
+
                     vi: {
                       type: SchemaType.STRING,
                       description:
                         'Question translated to Vietnamese'
                     }
                   },
+
                   required: [
                     'en',
                     'vi'
                   ]
                 }
               },
+
               required: [
                 'order',
                 'difficulty',
@@ -347,9 +359,11 @@ ${prompt}`
             promptTokenCount:
               metadata?.promptTokenCount ||
               0,
+
             candidatesTokenCount:
               metadata?.candidatesTokenCount ||
               0,
+
             totalTokenCount:
               metadata?.totalTokenCount ||
               0
@@ -386,36 +400,46 @@ ${prompt}`
           temperature: 0.3,
           responseMimeType:
             'application/json',
+
           responseSchema: {
             type: SchemaType.OBJECT,
+
             properties: {
               evaluations: {
                 type: SchemaType.ARRAY,
+
                 items: {
                   type: SchemaType.OBJECT,
+
                   properties: {
                     questionId: {
                       type: SchemaType.STRING
                     },
+
                     feedback: {
                       type: SchemaType.OBJECT,
+
                       properties: {
                         en: {
                           type: SchemaType.STRING
                         },
+
                         vi: {
                           type: SchemaType.STRING
                         }
                       },
+
                       required: [
                         'en',
                         'vi'
                       ]
                     },
+
                     score: {
                       type: SchemaType.INTEGER
                     }
                   },
+
                   required: [
                     'questionId',
                     'feedback',
@@ -423,24 +447,31 @@ ${prompt}`
                   ]
                 }
               },
+
               overallScore: {
                 type: SchemaType.INTEGER
               },
+
               learningPath: {
                 type: SchemaType.ARRAY,
+
                 items: {
                   type: SchemaType.OBJECT,
+
                   properties: {
                     topic: {
                       type: SchemaType.STRING
                     },
+
                     priority: {
                       type: SchemaType.STRING
                     },
+
                     suggestion: {
                       type: SchemaType.STRING
                     }
                   },
+
                   required: [
                     'topic',
                     'priority',
@@ -449,6 +480,7 @@ ${prompt}`
                 }
               }
             },
+
             required: [
               'evaluations',
               'overallScore',
@@ -471,12 +503,15 @@ ${prompt}`
         return {
           questionId:
             ans.questionId,
+
           questionTextEn:
             q?.content?.en ||
             'Unknown question',
+
           questionTextVi:
             q?.content?.vi ||
             'Unknown question',
+
           candidateAnswer:
             ans.candidateAnswer ||
             'No answer provided'
@@ -494,7 +529,7 @@ CRITICAL REQUIREMENT: First, detect the language the candidate used in their "ca
 
 Task 1: Evaluate EACH answer on a scale of 0 to 10 based on technical accuracy, clarity, and completeness. Provide bilingual constructive feedback for each. Make sure to return the exact "questionId" for each evaluation.
 Task 2: Provide an overallScore (integer 0-10).
-Task 3: Based on their overall performance and weaknesses, provide a structured learning path with topics, priority (High/Medium/Low), and actionable suggestions.
+Task 3: Provide learning-path information that can be used to identify the candidate's main weaknesses.
 
 Return a single JSON object containing "evaluations", "overallScore", and "learningPath".`;
 
@@ -553,9 +588,164 @@ ${prompt}`
             promptTokenCount:
               metadata?.promptTokenCount ||
               0,
+
             candidatesTokenCount:
               metadata?.candidatesTokenCount ||
               0,
+
+            totalTokenCount:
+              metadata?.totalTokenCount ||
+              0
+          };
+
+        return {
+          data: parsed,
+          audit
+        };
+      }
+    );
+  }
+
+  async generateLearningPath(
+    questions: any[],
+    answers: AnswerPayload[],
+    evaluation: EvaluationResult,
+    systemPrompt?: SystemPromptContext
+  ): Promise<{
+    data: LearningPathResult;
+    audit: AiUsageMetadata;
+  }> {
+    console.log(
+      '[GeminiAI] Generating learning path...'
+    );
+
+    const model =
+      this.genAI.getGenerativeModel({
+        model: this.modelName,
+        generationConfig: {
+          temperature: 0.3,
+          responseMimeType:
+            'application/json',
+
+          responseSchema: {
+            type: SchemaType.OBJECT,
+
+            properties: {
+              learningPath: {
+                type: SchemaType.ARRAY,
+
+                items: {
+                  type: SchemaType.OBJECT,
+
+                  properties: {
+                    topic: {
+                      type: SchemaType.STRING
+                    },
+
+                    priority: {
+                      type: SchemaType.STRING
+                    },
+
+                    suggestion: {
+                      type: SchemaType.STRING
+                    }
+                  },
+
+                  required: [
+                    'topic',
+                    'priority',
+                    'suggestion'
+                  ]
+                }
+              }
+            },
+
+            required: [
+              'learningPath'
+            ]
+          }
+        }
+      });
+
+    const prompt = `You are a Senior Tech Lead and Mentor creating a learning path for a candidate.
+
+Interview questions:
+${JSON.stringify(questions, null, 2)}
+
+Candidate answers:
+${JSON.stringify(answers, null, 2)}
+
+Evaluation:
+${JSON.stringify(evaluation, null, 2)}
+
+TASK:
+Create a structured learning path based on the candidate's weaknesses.
+
+Requirements:
+1. Focus on the most important technical weaknesses.
+2. Assign priority: High, Medium, or Low.
+3. Provide an actionable suggestion for every topic.
+4. Avoid duplicating the entire evaluation feedback.
+5. Return a JSON object containing only "learningPath".`;
+
+    const finalPrompt = systemPrompt
+      ? `${systemPrompt.content}
+
+LEARNING PATH CONTEXT:
+${prompt}`
+      : prompt;
+
+    return this.retryWithBackoff(
+      async () => {
+        const result =
+          await model.generateContent(
+            finalPrompt
+          );
+
+        const text =
+          result.response.text();
+
+        const cleanText =
+          text
+            .replace(
+              /^```json/gi,
+              ''
+            )
+            .replace(
+              /```$/gi,
+              ''
+            )
+            .trim();
+
+        const parsed:
+          LearningPathResult =
+          JSON.parse(cleanText);
+
+        if (
+          !parsed.learningPath ||
+          !Array.isArray(
+            parsed.learningPath
+          )
+        ) {
+          throw new Error(
+            'AI Validation Error: learningPath must be an array'
+          );
+        }
+
+        const metadata =
+          result.response
+            .usageMetadata;
+
+        const audit:
+          AiUsageMetadata = {
+            promptTokenCount:
+              metadata?.promptTokenCount ||
+              0,
+
+            candidatesTokenCount:
+              metadata?.candidatesTokenCount ||
+              0,
+
             totalTokenCount:
               metadata?.totalTokenCount ||
               0

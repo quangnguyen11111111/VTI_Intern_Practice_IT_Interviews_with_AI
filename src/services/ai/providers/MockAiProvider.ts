@@ -7,7 +7,8 @@ import {
   AnswerPayload,
   EvaluationResult,
   AiUsageMetadata,
-  SystemPromptContext
+  SystemPromptContext,
+  LearningPathResult
 } from '../../../domain/interview/types';
 
 @injectable()
@@ -119,8 +120,7 @@ export class MockAiProvider
           ) + 1;
 
         return {
-          questionId:
-            ans.questionId,
+          questionId: ans.questionId,
           feedback: {
             en: `Mock feedback for answer: ${ans.candidateAnswer}. Score: ${score}/10.`,
             vi: `Nhận xét giả lập cho câu trả lời: ${ans.candidateAnswer}. Điểm: ${score}/10.`
@@ -149,6 +149,49 @@ export class MockAiProvider
         promptTokenCount: 20,
         candidatesTokenCount: 100,
         totalTokenCount: 120
+      }
+    };
+  }
+
+  async generateLearningPath(
+    questions: any[],
+    answers: AnswerPayload[],
+    evaluation: EvaluationResult,
+    systemPrompt?: SystemPromptContext
+  ): Promise<{
+    data: LearningPathResult;
+    audit: AiUsageMetadata;
+  }> {
+    console.log(
+      '[MockAI] Generating learning path...'
+    );
+
+    if (systemPrompt) {
+      console.log(
+        `[MockAI] Using learning-path prompt version ${systemPrompt.version}`
+      );
+    }
+
+    /*
+     * Keep the parameters referenced so the mock
+     * remains compatible with the real provider contract.
+     */
+    void questions;
+    void answers;
+
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, 1000)
+    );
+
+    return {
+      data: {
+        learningPath:
+          evaluation.learningPath
+      },
+      audit: {
+        promptTokenCount: 10,
+        candidatesTokenCount: 30,
+        totalTokenCount: 40
       }
     };
   }

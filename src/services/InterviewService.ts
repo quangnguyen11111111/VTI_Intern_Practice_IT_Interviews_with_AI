@@ -30,17 +30,21 @@ const DEFAULT_PROMPT_LANGUAGE = 'EN' as const;
 export class InterviewService {
   constructor(
     @inject('IInterviewRepository')
-    private readonly interviewRepo: IInterviewRepository,
+    private readonly interviewRepo:
+      IInterviewRepository,
 
     @inject('IAiProvider')
-    private readonly aiProvider: IAiProvider,
+    private readonly aiProvider:
+      IAiProvider,
 
     @inject('ISystemPromptService')
-    private readonly systemPromptService: ISystemPromptService
+    private readonly systemPromptService:
+      ISystemPromptService
   ) {}
 
   /**
-   * Khởi tạo phiên phỏng vấn mới (Trạng thái mặc định: PENDING)
+   * Khởi tạo phiên phỏng vấn mới
+   * (Trạng thái mặc định: PENDING)
    */
   async createInterviewSession(
     setupData: InterviewSetupPayload,
@@ -117,7 +121,28 @@ export class InterviewService {
   }
 
   /**
-   * Lấy published system prompt cho generation.
+   * Convert SystemPrompt entity
+   * thành context dùng cho AI provider.
+   */
+  private toPromptContext(
+    prompt: {
+      _id: unknown;
+      content: string;
+      version: number;
+      language: 'EN' | 'VI';
+    }
+  ): SystemPromptContext {
+    return {
+      content: prompt.content,
+      promptId:
+        String(prompt._id),
+      version: prompt.version,
+      language: prompt.language
+    };
+  }
+
+  /**
+   * Lấy published GENERATION prompt.
    */
   private async getGenerationPrompt():
     Promise<SystemPromptContext> {
@@ -128,16 +153,13 @@ export class InterviewService {
         DEFAULT_PROMPT_LANGUAGE
       );
 
-    return {
-      content: prompt.content,
-      promptId: prompt._id.toString(),
-      version: prompt.version,
-      language: prompt.language
-    };
+    return this.toPromptContext(
+      prompt
+    );
   }
 
   /**
-   * Lấy published system prompt cho evaluation.
+   * Lấy published EVALUATION prompt.
    */
   private async getEvaluationPrompt():
     Promise<SystemPromptContext> {
@@ -148,16 +170,46 @@ export class InterviewService {
         DEFAULT_PROMPT_LANGUAGE
       );
 
-    return {
-      content: prompt.content,
-      promptId: prompt._id.toString(),
-      version: prompt.version,
-      language: prompt.language
-    };
+    return this.toPromptContext(
+      prompt
+    );
   }
 
   /**
-   * Sinh câu hỏi
+   * Lấy published LEARNING_PATH prompt.
+   *
+   * Trả undefined nếu project chưa có prompt loại này.
+   * Điều này giúp giữ backward compatibility với
+   * các interview flow cũ.
+   */
+  private async getLearningPathPrompt():
+    Promise<SystemPromptContext | undefined> {
+    try {
+      const prompt =
+        await this.systemPromptService.getPublished(
+          SYSTEM_PROMPT_KEY,
+          'LEARNING_PATH',
+          DEFAULT_PROMPT_LANGUAGE
+        );
+
+      return this.toPromptContext(
+        prompt
+      );
+    } catch (error: any) {
+      if (
+        error?.message ===
+        'PUBLISHED_SYSTEM_PROMPT_NOT_FOUND'
+      ) {
+        return undefined;
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * Sinh câu hỏi.
+   *
    * PENDING -> GENERATING -> IN_PROGRESS
    */
   async generateQuestions(
@@ -190,8 +242,10 @@ export class InterviewService {
     await context.generate({
       setupData:
         sessionData.setupData,
+
       aiProvider:
         this.aiProvider,
+
       systemPrompt
     });
 
@@ -199,7 +253,8 @@ export class InterviewService {
   }
 
   /**
-   * Nộp câu trả lời
+   * Nộp câu trả lời.
+   *
    * IN_PROGRESS -> EVALUATING -> COMPLETED
    */
   async submitAnswers(
@@ -209,7 +264,9 @@ export class InterviewService {
     const sessionData =
       await this.getInterviewSession(id);
 
-    // Cập nhật câu trả lời vào DB trước
+    /*
+     * Lưu câu trả lời trước khi bắt đầu evaluation.
+     */
     for (const answer of answers) {
       await this.interviewRepo
         .updateQuestionAnswer(
@@ -230,14 +287,29 @@ export class InterviewService {
         currentState
       );
 
-    const systemPrompt =
+    /*
+     * Prompt bắt buộc cho evaluation.
+     */
+    const evaluationPrompt =
       await this.getEvaluationPrompt();
+
+    /*
+     * Prompt learning path là optional để
+     * không phá interview flow cũ.
+     */
+    const learningPathPrompt =
+      await this.getLearningPathPrompt();
 
     await context.submit({
       data: answers,
+
       aiProvider:
         this.aiProvider,
-      systemPrompt
+
+      systemPrompt:
+        evaluationPrompt,
+
+      learningPathPrompt
     });
 
     return this.getInterviewSession(id);

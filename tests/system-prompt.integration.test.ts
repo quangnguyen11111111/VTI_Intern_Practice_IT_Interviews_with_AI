@@ -86,17 +86,11 @@ const createUser = async (
       `${role.toLowerCase()}-${Date.now()}-${Math.random()
         .toString(36)
         .slice(2)}@example.com`,
-
     passwordHash,
-
     fullName: `${role} User`,
-
     role,
-
     status: 'ACTIVE',
-
     authVersion: 0,
-
     credentialVersion: 0
   });
 };
@@ -176,9 +170,12 @@ describe(
               `Bearer ${token}`
             )
             .send({
-              promptKey: 'interview',
-              type: 'GENERATION',
-              language: 'EN',
+              promptKey:
+                'interview',
+              type:
+                'GENERATION',
+              language:
+                'EN',
               content:
                 'Generate five interview questions.'
             });
@@ -252,9 +249,12 @@ describe(
               `Bearer ${token}`
             )
             .send({
-              promptKey: 'interview',
-              type: 'GENERATION',
-              language: 'EN',
+              promptKey:
+                'interview',
+              type:
+                'GENERATION',
+              language:
+                'EN',
               content:
                 'Version one generation prompt.'
             });
@@ -323,9 +323,12 @@ describe(
               `Bearer ${token}`
             )
             .send({
-              promptKey: 'interview',
-              type: 'GENERATION',
-              language: 'EN',
+              promptKey:
+                'interview',
+              type:
+                'GENERATION',
+              language:
+                'EN',
               content:
                 'Idempotent prompt.'
             });
@@ -367,10 +370,14 @@ describe(
 
         const published =
           await SystemPromptModel.find({
-            promptKey: 'interview',
-            type: 'GENERATION',
-            language: 'EN',
-            status: 'PUBLISHED'
+            promptKey:
+              'interview',
+            type:
+              'GENERATION',
+            language:
+              'EN',
+            status:
+              'PUBLISHED'
           });
 
         expect(
@@ -398,9 +405,12 @@ describe(
               `Bearer ${token}`
             )
             .send({
-              promptKey: 'interview',
-              type: 'GENERATION',
-              language: 'EN',
+              promptKey:
+                'interview',
+              type:
+                'GENERATION',
+              language:
+                'EN',
               content:
                 'Version 1.'
             });
@@ -424,9 +434,12 @@ describe(
               `Bearer ${token}`
             )
             .send({
-              promptKey: 'interview',
-              type: 'GENERATION',
-              language: 'EN',
+              promptKey:
+                'interview',
+              type:
+                'GENERATION',
+              language:
+                'EN',
               content:
                 'Version 2.'
             });
@@ -446,10 +459,15 @@ describe(
 
         const versions =
           await SystemPromptModel.find({
-            promptKey: 'interview',
-            type: 'GENERATION',
-            language: 'EN'
-          }).sort({ version: 1 });
+            promptKey:
+              'interview',
+            type:
+              'GENERATION',
+            language:
+              'EN'
+          }).sort({
+            version: 1
+          });
 
         expect(
           versions
@@ -492,9 +510,12 @@ describe(
               `Bearer ${token}`
             )
             .send({
-              promptKey: 'interview',
-              type: 'GENERATION',
-              language: 'EN',
+              promptKey:
+                'interview',
+              type:
+                'GENERATION',
+              language:
+                'EN',
               content:
                 'Version 1.'
             });
@@ -518,9 +539,12 @@ describe(
               `Bearer ${token}`
             )
             .send({
-              promptKey: 'interview',
-              type: 'GENERATION',
-              language: 'EN',
+              promptKey:
+                'interview',
+              type:
+                'GENERATION',
+              language:
+                'EN',
               content:
                 'Version 2.'
             });
@@ -575,9 +599,12 @@ describe(
               `Bearer ${token}`
             )
             .send({
-              promptKey: 'interview',
-              type: 'GENERATION',
-              language: 'EN',
+              promptKey:
+                'interview',
+              type:
+                'GENERATION',
+              language:
+                'EN',
               content:
                 'Original prompt.'
             });
@@ -601,9 +628,12 @@ describe(
               `Bearer ${token}`
             )
             .send({
-              promptKey: 'interview',
-              type: 'GENERATION',
-              language: 'EN',
+              promptKey:
+                'interview',
+              type:
+                'GENERATION',
+              language:
+                'EN',
               content:
                 'Changed prompt.'
             });
@@ -647,10 +677,15 @@ describe(
 
         const versions =
           await SystemPromptModel.find({
-            promptKey: 'interview',
-            type: 'GENERATION',
-            language: 'EN'
-          }).sort({ version: 1 });
+            promptKey:
+              'interview',
+            type:
+              'GENERATION',
+            language:
+              'EN'
+          }).sort({
+            version: 1
+          });
 
         expect(
           versions
@@ -866,9 +901,7 @@ describe(
             ?.promptVersions
             ?.generation
             ?.promptId
-        ).toBe(
-          promptId
-        );
+        ).toBe(promptId);
 
         expect(
           session
@@ -888,6 +921,203 @@ describe(
 
     it(
       '11. AI evaluation lưu đúng prompt version đã sử dụng',
+      async () => {
+        const admin =
+          await createUser('ADMIN');
+
+        const adminToken =
+          getToken(admin);
+
+        // Tạo + publish GENERATION prompt
+        const generationRes =
+          await request(app)
+            .post(
+              '/api/v1/admin/prompts'
+            )
+            .set(
+              'Authorization',
+              `Bearer ${adminToken}`
+            )
+            .send({
+              promptKey:
+                'interview',
+              type:
+                'GENERATION',
+              language:
+                'EN',
+              content:
+                'Generation system prompt v1'
+            });
+
+        expect(
+          generationRes.status
+        ).toBe(201);
+
+        const generationPromptId =
+          generationRes.body.data._id;
+
+        const generationPublishRes =
+          await request(app)
+            .post(
+              `/api/v1/admin/prompts/${generationPromptId}/publish`
+            )
+            .set(
+              'Authorization',
+              `Bearer ${adminToken}`
+            );
+
+        expect(
+          generationPublishRes.status
+        ).toBe(200);
+
+        // Tạo + publish EVALUATION prompt
+        const evaluationRes =
+          await request(app)
+            .post(
+              '/api/v1/admin/prompts'
+            )
+            .set(
+              'Authorization',
+              `Bearer ${adminToken}`
+            )
+            .send({
+              promptKey:
+                'interview',
+              type:
+                'EVALUATION',
+              language:
+                'EN',
+              content:
+                'Evaluation system prompt v1'
+            });
+
+        expect(
+          evaluationRes.status
+        ).toBe(201);
+
+        const evaluationPromptId =
+          evaluationRes.body.data._id;
+
+        const evaluationPublishRes =
+          await request(app)
+            .post(
+              `/api/v1/admin/prompts/${evaluationPromptId}/publish`
+            )
+            .set(
+              'Authorization',
+              `Bearer ${adminToken}`
+            );
+
+        expect(
+          evaluationPublishRes.status
+        ).toBe(200);
+
+        // Tạo interview
+        const sessionRes =
+          await request(app)
+            .post(
+              '/api/v1/interviews'
+            )
+            .send({
+              jobPosition:
+                'Software Engineer',
+              level:
+                'Junior',
+              techStacks:
+                ['JavaScript']
+            });
+
+        expect(
+          sessionRes.status
+        ).toBe(201);
+
+        const sessionId =
+          sessionRes.body.data.id;
+
+        // Generate questions
+        const generateRes =
+          await request(app)
+            .post(
+              `/api/v1/interviews/${sessionId}/generate`
+            );
+
+        expect(
+          generateRes.status
+        ).toBe(200);
+
+        const questions =
+          generateRes.body.data
+            .questions;
+
+        expect(
+          questions
+        ).toBeDefined();
+
+        expect(
+          questions
+        ).toHaveLength(5);
+
+        // Submit answers
+        const answers =
+          questions.map(
+            (question: any) => ({
+              questionId:
+                question.id,
+              candidateAnswer:
+                'This is a test answer.'
+            })
+          );
+
+        const submitRes =
+          await request(app)
+            .post(
+              `/api/v1/interviews/${sessionId}/submit`
+            )
+            .send({
+              answers
+            });
+
+        expect(
+          submitRes.status
+        ).toBe(200);
+
+        // Kiểm tra evaluation prompt version
+        const session =
+          await InterviewSessionModel
+            .findById(sessionId)
+            .lean();
+
+        expect(
+          session
+        ).not.toBeNull();
+
+        expect(
+          session
+            ?.promptVersions
+            ?.evaluation
+            ?.promptId
+        ).toBe(
+          evaluationPromptId
+        );
+
+        expect(
+          session
+            ?.promptVersions
+            ?.evaluation
+            ?.version
+        ).toBe(1);
+
+        expect(
+          session
+            ?.promptVersions
+            ?.evaluation
+            ?.language
+        ).toBe('EN');
+      }
+    );
+
+    it(
+      '12. AI learning path lưu đúng prompt version đã sử dụng',
       async () => {
         const admin =
           await createUser('ADMIN');
@@ -984,7 +1214,51 @@ describe(
         ).toBe(200);
 
         // --------------------------------------------------
-        // 3. Tạo interview session
+        // 3. Tạo + publish LEARNING_PATH prompt
+        // --------------------------------------------------
+        const learningPathRes =
+          await request(app)
+            .post(
+              '/api/v1/admin/prompts'
+            )
+            .set(
+              'Authorization',
+              `Bearer ${adminToken}`
+            )
+            .send({
+              promptKey:
+                'interview',
+              type:
+                'LEARNING_PATH',
+              language:
+                'EN',
+              content:
+                'Learning path system prompt v1'
+            });
+
+        expect(
+          learningPathRes.status
+        ).toBe(201);
+
+        const learningPathPromptId =
+          learningPathRes.body.data._id;
+
+        const learningPathPublishRes =
+          await request(app)
+            .post(
+              `/api/v1/admin/prompts/${learningPathPromptId}/publish`
+            )
+            .set(
+              'Authorization',
+              `Bearer ${adminToken}`
+            );
+
+        expect(
+          learningPathPublishRes.status
+        ).toBe(200);
+
+        // --------------------------------------------------
+        // 4. Tạo interview session
         // --------------------------------------------------
         const sessionRes =
           await request(app)
@@ -1008,7 +1282,7 @@ describe(
           sessionRes.body.data.id;
 
         // --------------------------------------------------
-        // 4. Generate questions
+        // 5. Generate questions
         // --------------------------------------------------
         const generateRes =
           await request(app)
@@ -1033,7 +1307,7 @@ describe(
         ).toHaveLength(5);
 
         // --------------------------------------------------
-        // 5. Submit answers
+        // 6. Submit answers
         // --------------------------------------------------
         const answers =
           questions.map(
@@ -1059,7 +1333,7 @@ describe(
         ).toBe(200);
 
         // --------------------------------------------------
-        // 6. Kiểm tra evaluation prompt version
+        // 7. Kiểm tra learning-path prompt version
         // --------------------------------------------------
         const session =
           await InterviewSessionModel
@@ -1073,23 +1347,23 @@ describe(
         expect(
           session
             ?.promptVersions
-            ?.evaluation
+            ?.learningPath
             ?.promptId
         ).toBe(
-          evaluationPromptId
+          learningPathPromptId
         );
 
         expect(
           session
             ?.promptVersions
-            ?.evaluation
+            ?.learningPath
             ?.version
         ).toBe(1);
 
         expect(
           session
             ?.promptVersions
-            ?.evaluation
+            ?.learningPath
             ?.language
         ).toBe('EN');
       }

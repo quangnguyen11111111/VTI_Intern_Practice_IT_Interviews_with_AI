@@ -34,14 +34,20 @@ export interface EvaluatedAnswer {
   score: number;
 }
 
+export interface LearningPathItem {
+  topic: string;
+  priority: string;
+  suggestion: string;
+}
+
 export interface EvaluationResult {
   evaluations: EvaluatedAnswer[];
   overallScore: number;
-  learningPath: {
-    topic: string;
-    priority: string;
-    suggestion: string;
-  }[];
+  learningPath: LearningPathItem[];
+}
+
+export interface LearningPathResult {
+  learningPath: LearningPathItem[];
 }
 
 export interface AiUsageMetadata {
@@ -74,6 +80,16 @@ export interface IAiProvider {
     data: EvaluationResult;
     audit: AiUsageMetadata;
   }>;
+
+  generateLearningPath(
+    questions: any[],
+    answers: AnswerPayload[],
+    evaluation: EvaluationResult,
+    systemPrompt?: SystemPromptContext
+  ): Promise<{
+    data: LearningPathResult;
+    audit: AiUsageMetadata;
+  }>;
 }
 
 export interface GeneratePayload {
@@ -86,4 +102,5 @@ export interface SubmitPayload {
   data: AnswerPayload[];
   aiProvider?: IAiProvider;
   systemPrompt?: SystemPromptContext;
+  learningPathPrompt?: SystemPromptContext;
 }
