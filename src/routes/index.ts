@@ -6,6 +6,7 @@ import interviewRoutes from './interview.route';
 import authRoutes from './auth.routes';
 import profileRoutes from './profile.routes';
 import adminUserRoutes from './admin-user.route';
+import adminMetricsRoutes from './admin-metrics.route';
 
 const router = Router();
 
@@ -15,6 +16,9 @@ router.use('/roles', roleRoutes);
 router.use('/levels', levelRoutes);
 router.use('/technologies', technologyRoutes);
 router.use('/interviews', interviewRoutes);
+router.use('/admin', adminMetricsRoutes);
 router.use('/admin', adminUserRoutes);
+
+
 
 export default router;
