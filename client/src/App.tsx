@@ -23,6 +23,7 @@ import {
 import { AdminUsersPage } from './pages/AdminUsersPage';
 import { AdminMetricsPage } from './pages/AdminMetricsPage';
 import { ResultPage } from './pages/ResultPage';
+import AdminSystemPromptsPage from './pages/AdminSystemPromptsPage';
 
 function App() {
   return (
@@ -93,6 +94,10 @@ function App() {
             <Route
               path="/admin/metrics"
               element={<AdminMetricsPage />}
+            />
+            <Route
+              path="/admin/system-prompts"
+              element={<AdminSystemPromptsPage />}
             />
           </Route>
 
