@@ -474,72 +474,39 @@ ${prompt}`
                   ]
                 }
               },
-
-              overallScore: {
-                type: SchemaType.INTEGER
-              },
-
-              learningPath: {
+              overallScore: { type: SchemaType.INTEGER },
+              dimensions: {
                 type: SchemaType.ARRAY,
-
                 items: {
                   type: SchemaType.OBJECT,
-
                   properties: {
-                    topic: {
-                      type: SchemaType.STRING
+                    name: { type: SchemaType.STRING },
+                    score: { type: SchemaType.INTEGER },
+                    reasoning: { type: SchemaType.STRING }
+                  },
+                  required: ["name", "score", "reasoning"]
+                }
+              },
+              learningPath: {
+                type: SchemaType.ARRAY,
+                items: {
+                  type: SchemaType.OBJECT,
+                  properties: {
+                    topic: { 
+                      type: SchemaType.OBJECT,
+                      properties: { en: { type: SchemaType.STRING }, vi: { type: SchemaType.STRING } }
                     },
-
-                    priority: {
-                      type: SchemaType.STRING
-                    },
-
-                    suggestion: {
-                      type: SchemaType.STRING
+                    priority: { type: SchemaType.STRING },
+                    suggestion: { 
+                      type: SchemaType.OBJECT,
+                      properties: { en: { type: SchemaType.STRING }, vi: { type: SchemaType.STRING } }
                     }
                   },
-
-                  required: [
-                    'topic',
-                    'priority',
-                    'suggestion'
-                  ]
+                  required: ["topic", "priority", "suggestion"]
                 }
               }
             },
-            overallScore: { type: SchemaType.INTEGER },
-            dimensions: {
-              type: SchemaType.ARRAY,
-              items: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  name: { type: SchemaType.STRING },
-                  score: { type: SchemaType.INTEGER },
-                  reasoning: { type: SchemaType.STRING }
-                },
-                required: ["name", "score", "reasoning"]
-              }
-            },
-            learningPath: {
-              type: SchemaType.ARRAY,
-              items: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  topic: { 
-                    type: SchemaType.OBJECT,
-                    properties: { en: { type: SchemaType.STRING }, vi: { type: SchemaType.STRING } }
-                  },
-                  priority: { type: SchemaType.STRING },
-                  suggestion: { 
-                    type: SchemaType.OBJECT,
-                    properties: { en: { type: SchemaType.STRING }, vi: { type: SchemaType.STRING } }
-                  }
-                },
-                required: ["topic", "priority", "suggestion"]
-              }
-            }
-          },
-          required: ["evaluations", "overallScore", "learningPath"]
+            required: ["evaluations", "overallScore", "learningPath"]
         }
       }
     });
