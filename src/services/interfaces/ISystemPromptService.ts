@@ -22,9 +22,10 @@ export interface ISystemPromptService {
   ): Promise<ISystemPrompt>;
 
   listVersions(
-    promptKey: string,
-    type: SystemPromptType,
-    language: SystemPromptLanguage
+    promptKey?: string,
+    type?: SystemPromptType,
+    language?: SystemPromptLanguage,
+    status?: string
   ): Promise<ISystemPrompt[]>;
 
   publish(

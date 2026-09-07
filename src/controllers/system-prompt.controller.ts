@@ -92,14 +92,16 @@ export class SystemPromptController {
       const {
         promptKey,
         type,
-        language
+        language,
+        status
       } = req.query;
 
       const result =
         await this.service.listVersions(
-          String(promptKey),
-          type as any,
-          language as any
+          promptKey ? String(promptKey) : undefined,
+          type ? type as any : undefined,
+          language ? language as any : undefined,
+          status ? String(status) : undefined
         );
 
       res.status(200).json({

@@ -23,9 +23,10 @@ export interface ISystemPromptRepository {
   ): Promise<ISystemPrompt | null>;
 
   findVersions(
-    promptKey: string,
-    type: SystemPromptType,
-    language: SystemPromptLanguage
+    promptKey?: string,
+    type?: SystemPromptType,
+    language?: SystemPromptLanguage,
+    status?: string
   ): Promise<ISystemPrompt[]>;
 
   findPublished(

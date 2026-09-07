@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import {
   useAdminMetrics
@@ -111,12 +112,12 @@ export const AdminMetricsPage = () => {
             <p className="mt-2 text-slate-500 font-medium">Tổng quan hệ thống và chỉ số hiệu suất AI</p>
           </div>
           <div className="flex gap-3">
-            <a href="/admin/system-prompts" className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium shadow hover:bg-indigo-700 transition">
+            <Link to="/admin/system-prompts" className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium shadow hover:bg-indigo-700 transition">
               Quản lý Prompts
-            </a>
-            <a href="/admin/users" className="px-4 py-2 bg-white text-indigo-600 border border-indigo-200 rounded-lg font-medium shadow-sm hover:bg-indigo-50 transition">
+            </Link>
+            <Link to="/admin/users" className="px-4 py-2 bg-white text-indigo-600 border border-indigo-200 rounded-lg font-medium shadow-sm hover:bg-indigo-50 transition">
               Quản lý Users
-            </a>
+            </Link>
             <button
               onClick={handleReload}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-inset ring-slate-200 hover:bg-slate-50 hover:text-indigo-600 transition-all active:scale-95"

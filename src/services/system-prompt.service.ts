@@ -96,14 +96,16 @@ export class SystemPromptService
   }
 
   async listVersions(
-    promptKey: string,
-    type: SystemPromptType,
-    language: SystemPromptLanguage
+    promptKey?: string,
+    type?: SystemPromptType,
+    language?: SystemPromptLanguage,
+    status?: string
   ): Promise<ISystemPrompt[]> {
     return this.repository.findVersions(
       promptKey,
       type,
-      language
+      language,
+      status
     );
   }
 

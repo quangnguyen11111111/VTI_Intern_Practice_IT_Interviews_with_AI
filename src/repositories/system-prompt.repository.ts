@@ -39,15 +39,18 @@ export class SystemPromptRepository
   }
 
   async findVersions(
-    promptKey: string,
-    type: SystemPromptType,
-    language: SystemPromptLanguage
+    promptKey?: string,
+    type?: SystemPromptType,
+    language?: SystemPromptLanguage,
+    status?: string
   ): Promise<ISystemPrompt[]> {
-    return SystemPromptModel.find({
-      promptKey,
-      type,
-      language
-    }).sort({ version: -1 });
+    const query: any = {};
+    if (promptKey) query.promptKey = promptKey;
+    if (type) query.type = type;
+    if (language) query.language = language;
+    if (status) query.status = status;
+
+    return SystemPromptModel.find(query).sort({ version: -1 });
   }
 
   async findPublished(
