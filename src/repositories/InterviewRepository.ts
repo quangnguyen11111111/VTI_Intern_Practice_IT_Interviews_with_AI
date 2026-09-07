@@ -67,6 +67,7 @@ export class InterviewRepository implements IInterviewRepository {
       status: sessionDoc.status,
       setupData: sessionDoc.setupData,
       overallScore: sessionDoc.overallScore,
+      dimensions: sessionDoc.dimensions,
       learningPath: sessionDoc.learningPath,
       metadata: sessionDoc.metadata,
       createdAt: sessionDoc.createdAt,

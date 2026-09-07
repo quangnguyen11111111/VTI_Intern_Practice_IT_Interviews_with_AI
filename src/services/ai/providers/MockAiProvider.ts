@@ -46,13 +46,20 @@ export class MockAiProvider implements IAiProvider {
     console.log(`[MockAI] Evaluating answers...`);
     await new Promise<void>(resolve => setTimeout(resolve, 2000));
     
-    const evaluations = answers.map(ans => {
-      const score = Math.floor(Math.random() * 10) + 1; // Random score 1-10
+    const evaluations = questions.map(q => {
+      const questionId = q._id?.toString() || q.id;
+      const ans = answers.find(a => a.questionId === questionId);
+      
+      let score = Math.floor(Math.random() * 10) + 1; // Random score 1-10
+      if (ans?.candidateAnswer?.includes('[System]')) {
+         score = 0;
+      }
+
       return {
-        questionId: ans.questionId,
+        questionId,
         feedback: {
-          en: `Mock feedback for answer: ${ans.candidateAnswer}. Score: ${score}/10.`,
-          vi: `Nhận xét giả lập cho câu trả lời: ${ans.candidateAnswer}. Điểm: ${score}/10.`
+          en: `Mock feedback for answer: ${ans?.candidateAnswer}. Score: ${score}/10.`,
+          vi: `Nhận xét giả lập cho câu trả lời: ${ans?.candidateAnswer}. Điểm: ${score}/10.`
         },
         score
       };
@@ -61,13 +68,25 @@ export class MockAiProvider implements IAiProvider {
     const data: EvaluationResult = {
       evaluations,
       overallScore: 8,
-      learningPath: [
-        {
-          topic: 'JavaScript Fundamentals',
-          priority: 'High',
-          suggestion: 'Review closure and event loop.'
-        }
-      ]
+      dimensions: [
+          { name: "Technical Depth", score: 8, reasoning: "Good understanding of core concepts." },
+          { name: "Problem Solving", score: 7, reasoning: "Approached the problem well but missed some edge cases." },
+          { name: "System Design & Best Practices", score: 7, reasoning: "Basic understanding of architecture." },
+          { name: "Communication", score: 9, reasoning: "Explained ideas very clearly." },
+          { name: "Practical Experience", score: 6, reasoning: "Lacked some hands-on experience." }
+        ],
+        learningPath: [
+          { 
+            topic: { en: "Advanced React Patterns", vi: "Các pattern React nâng cao" }, 
+            priority: "High", 
+            suggestion: { en: "Study HOCs and custom hooks.", vi: "Học HOCs và custom hooks." }
+          },
+          { 
+            topic: { en: "System Design Basics", vi: "Cơ bản về thiết kế hệ thống" }, 
+            priority: "Medium", 
+            suggestion: { en: "Read grokking the system design interview.", vi: "Đọc sách grokking the system design interview." }
+          }
+        ]
     };
 
     return {

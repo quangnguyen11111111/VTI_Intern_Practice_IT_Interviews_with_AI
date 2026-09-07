@@ -7,7 +7,12 @@ export interface IInterviewSessionDocument extends Document {
   status: InterviewStatus;
   setupData: InterviewSetupPayload;
   overallScore: number | null;
-  learningPath: { topic: string; priority: string; suggestion: string }[] | null;
+  dimensions: { name: string; score: number; reasoning: string }[] | null;
+  learningPath: { 
+    topic: { en: string; vi: string }; 
+    priority: string; 
+    suggestion: { en: string; vi: string } 
+  }[] | null;
   metadata?: {
     promptTokens: number;
     candidatesTokens: number;
@@ -39,10 +44,21 @@ const InterviewSessionSchema: Schema = new Schema(
       type: Number,
       default: null
     },
+    dimensions: [{
+      name: { type: String },
+      score: { type: Number },
+      reasoning: { type: String }
+    }],
     learningPath: [{
-      topic: { type: String },
+      topic: { 
+        en: { type: String },
+        vi: { type: String }
+      },
       priority: { type: String, enum: ['High', 'Medium', 'Low'] },
-      suggestion: { type: String }
+      suggestion: { 
+        en: { type: String },
+        vi: { type: String }
+      }
     }],
     metadata: {
       promptTokens: { type: Number, default: 0 },

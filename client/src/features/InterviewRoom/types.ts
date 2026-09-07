@@ -11,6 +11,8 @@ export interface Question {
   category?: string;
   content: LocalizedContent;
   candidateAnswer?: string;
+  feedback?: LocalizedContent;
+  score?: number;
 }
 
 export interface AnswerState {
@@ -29,4 +31,11 @@ export interface InterviewSession {
     techStacks?: string[];
   };
   questions?: Question[];
+  dimensions?: { name: string; score: number; reasoning: string }[];
+  overallScore?: number;
+  learningPath?: { 
+    topic: LocalizedContent; 
+    priority: string; 
+    suggestion: LocalizedContent 
+  }[];
 }

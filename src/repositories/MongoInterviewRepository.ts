@@ -76,6 +76,7 @@ export class MongoInterviewRepository implements IInterviewRepository {
       status: doc.status as InterviewStatus,
       setupData: doc.setupData,
       overallScore: doc.overallScore,
+      dimensions: doc.dimensions,
       learningPath: doc.learningPath,
       metadata: doc.metadata,
       createdAt: doc.createdAt,

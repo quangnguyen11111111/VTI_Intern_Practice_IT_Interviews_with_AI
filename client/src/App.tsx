@@ -7,6 +7,7 @@ import {
 import { HomePage } from './pages/HomePage';
 import { InterviewSetupPage } from './pages/InterviewSetupPage';
 import { InterviewRoomPage } from './pages/InterviewRoomPage';
+
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -21,6 +22,7 @@ import {
 
 import { AdminUsersPage } from './pages/AdminUsersPage';
 import { AdminMetricsPage } from './pages/AdminMetricsPage';
+import { ResultPage } from './pages/ResultPage';
 
 function App() {
   return (
@@ -112,6 +114,11 @@ function App() {
             <Route
               path="/interview/:sessionId"
               element={<InterviewRoomPage />}
+            />
+
+            <Route
+              path="/interview/:sessionId/result"
+              element={<ResultPage />}
             />
           </Route>
         </Routes>
