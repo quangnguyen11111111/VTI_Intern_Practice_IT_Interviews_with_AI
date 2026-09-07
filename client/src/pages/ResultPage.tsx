@@ -26,7 +26,7 @@ export const ResultPage: React.FC = () => {
           return;
         }
         setSession(data);
-      } catch (err) {
+      } catch {
         setError('Không thể tải kết quả đánh giá.');
       } finally {
         setIsLoading(false);

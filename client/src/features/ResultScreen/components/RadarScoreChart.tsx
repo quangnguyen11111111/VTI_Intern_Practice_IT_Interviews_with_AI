@@ -36,6 +36,7 @@ export const RadarScoreChart: React.FC<Props> = ({ dimensions, language }) => {
           <PolarAngleAxis dataKey="subject" tick={{ fill: '#475569', fontSize: 13, fontWeight: 500 }} />
           <PolarRadiusAxis angle={30} domain={[0, 10]} />
           <Tooltip 
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             formatter={(value: any) => [`${value} / 10`, 'Điểm trung bình']} 
             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
           />

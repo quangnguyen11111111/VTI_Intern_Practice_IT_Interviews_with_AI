@@ -79,7 +79,7 @@ export const InterviewRoom: React.FC = () => {
     } catch {
       alert("C� l?i x?y ra khi n?p b�i. Vui l�ng th? l?i.");
     }
-  }, [session?.questions, answeredIndices, stopTimer, forceSave, sessionId, answers, refetch]);
+  }, [session, answeredIndices, stopTimer, forceSave, sessionId, answers, refetch, setCurrentQuestionIndex]);
 
   useEffect(() => {
     submitRef.current = handleSubmit;
