@@ -249,14 +249,32 @@ Unique Session ID: ${Date.now()}-${Math.random().toString(36).substring(2, 10)}`
               }
             },
             overallScore: { type: SchemaType.INTEGER },
+            dimensions: {
+              type: SchemaType.ARRAY,
+              items: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  name: { type: SchemaType.STRING },
+                  score: { type: SchemaType.INTEGER },
+                  reasoning: { type: SchemaType.STRING }
+                },
+                required: ["name", "score", "reasoning"]
+              }
+            },
             learningPath: {
               type: SchemaType.ARRAY,
               items: {
                 type: SchemaType.OBJECT,
                 properties: {
-                  topic: { type: SchemaType.STRING },
+                  topic: { 
+                    type: SchemaType.OBJECT,
+                    properties: { en: { type: SchemaType.STRING }, vi: { type: SchemaType.STRING } }
+                  },
                   priority: { type: SchemaType.STRING },
-                  suggestion: { type: SchemaType.STRING }
+                  suggestion: { 
+                    type: SchemaType.OBJECT,
+                    properties: { en: { type: SchemaType.STRING }, vi: { type: SchemaType.STRING } }
+                  }
                 },
                 required: ["topic", "priority", "suggestion"]
               }
@@ -267,27 +285,42 @@ Unique Session ID: ${Date.now()}-${Math.random().toString(36).substring(2, 10)}`
       }
     });
 
-    const QAndA = answers.map(ans => {
-      const q = questions.find((item: any) => item._id?.toString() === ans.questionId || item.id === ans.questionId);
+    const QAndA = questions.map(q => {
+      const questionId = q._id?.toString() || q.id;
+      const ans = answers.find(a => a.questionId === questionId);
       return {
-        questionId: ans.questionId,
-        questionTextEn: q?.content?.en || 'Unknown question',
-        questionTextVi: q?.content?.vi || 'Unknown question',
-        candidateAnswer: ans.candidateAnswer || 'No answer provided'
+        questionId,
+        questionTextEn: q.content?.en || 'Unknown question',
+        questionTextVi: q.content?.vi || 'Unknown question',
+        candidateAnswer: ans?.candidateAnswer
       };
     });
+    const prompt = `You are a Senior Tech Lead conducting a technical interview.
+You will be given a set of questions and the candidate's answers.
 
-    const prompt = `You are a Senior Tech Lead and Mentor evaluating a candidate for a ${questions[0]?.jobPosition || 'Software'} position.
+YOUR TASKS:
+1. Provide constructive, bilingual (en, vi) feedback for EACH question and score it from 0 to 10.
+2. Evaluate the candidate overall across exactly 5 standard dimensions: "Technical Depth", "Problem Solving", "System Design & Best Practices", "Communication", "Practical Experience". Give each a score (0-10) and brief reasoning.
+3. Provide an overall score (0-10).
+4. Provide a personalized learning path with topics and suggestions (both bilingual en/vi) based on the candidate's weaknesses. Priorities should be "High", "Medium", or "Low".
 
-Here is the complete interview history:
+Input Data:
 ${JSON.stringify(QAndA, null, 2)}
 
 CRITICAL REQUIREMENT: First, detect the language the candidate used in their "candidateAnswer". 
-- If the candidate answered primarily in Vietnamese, write the "feedback.vi" addressing them directly in Vietnamese, and "feedback.en" as a translation.
 - If the candidate answered primarily in English, write the "feedback.en" addressing them directly in English, and "feedback.vi" as a translation.
+- If the candidate answered primarily in Vietnamese, write the "feedback.vi" addressing them directly in Vietnamese, and "feedback.en" as a translation.
 
-Task 1: Evaluate EACH answer on a scale of 0 to 10 based on technical accuracy, clarity, and completeness. Provide bilingual constructive feedback for each. Make sure to return the exact "questionId" for each evaluation.
-Task 2: Provide an overallScore (integer 0-10).
+EVALUATION RUBRIC (0-10 Scale):
+- 9-10 (Excellent): Flawless technical accuracy. Explanations are crystal clear and complete. Demonstrates deep understanding, mentions edge cases, trade-offs, or best practices.
+- 7-8 (Good/Solid): Technically accurate but might miss minor nuances. Clear and mostly complete explanation. Shows good working knowledge.
+- 5-6 (Average/Basic): Has the general idea correct but lacks depth. May contain minor technical inaccuracies. Explanation is somewhat vague or incomplete.
+- 3-4 (Poor/Incomplete): Fundamentally misunderstands the core concept or gives highly inaccurate information. Very hard to follow.
+- 1-2 (Fail): Completely wrong or mostly irrelevant.
+- 0: Did not answer ("I don't know", empty, or skipped).
+
+Task 1: Evaluate EACH answer on the 0-10 scale STRICTLY using the EVALUATION RUBRIC above. Consider technical accuracy, clarity, and completeness. Provide bilingual constructive feedback (mentioning what was good and what was missing). Make sure to return the exact "questionId" for each evaluation.
+Task 2: Provide an overallScore (integer 0-10) reflecting their overall interview performance.
 Task 3: Based on their overall performance and weaknesses, provide a structured learning path with topics, priority (High/Medium/Low), and actionable suggestions.
 
 Return a single JSON object containing "evaluations", "overallScore", and "learningPath".`;

@@ -1,6 +1,6 @@
 import { IJobHandler } from '../IJobHandler';
 import { container, inject, injectable } from 'tsyringe';
-import { IAiProvider } from '../../interview/types';
+import { IAiProvider, AnswerPayload } from '../../interview/types';
 import { IInterviewRepository } from '../../../repositories/IInterviewRepository';
 import { InterviewContext } from '../../interview/InterviewContext';
 import { IEventPublisher } from '../../events/IEventPublisher';
@@ -20,6 +20,22 @@ export class EvaluateAnswersJobHandler implements IJobHandler<EvaluateAnswersDat
     @inject('IEventPublisher') private eventPublisher?: IEventPublisher
   ) {}
 
+  private normalizeAnswers(questions: any[], submittedAnswers: any[]): AnswerPayload[] {
+    return questions.map(q => {
+      const questionId = q._id?.toString() || q.id;
+      const existingAnswer = submittedAnswers.find((a: any) => a.questionId === questionId);
+      
+      if (existingAnswer) {
+        return existingAnswer;
+      }
+      
+      return {
+        questionId,
+        candidateAnswer: "[System] Ứng viên bỏ trống không trả lời câu hỏi này."
+      };
+    });
+  }
+
   async handle(data: EvaluateAnswersData): Promise<void> {
     console.log(`[Job] EVALUATE_ANSWERS running for interview: ${data.interviewId}`);
     
@@ -35,16 +51,18 @@ export class EvaluateAnswersJobHandler implements IJobHandler<EvaluateAnswersDat
     }
 
     try {
-      const { data: evaluationResult, audit } = await this.aiProvider.evaluateAnswers(session.questions, data.data);
+      const normalizedAnswers = this.normalizeAnswers(session.questions, data.data);
+      const { data: evaluationResult, audit } = await this.aiProvider.evaluateAnswers(session.questions, normalizedAnswers);
       
       // Save feedback
       for (const evalResult of evaluationResult.evaluations) {
          await this.repository.updateQuestionFeedback(evalResult.questionId, evalResult.feedback, evalResult.score);
       }
       
-      // Save overallScore and learningPath
+      // Save overallScore, dimensions and learningPath
       await this.repository.update(data.interviewId, { 
          overallScore: evaluationResult.overallScore,
+         dimensions: evaluationResult.dimensions,
          learningPath: evaluationResult.learningPath 
       });
 

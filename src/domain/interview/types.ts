@@ -34,10 +34,21 @@ export interface EvaluatedAnswer {
   score: number;
 }
 
+export interface EvaluationDimension {
+  name: string;
+  score: number;
+  reasoning: string;
+}
+
 export interface EvaluationResult {
   evaluations: EvaluatedAnswer[];
   overallScore: number;
-  learningPath: { topic: string; priority: string; suggestion: string }[];
+  dimensions: EvaluationDimension[];
+  learningPath: { 
+    topic: LocalizedContent; 
+    priority: string; 
+    suggestion: LocalizedContent 
+  }[];
 }
 
 export interface AiUsageMetadata {

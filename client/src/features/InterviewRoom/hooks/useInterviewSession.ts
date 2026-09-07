@@ -40,8 +40,7 @@ export const useInterviewSession = (sessionId: string) => {
       }
 
       if (data.status === 'COMPLETED') {
-        alert('Phiên phỏng vấn đã hoàn thành!');
-        window.location.href = '/';
+        window.location.href = `/interview/${sessionId}/result`;
         return;
       }
       if (data.status === 'FAILED') {

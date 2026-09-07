@@ -20,8 +20,13 @@ export interface InterviewEntity {
   status: InterviewStatus;
   setupData: InterviewSetupPayload;
   questions?: InterviewQuestionEntity[];
+  dimensions?: { name: string; score: number; reasoning: string }[] | null;
   overallScore?: number | null;
-  learningPath?: { topic: string; priority: string; suggestion: string }[] | null;
+  learningPath?: { 
+    topic: LocalizedContent; 
+    priority: string; 
+    suggestion: LocalizedContent 
+  }[] | null;
   metadata?: import('../domain/interview/types').AiUsageMetadata;
   createdAt: Date;
   updatedAt: Date;
