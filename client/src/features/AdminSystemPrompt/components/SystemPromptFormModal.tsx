@@ -24,8 +24,9 @@ export const SystemPromptFormModal: React.FC<SystemPromptFormModalProps> = ({
   });
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     if (initialData) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({
         promptKey: initialData.promptKey,
         type: initialData.type,
@@ -33,6 +34,7 @@ export const SystemPromptFormModal: React.FC<SystemPromptFormModalProps> = ({
         content: initialData.content
       });
     } else {
+       
       setFormData({
         promptKey: '',
         type: 'GENERATION',

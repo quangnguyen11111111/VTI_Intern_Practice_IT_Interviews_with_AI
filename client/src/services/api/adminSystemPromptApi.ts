@@ -25,36 +25,36 @@ const buildQuery = (params: GetSystemPromptsParams): string => {
 export const adminSystemPromptApi = {
   getPrompts: async (params: GetSystemPromptsParams = {}): Promise<SystemPrompt[]> => {
     // According to backend route: GET /api/admin/prompts
-    const data = await request<{ data: SystemPrompt[] }>(
+    const data = await request<SystemPrompt[]>(
       `admin/prompts${buildQuery(params)}`
     );
-    return data.data; // Assuming backend returns { data: SystemPrompt[] }
+    return data;
   },
 
   getPromptById: async (id: string): Promise<SystemPrompt> => {
-    const data = await request<{ data: SystemPrompt }>(`admin/prompts/${id}`);
-    return data.data;
+    const data = await request<SystemPrompt>(`admin/prompts/${id}`);
+    return data;
   },
 
   createDraft: async (payload: CreateSystemPromptDto): Promise<SystemPrompt> => {
-    const data = await request<{ data: SystemPrompt }>('admin/prompts', {
+    const data = await request<SystemPrompt>('admin/prompts', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
-    return data.data;
+    return data;
   },
 
   publishPrompt: async (id: string): Promise<SystemPrompt> => {
-    const data = await request<{ data: SystemPrompt }>(`admin/prompts/${id}/publish`, {
+    const data = await request<SystemPrompt>(`admin/prompts/${id}/publish`, {
       method: 'POST',
     });
-    return data.data;
+    return data;
   },
 
   rollbackPrompt: async (id: string): Promise<SystemPrompt> => {
-    const data = await request<{ data: SystemPrompt }>(`admin/prompts/${id}/rollback`, {
+    const data = await request<SystemPrompt>(`admin/prompts/${id}/rollback`, {
       method: 'POST',
     });
-    return data.data;
+    return data;
   },
 };

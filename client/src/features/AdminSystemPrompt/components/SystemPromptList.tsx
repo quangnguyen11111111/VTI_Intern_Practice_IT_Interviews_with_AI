@@ -55,7 +55,9 @@ export const SystemPromptList: React.FC<SystemPromptListProps> = ({
                 </span>
               </td>
               <td className="py-3 px-4 text-sm text-gray-500">
-                {new Date(prompt.updatedAt).toLocaleDateString()}
+                {prompt.updatedAt && !isNaN(new Date(prompt.updatedAt).getTime()) 
+                  ? new Date(prompt.updatedAt).toLocaleDateString() 
+                  : 'N/A'}
               </td>
               <td className="py-3 px-4 text-sm">
                 <div className="flex gap-2">
