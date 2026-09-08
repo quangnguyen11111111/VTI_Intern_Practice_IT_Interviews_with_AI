@@ -9,13 +9,22 @@ export type AuditOutcome =
 
 export type AuditAction =
   | 'LOCK_USER'
-  | 'UNLOCK_USER';
+  | 'UNLOCK_USER'
+  | 'CREATE_PROMPT_DRAFT'
+  | 'PUBLISH_PROMPT'
+  | 'ROLLBACK_PROMPT';
+
+export type AuditTargetType =
+  | 'USER'
+  | 'SYSTEM_PROMPT';
 
 export interface IAuditLog extends Document {
   actor: mongoose.Types.ObjectId;
   target: mongoose.Types.ObjectId;
+  targetType: AuditTargetType;
   action: AuditAction;
   outcome: AuditOutcome;
+  version?: number;
   timestamp: Date;
 }
 
@@ -25,13 +34,22 @@ const auditLogSchema =
       actor: {
         type: Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: true
       },
 
       target: {
         type: Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
+        required: true
+      },
+
+      targetType: {
+        type: String,
+        enum: [
+          'USER',
+          'SYSTEM_PROMPT'
+        ],
+        default: 'USER',
+        required: true
       },
 
       action: {
@@ -39,34 +57,58 @@ const auditLogSchema =
         enum: [
           'LOCK_USER',
           'UNLOCK_USER',
+          'CREATE_PROMPT_DRAFT',
+          'PUBLISH_PROMPT',
+          'ROLLBACK_PROMPT'
         ],
-        required: true,
+        required: true
       },
 
       outcome: {
         type: String,
         enum: [
           'SUCCESS',
-          'FAILURE',
+          'FAILURE'
         ],
-        required: true,
+        required: true
+      },
+
+      version: {
+        type: Number,
+        min: 1
       },
 
       timestamp: {
         type: Date,
         default: Date.now,
-        required: true,
-      },
+        required: true
+      }
     },
     {
-      timestamps: false,
+      timestamps: false
     }
   );
 
-auditLogSchema.index({ actor: 1 });
-auditLogSchema.index({ target: 1 });
-auditLogSchema.index({ action: 1 });
-auditLogSchema.index({ timestamp: -1 });
+auditLogSchema.index({
+  actor: 1
+});
+
+auditLogSchema.index({
+  target: 1
+});
+
+auditLogSchema.index({
+  targetType: 1,
+  target: 1
+});
+
+auditLogSchema.index({
+  action: 1
+});
+
+auditLogSchema.index({
+  timestamp: -1
+});
 
 const AuditLog =
   mongoose.model<IAuditLog>(
