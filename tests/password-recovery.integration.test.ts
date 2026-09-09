@@ -17,6 +17,7 @@ vi.hoisted(() => {
 import app from '../src/app';
 import User from '../src/models/user.model';
 import RefreshToken from '../src/models/refresh-token.model';
+import { ApiRateLimitModel } from '../src/models/api-rate-limit.model';
 import PasswordResetOtp from '../src/models/password-reset-otp.model';
 import PasswordResetRateLimit from '../src/models/password-reset-rate-limit.model';
 import { emailService, IEmailProvider, SendEmailOptions } from '../src/services/email.service';
@@ -64,6 +65,7 @@ beforeEach(async () => {
   await RefreshToken.deleteMany({});
   await PasswordResetOtp.deleteMany({});
   await PasswordResetRateLimit.deleteMany({});
+  await ApiRateLimitModel.deleteMany({});
 });
 
 describe('AIP-20 AUTH-06: Password Recovery & Management Integration Tests', () => {

@@ -12,6 +12,8 @@ import { MongoInterviewRepository } from '../repositories/MongoInterviewReposito
 import { UserRepository } from '../repositories/user.repository';
 import { AuditRepository } from '../repositories/audit.repository';
 import { AdminMetricsRepository } from '../repositories/admin-metrics.repository';
+import { ApiRateLimitRepository } from '../repositories/api-rate-limit.repository';
+import { InterviewQuotaRepository } from '../repositories/interview-quota.repository';
 
 // Services
 import { RoleService } from '../services/role.service';
@@ -19,6 +21,7 @@ import { LevelService } from '../services/level.service';
 import { TechnologyService } from '../services/technology.service';
 import { InterviewService } from '../services/InterviewService';
 import { AdminMetricsService } from '../services/admin-metrics.service';
+import { InterviewQuotaService } from '../services/interview-quota.service';
 
 // AI Providers
 import { MockAiProvider } from '../services/ai/providers/MockAiProvider';
@@ -32,7 +35,13 @@ container.register('IRoleRepository', { useClass: RoleRepository });
 container.register('ILevelRepository', { useClass: LevelRepository });
 container.register('ITechnologyRepository', { useClass: TechnologyRepository });
 container.register('IInterviewRepository', { useClass: MongoInterviewRepository });
+container.register('IApiRateLimitRepository', {
+  useClass: ApiRateLimitRepository
+});
 
+container.register('IInterviewQuotaRepository', {
+  useClass: InterviewQuotaRepository
+});
 
 // Register AI Provider based on .env
 if (process.env.NODE_ENV === 'test') {
@@ -78,6 +87,10 @@ container.register('IAuditService', {
 
 container.register('IAdminMetricsService', {
   useClass: AdminMetricsService
+});
+
+container.register('IInterviewQuotaService', {
+  useClass: InterviewQuotaService
 });
 
 export { container };
