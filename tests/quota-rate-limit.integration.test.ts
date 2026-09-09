@@ -51,6 +51,14 @@ import {
 } from '../src/models/InterviewSession';
 
 import {
+  SystemPromptModel,
+} from '../src/models/system-prompt.model';
+
+import {
+  MockAiProvider,
+} from '../src/services/ai/providers/MockAiProvider';
+
+import {
   getEnv,
 } from '../src/config/env';
 
@@ -115,9 +123,7 @@ vi.hoisted(() => {
     '60000';
 });
 
-class MockJobScheduler
-  implements IJobScheduler
-{
+class MockJobScheduler implements IJobScheduler {
   public enqueueCalls: Array<{
     jobName: string;
     data: unknown;
@@ -172,24 +178,23 @@ beforeAll(async () => {
   );
 
   /*
-   * Important:
    * Import app only AFTER:
    * 1. reflect-metadata has loaded
-   * 2. mock IJobScheduler is registered
-   * 3. MongoDB is connected
+   * 2. mock IJobScheduler has been registered
+   * 3. MongoDB has been connected
    *
    * interview.route.ts resolves InterviewController
-   * during module evaluation, so the dependency must
-   * already point to MockJobScheduler.
+   * during module evaluation.
    */
   app =
     (await import('../src/app')).default;
 });
 
 afterAll(async () => {
-   await new Promise((resolve) =>
+  await new Promise((resolve) =>
     setTimeout(resolve, 100)
   );
+
   await mongoose.disconnect();
   await mongoReplSet.stop();
 });
@@ -246,6 +251,7 @@ beforeEach(async () => {
   await ApiRateLimitModel.deleteMany({});
   await InterviewQuotaModel.deleteMany({});
   await InterviewSessionModel.deleteMany({});
+  await SystemPromptModel.deleteMany({});
 });
 
 const createCandidate = async (
@@ -284,6 +290,28 @@ const createPendingInterview = async (
     },
   });
 };
+
+/**
+ * ADM-04 compatibility:
+ * interview generation now requires a published
+ * GENERATION system prompt in the test environment.
+ */
+const createPublishedGenerationPrompt =
+  async (
+    userId: mongoose.Types.ObjectId
+  ) => {
+    return SystemPromptModel.create({
+      promptKey: 'interview',
+      type: 'GENERATION',
+      language: 'EN',
+      version: 1,
+      content:
+        'Generate interview questions for the candidate.',
+      status: 'PUBLISHED',
+      createdBy: userId,
+      publishedAt: new Date(),
+    });
+  };
 
 describe(
   'QUO-01: Daily Quota & Technical Rate Limiting',
@@ -1239,12 +1267,16 @@ describe(
         );
 
         it(
-          'enqueues the AI job and commits one quota reservation',
+          'generates questions synchronously and commits one quota reservation',
           async () => {
             const user =
               await createCandidate(
                 'generate@example.com'
               );
+
+            await createPublishedGenerationPrompt(
+              user._id
+            );
 
             const interview =
               await createPendingInterview(
@@ -1271,18 +1303,14 @@ describe(
               response.status
             ).toBe(200);
 
-            expect(
-              mockJobScheduler
-                .enqueueCalls
-            ).toHaveLength(1);
+            const session =
+              await InterviewSessionModel.findById(
+                interview._id
+              );
 
             expect(
-              mockJobScheduler
-                .enqueueCalls[0]
-                .jobName
-            ).toBe(
-              'GENERATE_QUESTIONS'
-            );
+              session?.status
+            ).toBe('IN_PROGRESS');
 
             const quota =
               await InterviewQuotaModel.findOne(
@@ -1394,6 +1422,10 @@ describe(
                 'idempotent@example.com'
               );
 
+            await createPublishedGenerationPrompt(
+              user._id
+            );
+
             const interview =
               await createPendingInterview(
                 user._id.toString()
@@ -1457,20 +1489,33 @@ describe(
               quotaAfterRetry?.used
             ).toBe(1);
 
+            const session =
+              await InterviewSessionModel.findById(
+                interview._id
+              );
+
+            expect(
+              session?.status
+            ).toBe('IN_PROGRESS');
+
             expect(
               mockJobScheduler
                 .enqueueCalls
-            ).toHaveLength(1);
+            ).toHaveLength(0);
           }
         );
 
         it(
-          'releases quota when enqueue fails',
+          'releases quota when generation fails',
           async () => {
             const user =
               await createCandidate(
-                'enqueue-fail@example.com'
+                'generation-fail@example.com'
               );
+
+            await createPublishedGenerationPrompt(
+              user._id
+            );
 
             const interview =
               await createPendingInterview(
@@ -1483,34 +1528,49 @@ describe(
                 user.role
               ).accessToken;
 
-            mockJobScheduler.shouldFail =
-              true;
-
-            const response =
-              await request(app)
-                .post(
-                  `/api/v1/interviews/${interview._id}/generate`
+            const spy =
+              vi.spyOn(
+                MockAiProvider.prototype,
+                'generateQuestions'
+              ).mockRejectedValueOnce(
+                new Error(
+                  'Mock AI generation failed'
                 )
-                .set(
-                  'Authorization',
-                  `Bearer ${token}`
-                );
-
-            expect(
-              response.status
-            ).toBe(500);
-
-            const quota =
-              await InterviewQuotaModel.findOne(
-                {
-                  userId:
-                    user._id.toString(),
-                }
               );
 
-            expect(
-              quota?.used
-            ).toBe(0);
+            try {
+              const response =
+                await request(app)
+                  .post(
+                    `/api/v1/interviews/${interview._id}/generate`
+                  )
+                  .set(
+                    'Authorization',
+                    `Bearer ${token}`
+                  );
+
+              expect(
+                response.status
+              ).toBe(500);
+
+              const quota =
+                await InterviewQuotaModel.findOne(
+                  {
+                    userId:
+                      user._id.toString(),
+                  }
+                );
+
+              expect(
+                quota?.used
+              ).toBe(0);
+
+              expect(
+                quota?.reservations.length
+              ).toBe(0);
+            } finally {
+              spy.mockRestore();
+            }
           }
         );
       }

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import {
   useAdminMetrics
@@ -98,33 +99,31 @@ export const AdminMetricsPage = () => {
 
       <main className="relative z-10 mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm font-bold text-indigo-700">
-            <span className="h-2 w-2 rounded-full bg-indigo-600" />
-
-            Admin
+        <div className="mb-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+              <span className="bg-indigo-100 p-2 rounded-xl text-indigo-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </span>
+              Dashboard Thống Kê
+            </h1>
+            <p className="mt-2 text-slate-500 font-medium">Tổng quan hệ thống và chỉ số hiệu suất AI</p>
           </div>
-
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
-                System Metrics
-              </h1>
-
-              <p className="mt-2 max-w-2xl text-slate-600">
-                Monitor users, interviews and AI token usage.
-              </p>
-            </div>
-
+          <div className="flex gap-3">
+            <Link to="/admin/system-prompts" className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium shadow hover:bg-indigo-700 transition">
+              Quản lý Prompts
+            </Link>
+            <Link to="/admin/users" className="px-4 py-2 bg-white text-indigo-600 border border-indigo-200 rounded-lg font-medium shadow-sm hover:bg-indigo-50 transition">
+              Quản lý Users
+            </Link>
             <button
-              type="button"
               onClick={handleReload}
-              disabled={isLoading}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-inset ring-slate-200 hover:bg-slate-50 hover:text-indigo-600 transition-all active:scale-95"
             >
-              {isLoading
-                ? 'Refreshing...'
-                : 'Refresh'}
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              Tải lại
             </button>
           </div>
         </div>
