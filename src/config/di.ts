@@ -14,6 +14,8 @@ import { UserRepository } from '../repositories/user.repository';
 import { AuditRepository } from '../repositories/audit.repository';
 import { SystemPromptRepository } from '../repositories/system-prompt.repository';
 import { AdminMetricsRepository } from '../repositories/admin-metrics.repository';
+import { ApiRateLimitRepository } from '../repositories/api-rate-limit.repository';
+import { InterviewQuotaRepository } from '../repositories/interview-quota.repository';
 
 // Services
 import { RoleService } from '../services/role.service';
@@ -22,6 +24,7 @@ import { TechnologyService } from '../services/technology.service';
 import { InterviewService } from '../services/InterviewService';
 import { SystemPromptService } from '../services/system-prompt.service';
 import { AdminMetricsService } from '../services/admin-metrics.service';
+import { InterviewQuotaService } from '../services/interview-quota.service';
 
 // AI Providers
 import { MockAiProvider } from '../services/ai/providers/MockAiProvider';
@@ -47,6 +50,14 @@ container.register('ITechnologyRepository', {
 
 container.register('IInterviewRepository', {
   useClass: MongoInterviewRepository
+});
+
+container.register('IApiRateLimitRepository', {
+  useClass: ApiRateLimitRepository
+});
+
+container.register('IInterviewQuotaRepository', {
+  useClass: InterviewQuotaRepository
 });
 
 // Register AI Provider based on .env
@@ -123,6 +134,10 @@ container.register('ISystemPromptService', {
 
 container.register('IAdminMetricsService', {
   useClass: AdminMetricsService
+});
+
+container.register('IInterviewQuotaService', {
+  useClass: InterviewQuotaService
 });
 
 export { container };

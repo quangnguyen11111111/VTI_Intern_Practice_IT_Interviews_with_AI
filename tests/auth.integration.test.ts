@@ -18,6 +18,7 @@ vi.hoisted(() => {
 import app from '../src/app';
 import User from '../src/models/user.model';
 import RefreshToken from '../src/models/refresh-token.model';
+import { ApiRateLimitModel } from '../src/models/api-rate-limit.model';
 import { getEnv } from '../src/config/env';
 import { generateAuthTokens, verifyAccessToken, verifyRefreshToken, hashToken } from '../src/utils/token';
 import { JwtTokenPayload } from '../src/types/auth.type';
@@ -46,6 +47,7 @@ beforeEach(async () => {
 
   await User.deleteMany({});
   await RefreshToken.deleteMany({});
+  await ApiRateLimitModel.deleteMany({});
 });
 
 describe('AIP-15 & AIP-16: Authentication & Session Management Tests', () => {

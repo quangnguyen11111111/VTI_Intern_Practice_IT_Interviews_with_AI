@@ -806,6 +806,14 @@ describe(
         const adminToken =
           getToken(admin);
 
+        const candidate =
+          await createUser(
+            'CANDIDATE'
+          );
+
+        const candidateToken =
+          getToken(candidate);
+
         // Tạo generation prompt v1
         const promptRes =
           await request(app)
@@ -849,7 +857,7 @@ describe(
           publishRes.status
         ).toBe(200);
 
-        // Tạo interview session
+        // Tạo interview session thuộc candidate
         const sessionRes =
           await request(app)
             .post(
@@ -861,7 +869,9 @@ describe(
               level:
                 'Junior',
               techStacks:
-                ['JavaScript']
+                ['JavaScript'],
+              userId:
+                candidate._id.toString()
             });
 
         expect(
@@ -871,11 +881,15 @@ describe(
         const sessionId =
           sessionRes.body.data.id;
 
-        // Generate questions
+        // Generate questions với access token của owner
         const generateRes =
           await request(app)
             .post(
               `/api/v1/interviews/${sessionId}/generate`
+            )
+            .set(
+              'Authorization',
+              `Bearer ${candidateToken}`
             );
 
         expect(
@@ -927,6 +941,14 @@ describe(
 
         const adminToken =
           getToken(admin);
+
+        const candidate =
+          await createUser(
+            'CANDIDATE'
+          );
+
+        const candidateToken =
+          getToken(candidate);
 
         // Tạo + publish GENERATION prompt
         const generationRes =
@@ -1012,7 +1034,7 @@ describe(
           evaluationPublishRes.status
         ).toBe(200);
 
-        // Tạo interview
+        // Tạo interview thuộc candidate
         const sessionRes =
           await request(app)
             .post(
@@ -1024,7 +1046,9 @@ describe(
               level:
                 'Junior',
               techStacks:
-                ['JavaScript']
+                ['JavaScript'],
+              userId:
+                candidate._id.toString()
             });
 
         expect(
@@ -1039,6 +1063,10 @@ describe(
           await request(app)
             .post(
               `/api/v1/interviews/${sessionId}/generate`
+            )
+            .set(
+              'Authorization',
+              `Bearer ${candidateToken}`
             );
 
         expect(
@@ -1124,6 +1152,14 @@ describe(
 
         const adminToken =
           getToken(admin);
+
+        const candidate =
+          await createUser(
+            'CANDIDATE'
+          );
+
+        const candidateToken =
+          getToken(candidate);
 
         // --------------------------------------------------
         // 1. Tạo + publish GENERATION prompt
@@ -1258,7 +1294,7 @@ describe(
         ).toBe(200);
 
         // --------------------------------------------------
-        // 4. Tạo interview session
+        // 4. Tạo interview session thuộc candidate
         // --------------------------------------------------
         const sessionRes =
           await request(app)
@@ -1271,7 +1307,9 @@ describe(
               level:
                 'Junior',
               techStacks:
-                ['JavaScript']
+                ['JavaScript'],
+              userId:
+                candidate._id.toString()
             });
 
         expect(
@@ -1288,6 +1326,10 @@ describe(
           await request(app)
             .post(
               `/api/v1/interviews/${sessionId}/generate`
+            )
+            .set(
+              'Authorization',
+              `Bearer ${candidateToken}`
             );
 
         expect(
