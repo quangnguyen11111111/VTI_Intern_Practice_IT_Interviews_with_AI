@@ -52,6 +52,10 @@ container.register('IInterviewRepository', {
   useClass: MongoInterviewRepository
 });
 
+container.register('IInterviewHistoryRepository', {
+  useClass: MongoInterviewRepository
+});
+
 container.register('IApiRateLimitRepository', {
   useClass: ApiRateLimitRepository
 });

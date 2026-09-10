@@ -106,6 +106,12 @@ const InterviewSessionSchema = new Schema<IInterviewSessionDocument>(
   }
 );
 
+InterviewSessionSchema.index({
+  userId: 1,
+  createdAt: -1,
+  _id: -1
+});
+
 export const InterviewSessionModel =
   mongoose.model<IInterviewSessionDocument>(
     'InterviewSession',

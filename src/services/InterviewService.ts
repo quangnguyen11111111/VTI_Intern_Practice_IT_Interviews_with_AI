@@ -6,8 +6,14 @@ import {
 import mongoose from 'mongoose';
 
 import {
-  IInterviewRepository
+  IInterviewRepository,
 } from '../repositories/IInterviewRepository';
+
+import {
+  IInterviewHistoryRepository,
+  InterviewHistoryQuery,
+  InterviewHistoryResult
+} from '../repositories/interfaces/IInterviewHistoryRepository';
 
 import {
   InterviewContext
@@ -46,6 +52,10 @@ export class InterviewService {
     @inject('IInterviewRepository')
     private readonly interviewRepo:
       IInterviewRepository,
+
+    @inject('IInterviewHistoryRepository')
+    private readonly interviewHistoryRepo:
+      IInterviewHistoryRepository,
 
     @inject('IAiProvider')
     private readonly aiProvider:
@@ -140,6 +150,16 @@ export class InterviewService {
     }
 
     return session;
+  }
+
+  async getInterviewHistory(
+    userId: string,
+    query: InterviewHistoryQuery
+  ): Promise<InterviewHistoryResult> {
+    return this.interviewHistoryRepo.findHistory(
+      userId,
+      query
+    );
   }
 
   /**

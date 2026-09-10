@@ -3,6 +3,8 @@ import { InterviewController } from '../controllers/InterviewController';
 import { container } from '../config/di';
 import { uploadMiddleware } from '../middlewares/upload.middleware';
 import { authenticate } from '../middlewares/auth.middleware';
+import { validate } from '../middlewares/validate.middleware';
+import { interviewHistoryQuerySchema } from '../validators/interview.validator';
 import { RateLimitMiddleware } from '../middlewares/rate-limit.middleware';
 import { InterviewQuotaMiddleware } from '../middlewares/interview-quota.middleware';
 import { getEnv } from '../config/env';
@@ -59,6 +61,15 @@ router.post(
   createInterviewRateLimit,
   uploadMiddleware.single('jdFile'),
   interviewController.createSessionFromJD
+);
+
+// HIS-01: Interview history
+// Must be declared before /:id
+router.get(
+  '/history',
+  authenticate,
+  validate(interviewHistoryQuerySchema),
+  interviewController.getHistory
 );
 
 router.get('/:id', interviewController.getSession);

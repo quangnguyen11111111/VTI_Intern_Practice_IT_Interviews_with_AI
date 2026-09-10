@@ -2,8 +2,14 @@ import {
   IInterviewRepository,
   InterviewEntity,
   InterviewQuestionEntity,
-  InterviewPromptVersion
+  InterviewPromptVersion,
 } from './IInterviewRepository';
+
+import {
+  IInterviewHistoryRepository,
+  InterviewHistoryQuery,
+  InterviewHistoryResult
+} from './interfaces/IInterviewHistoryRepository';
 
 import {
   InterviewStatus
@@ -23,7 +29,7 @@ import {
 } from '../models/InterviewQuestion';
 
 export class MongoInterviewRepository
-  implements IInterviewRepository
+  implements IInterviewRepository, IInterviewHistoryRepository
 {
   async create(
     data: InterviewSetupPayload,
@@ -37,6 +43,93 @@ export class MongoInterviewRepository
       });
 
     return this.mapToEntity(newSession);
+  }
+
+  async findHistory(
+    userId: string,
+    query: InterviewHistoryQuery
+  ): Promise<InterviewHistoryResult> {
+    const filter: Record<string, unknown> = {
+      userId
+    };
+
+    if (query.role) {
+      filter['setupData.jobPosition'] = query.role;
+    }
+
+    if (query.level) {
+      filter['setupData.level'] = query.level;
+    }
+
+    if (query.technology) {
+      filter['setupData.techStacks'] = query.technology;
+    }
+
+    if (query.status) {
+      filter.status = query.status;
+    }
+
+    if (query.from || query.to) {
+      filter.createdAt = {
+        ...(query.from ? { $gte: query.from } : {}),
+        ...(query.to ? { $lt: query.to } : {})
+      };
+    }
+
+    const skip =
+      (query.page - 1) * query.limit;
+
+    const sortDirection =
+      query.sort === 'oldest' ? 1 : -1;
+
+    const [sessions, total] =
+      await Promise.all([
+        InterviewSessionModel
+          .find(filter)
+          .select({
+            _id: 1,
+            'setupData.jobPosition': 1,
+            'setupData.level': 1,
+            'setupData.techStacks': 1,
+            overallScore: 1,
+            status: 1,
+            createdAt: 1,
+            updatedAt: 1
+          })
+          .sort({
+            createdAt: sortDirection,
+            _id: sortDirection
+          })
+          .skip(skip)
+          .limit(query.limit)
+          .lean(),
+        InterviewSessionModel.countDocuments(filter)
+      ]);
+
+    return {
+      items: sessions.map((session: any) => ({
+        sessionId: session._id.toString(),
+        role: session.setupData?.jobPosition,
+        level: session.setupData?.level,
+        technologies: Array.isArray(
+          session.setupData?.techStacks
+        )
+          ? session.setupData.techStacks
+          : [],
+        score: session.overallScore ?? null,
+        status: session.status as InterviewStatus,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt
+      })),
+      pagination: {
+        total,
+        page: query.page,
+        limit: query.limit,
+        totalPages: Math.ceil(
+          total / query.limit
+        )
+      }
+    };
   }
 
   async findById(
