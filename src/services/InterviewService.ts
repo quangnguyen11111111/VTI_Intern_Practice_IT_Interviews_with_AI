@@ -16,6 +16,12 @@ import {
 } from '../repositories/interfaces/IInterviewHistoryRepository';
 
 import {
+  IInterviewAnalyticsRepository,
+  InterviewAnalyticsQuery,
+  InterviewAnalyticsResult
+} from '../repositories/interfaces/IInterviewAnalyticsRepository';
+
+import {
   InterviewContext
 } from '../domain/interview/InterviewContext';
 
@@ -56,6 +62,10 @@ export class InterviewService {
     @inject('IInterviewHistoryRepository')
     private readonly interviewHistoryRepo:
       IInterviewHistoryRepository,
+
+    @inject('IInterviewAnalyticsRepository')
+    private readonly interviewAnalyticsRepo:
+      IInterviewAnalyticsRepository,
 
     @inject('IAiProvider')
     private readonly aiProvider:
@@ -157,6 +167,16 @@ export class InterviewService {
     query: InterviewHistoryQuery
   ): Promise<InterviewHistoryResult> {
     return this.interviewHistoryRepo.findHistory(
+      userId,
+      query
+    );
+  }
+
+  async getInterviewAnalytics(
+    userId: string,
+    query: InterviewAnalyticsQuery
+  ): Promise<InterviewAnalyticsResult> {
+    return this.interviewAnalyticsRepo.getAnalytics(
       userId,
       query
     );

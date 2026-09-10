@@ -22,7 +22,7 @@ export class InterviewController {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders(); // flush the headers to establish SSE connection
+    res.flushHeaders();
 
     // Send initial status immediately
     try {
@@ -125,6 +125,33 @@ export class InterviewController {
   };
 
   /**
+   * GET /api/interviews/analytics
+   */
+  getAnalytics = async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user?._id?.toString();
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        message: 'Yêu cầu xác thực',
+        code: 'AUTH_UNAUTHORIZED'
+      });
+      return;
+    }
+
+    const query = req.query as any;
+    const result = await this.interviewService.getInterviewAnalytics(
+      userId,
+      query
+    );
+
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+  };
+
+  /**
    * GET /api/interviews/:id
    */
   getSession = async (req: Request, res: Response): Promise<void> => {
@@ -171,6 +198,7 @@ export class InterviewController {
       res.status(500).json({ success: false, message: error.message });
     }
   };
+
   /**
    * POST /api/interviews/:id/progress
    */

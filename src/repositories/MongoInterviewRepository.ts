@@ -12,6 +12,12 @@ import {
 } from './interfaces/IInterviewHistoryRepository';
 
 import {
+  IInterviewAnalyticsRepository,
+  InterviewAnalyticsQuery,
+  InterviewAnalyticsResult
+} from './interfaces/IInterviewAnalyticsRepository';
+
+import {
   InterviewStatus
 } from '../domain/interview/IInterviewState';
 
@@ -29,7 +35,10 @@ import {
 } from '../models/InterviewQuestion';
 
 export class MongoInterviewRepository
-  implements IInterviewRepository, IInterviewHistoryRepository
+  implements
+    IInterviewRepository,
+    IInterviewHistoryRepository,
+    IInterviewAnalyticsRepository
 {
   async create(
     data: InterviewSetupPayload,
@@ -132,6 +141,312 @@ export class MongoInterviewRepository
     };
   }
 
+  async getAnalytics(
+    userId: string,
+    query: InterviewAnalyticsQuery
+  ): Promise<InterviewAnalyticsResult> {
+    const match: Record<string, unknown> = {
+      userId,
+      status: 'COMPLETED',
+      overallScore: {
+        $gte: 0,
+        $lte: 10
+      }
+    };
+
+    if (query.role) {
+      match['setupData.jobPosition'] = query.role;
+    }
+
+    if (query.level) {
+      match['setupData.level'] = query.level;
+    }
+
+    if (query.technology) {
+      match['setupData.techStacks'] = query.technology;
+    }
+
+    if (query.from || query.to) {
+      match.createdAt = {
+        ...(query.from
+          ? { $gte: query.from }
+          : {}),
+        ...(query.to
+          ? { $lt: query.to }
+          : {})
+      };
+    }
+
+    const dimensionNames = [
+      'Technical Depth',
+      'Problem Solving',
+      'System Design & Best Practices',
+      'Communication',
+      'Practical Experience'
+    ];
+
+    type AnalyticsAggregation = {
+      summaryOverall: Array<{
+        totalCompleted: number;
+        averageOverallScore: number | null;
+      }>;
+
+      summaryDimensions: Array<{
+        _id: string;
+        score: number | null;
+      }>;
+
+      dailyOverall: Array<{
+        _id: string;
+        overallScore: number | null;
+      }>;
+
+      dailyDimensions: Array<{
+        _id: {
+          date: string;
+          name: string;
+        };
+        score: number | null;
+      }>;
+    };
+
+    const [aggregation] =
+      await InterviewSessionModel.aggregate<AnalyticsAggregation>([
+        {
+          $match: match
+        },
+
+        {
+          $set: {
+            bucketDate: {
+              $dateToString: {
+                date: '$createdAt',
+                format: '%Y-%m-%d',
+                timezone: 'UTC'
+              }
+            }
+          }
+        },
+
+        {
+          $facet: {
+            summaryOverall: [
+              {
+                $group: {
+                  _id: null,
+                  totalCompleted: {
+                    $sum: 1
+                  },
+                  averageOverallScore: {
+                    $avg: '$overallScore'
+                  }
+                }
+              }
+            ],
+
+            summaryDimensions: [
+              {
+                $unwind: '$dimensions'
+              },
+
+              {
+                $match: {
+                  'dimensions.name': {
+                    $in: dimensionNames
+                  },
+                  'dimensions.score': {
+                    $gte: 0,
+                    $lte: 10
+                  }
+                }
+              },
+
+              {
+                $group: {
+                  _id: '$dimensions.name',
+                  score: {
+                    $avg: '$dimensions.score'
+                  }
+                }
+              }
+            ],
+
+            dailyOverall: [
+              {
+                $group: {
+                  _id: '$bucketDate',
+                  overallScore: {
+                    $avg: '$overallScore'
+                  }
+                }
+              },
+
+              {
+                $sort: {
+                  _id: 1
+                }
+              }
+            ],
+
+            dailyDimensions: [
+              {
+                $unwind: '$dimensions'
+              },
+
+              {
+                $match: {
+                  'dimensions.name': {
+                    $in: dimensionNames
+                  },
+                  'dimensions.score': {
+                    $gte: 0,
+                    $lte: 10
+                  }
+                }
+              },
+
+              {
+                $group: {
+                  _id: {
+                    date: '$bucketDate',
+                    name: '$dimensions.name'
+                  },
+                  score: {
+                    $avg: '$dimensions.score'
+                  }
+                }
+              },
+
+              {
+                $sort: {
+                  '_id.date': 1,
+                  '_id.name': 1
+                }
+              }
+            ]
+          }
+        }
+      ]);
+
+    const round = (
+      value: number | null | undefined
+    ): number | null =>
+      typeof value === 'number'
+        ? Number(value.toFixed(2))
+        : null;
+
+    const summaryOverall =
+      aggregation?.summaryOverall?.[0];
+
+    const summaryDimensions =
+      new Map<string, number | null>(
+        (
+          aggregation?.summaryDimensions ?? []
+        ).map(
+          (
+            item: {
+              _id: string;
+              score: number | null;
+            }
+          ) => [
+            item._id,
+            round(item.score)
+          ]
+        )
+      );
+
+    const dailyOverall =
+      new Map<string, number | null>(
+        (
+          aggregation?.dailyOverall ?? []
+        ).map(
+          (
+            item: {
+              _id: string;
+              overallScore: number | null;
+            }
+          ) => [
+            item._id,
+            round(item.overallScore)
+          ]
+        )
+      );
+
+    const dailyDimensions =
+      new Map<
+        string,
+        Map<string, number | null>
+      >();
+
+    for (
+      const item of
+        aggregation?.dailyDimensions ?? []
+    ) {
+      const date = item._id.date;
+
+      const dimensions =
+        dailyDimensions.get(date) ??
+        new Map<string, number | null>();
+
+      dimensions.set(
+        item._id.name,
+        round(item.score)
+      );
+
+      dailyDimensions.set(
+        date,
+        dimensions
+      );
+    }
+
+    const dates = Array.from(
+      new Set([
+        ...dailyOverall.keys(),
+        ...dailyDimensions.keys()
+      ])
+    ).sort();
+
+    return {
+      summary: {
+        totalCompleted:
+          summaryOverall?.totalCompleted ?? 0,
+
+        averageOverallScore:
+          round(
+            summaryOverall?.averageOverallScore
+          ),
+
+        dimensions:
+          dimensionNames.map((name) => ({
+            name,
+            score:
+              summaryDimensions.get(name) ??
+              null
+          }))
+      },
+
+      series: dates.map((date) => {
+        const dimensions =
+          dailyDimensions.get(date);
+
+        return {
+          date,
+
+          overallScore:
+            dailyOverall.get(date) ?? 0,
+
+          dimensions:
+            dimensionNames.map((name) => ({
+              name,
+              score:
+                dimensions?.get(name) ??
+                null
+            }))
+        };
+      })
+    };
+  }
+
   async findById(
     id: string
   ): Promise<InterviewEntity | null> {
@@ -149,7 +464,9 @@ export class MongoInterviewRepository
         .find({
           sessionId: id
         })
-        .sort({ order: 1 })
+        .sort({
+          order: 1
+        })
         .lean();
 
     const entity =

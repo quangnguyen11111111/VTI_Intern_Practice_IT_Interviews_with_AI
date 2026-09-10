@@ -4,7 +4,10 @@ import { container } from '../config/di';
 import { uploadMiddleware } from '../middlewares/upload.middleware';
 import { authenticate } from '../middlewares/auth.middleware';
 import { validate } from '../middlewares/validate.middleware';
-import { interviewHistoryQuerySchema } from '../validators/interview.validator';
+import {
+  interviewAnalyticsQuerySchema,
+  interviewHistoryQuerySchema
+} from '../validators/interview.validator';
 import { RateLimitMiddleware } from '../middlewares/rate-limit.middleware';
 import { InterviewQuotaMiddleware } from '../middlewares/interview-quota.middleware';
 import { getEnv } from '../config/env';
@@ -61,6 +64,14 @@ router.post(
   createInterviewRateLimit,
   uploadMiddleware.single('jdFile'),
   interviewController.createSessionFromJD
+);
+
+// ANA-01: Current-user interview analytics
+router.get(
+  '/analytics',
+  authenticate,
+  validate(interviewAnalyticsQuerySchema),
+  interviewController.getAnalytics
 );
 
 // HIS-01: Interview history

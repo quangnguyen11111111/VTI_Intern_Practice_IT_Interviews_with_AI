@@ -64,7 +64,6 @@ export interface InterviewSessionData {
   // include other fields as needed
 }
 
- 
 const extractArrayData = (json: any, key: string): BaseEntity[] => {
   if (Array.isArray(json)) return json;
   if (json?.data) {
@@ -73,6 +72,46 @@ const extractArrayData = (json: any, key: string): BaseEntity[] => {
     if (json.data.items && Array.isArray(json.data.items)) return json.data.items;
   }
   return [];
+};
+
+export interface InterviewAnalyticsQuery {
+  role?: string;
+  level?: string;
+  technology?: string;
+  from?: string;
+  to?: string;
+}
+
+export interface InterviewAnalyticsDimension {
+  name: string;
+  score: number | null;
+}
+
+export interface InterviewAnalyticsSeriesPoint {
+  date: string;
+  overallScore: number;
+  dimensions: InterviewAnalyticsDimension[];
+}
+
+export interface InterviewAnalyticsResult {
+  summary: {
+    totalCompleted: number;
+    averageOverallScore: number | null;
+    dimensions: InterviewAnalyticsDimension[];
+  };
+  series: InterviewAnalyticsSeriesPoint[];
+}
+
+const buildAnalyticsQuery = (query: InterviewAnalyticsQuery): string => {
+  const params = new URLSearchParams();
+
+  Object.entries(query).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
+
+  const serialized = params.toString();
+
+  return serialized ? `?${serialized}` : '';
 };
 
 export const interviewApi = {
@@ -109,11 +148,13 @@ export const interviewApi = {
    */
   fetchTechnologies: async (roleId?: string): Promise<BaseEntity[]> => {
     try {
-      const url = roleId 
-        ? `${API_URL}/technologies?limit=1000&roleId=${roleId}` 
+      const url = roleId
+        ? `${API_URL}/technologies?limit=1000&roleId=${roleId}`
         : `${API_URL}/technologies?limit=1000`;
+
       const response = await fetch(url);
       const json = await response.json();
+
       return extractArrayData(json, 'technologies');
     } catch (error) {
       console.error('Failed to fetch technologies:', error);
@@ -124,8 +165,11 @@ export const interviewApi = {
   /**
    * Submit interview setup configuration
    */
-  setupInterview: async (payload: InterviewSetupPayload): Promise<InterviewSessionData> => {
+  setupInterview: async (
+    payload: InterviewSetupPayload
+  ): Promise<InterviewSessionData> => {
     console.log('Sending API Request with payload:', payload);
+
     return request<InterviewSessionData>('interviews', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -135,26 +179,34 @@ export const interviewApi = {
   /**
    * Upload JD file for interview setup
    */
-  uploadJdInterview: async (payload: FormData): Promise<InterviewSessionData> => {
+  uploadJdInterview: async (
+    payload: FormData
+  ): Promise<InterviewSessionData> => {
     console.log('Sending JD Upload Request');
+
     const accessToken = getAccessToken();
     const headers = new Headers();
+
     if (accessToken) {
       headers.set('Authorization', `Bearer ${accessToken}`);
     }
-    
-    const response = await fetch(`${API_URL}/interviews/generate-from-jd`, {
-      method: 'POST',
-      headers,
-      body: payload,
-    });
-    
+
+    const response = await fetch(
+      `${API_URL}/interviews/generate-from-jd`,
+      {
+        method: 'POST',
+        headers,
+        body: payload,
+      }
+    );
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Failed to upload JD');
     }
-    
+
     const body = await response.json();
+
     return body.data;
   },
 
@@ -165,57 +217,121 @@ export const interviewApi = {
     query: InterviewHistoryQuery = {}
   ): Promise<InterviewHistoryResult> => {
     const params = new URLSearchParams();
-    if (query.page !== undefined) params.set('page', String(query.page));
-    if (query.limit !== undefined) params.set('limit', String(query.limit));
-    if (query.role) params.set('role', query.role);
-    if (query.level) params.set('level', query.level);
-    if (query.technology) params.set('technology', query.technology);
-    if (query.status) params.set('status', query.status);
-    if (query.from) params.set('from', query.from);
-    if (query.to) params.set('to', query.to);
-    if (query.sort) params.set('sort', query.sort);
 
-    const suffix = params.toString() ? `?${params.toString()}` : '';
-    return request<InterviewHistoryResult>(`interviews/history${suffix}`);
+    if (query.page !== undefined) {
+      params.set('page', String(query.page));
+    }
+
+    if (query.limit !== undefined) {
+      params.set('limit', String(query.limit));
+    }
+
+    if (query.role) {
+      params.set('role', query.role);
+    }
+
+    if (query.level) {
+      params.set('level', query.level);
+    }
+
+    if (query.technology) {
+      params.set('technology', query.technology);
+    }
+
+    if (query.status) {
+      params.set('status', query.status);
+    }
+
+    if (query.from) {
+      params.set('from', query.from);
+    }
+
+    if (query.to) {
+      params.set('to', query.to);
+    }
+
+    if (query.sort) {
+      params.set('sort', query.sort);
+    }
+
+    const suffix = params.toString()
+      ? `?${params.toString()}`
+      : '';
+
+    return request<InterviewHistoryResult>(
+      `interviews/history${suffix}`
+    );
   },
 
   /**
    * Fetch an existing interview session by ID
    */
-  fetchInterviewSession: async (sessionId: string): Promise<any> => {
-    return request<any>(`interviews/${sessionId}?t=${Date.now()}`, {
-      cache: 'no-store'
-    });
+  fetchInterviewSession: async (
+    sessionId: string
+  ): Promise<any> => {
+    return request<any>(
+      `interviews/${sessionId}?t=${Date.now()}`,
+      {
+        cache: 'no-store'
+      }
+    );
   },
 
   /**
    * Save interview progress
    */
-  saveInterviewProgress: async (sessionId: string, answers: any[]): Promise<any> => {
-    return request<any>(`interviews/${sessionId}/progress`, {
-      method: 'POST',
-      body: JSON.stringify({ answers }),
-    });
+  saveInterviewProgress: async (
+    sessionId: string,
+    answers: any[]
+  ): Promise<any> => {
+    return request<any>(
+      `interviews/${sessionId}/progress`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ answers }),
+      }
+    );
   },
 
   /**
    * Generate interview questions for a session
    */
-  generateQuestions: async (sessionId: string): Promise<any> => {
-    return request<any>(`interviews/${sessionId}/generate`, {
-      method: 'POST',
-    });
+  generateQuestions: async (
+    sessionId: string
+  ): Promise<any> => {
+    return request<any>(
+      `interviews/${sessionId}/generate`,
+      {
+        method: 'POST',
+      }
+    );
   },
 
   /**
    * Submit interview answers
    */
-  submitInterview: async (sessionId: string, answers: any[]): Promise<any> => {
-    return request<any>(`interviews/${sessionId}/submit`, {
-      method: 'POST',
-      body: JSON.stringify({ answers }),
-    });
+  submitInterview: async (
+    sessionId: string,
+    answers: any[]
+  ): Promise<any> => {
+    return request<any>(
+      `interviews/${sessionId}/submit`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ answers }),
+      }
+    );
+  },
+
+  /**
+   * Fetch current-user interview analytics.
+   */
+  getAnalytics: async (
+    query: InterviewAnalyticsQuery
+  ): Promise<InterviewAnalyticsResult> => {
+    return request<InterviewAnalyticsResult>(
+      `interviews/analytics${buildAnalyticsQuery(query)}`
+    );
   },
 };
-
 
