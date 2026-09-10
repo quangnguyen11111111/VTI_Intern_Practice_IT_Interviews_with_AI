@@ -177,3 +177,36 @@ export const interviewHistoryQuerySchema = z
       });
     }
   });
+
+export const interviewAnalyticsQuerySchema = z
+  .object({
+    query: z
+      .object({
+        role: optionalTrimmedString,
+        level: optionalTrimmedString,
+        technology: optionalTrimmedString,
+        from: dateQuery,
+        to: dateQuery,
+
+        /**
+         * Client-provided userId is intentionally accepted
+         * but never used for ownership.
+         *
+         * Analytics ownership is always determined by the
+         * authenticated user's id from req.user.
+         */
+        userId: optionalTrimmedString
+      })
+      .strict()
+  })
+  .superRefine((value, ctx) => {
+    const { from, to } = value.query;
+
+    if (from && to && from >= to) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['query', 'to'],
+        message: 'To phải lớn hơn From'
+      });
+    }
+  });
