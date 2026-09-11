@@ -85,6 +85,29 @@ export class InterviewController {
   });
 
   /**
+   * GET /api/interviews/history
+   */
+  getHistory = catchAsync(async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user?._id?.toString();
+
+    if (!userId) {
+      throw new AppError('Yêu cầu xác thực', 401, 'AUTH_UNAUTHORIZED');
+    }
+
+    const query = req.query as any;
+    const result =
+      await this.interviewService.getInterviewHistory(
+        userId,
+        query
+      );
+
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+  });
+
+  /**
    * GET /api/interviews/:id
    */
   getSession = catchAsync(async (req: Request, res: Response): Promise<void> => {

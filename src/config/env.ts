@@ -164,6 +164,163 @@ const envSchema = z
     SMTP_USER: z.string().optional().default(''),
     SMTP_PASS: z.string().optional().default(''),
     SMTP_FROM: z.string().trim().min(1, 'SMTP_FROM cannot be empty').optional().default('no-reply@vti.com.vn'),
+
+    // QUO-01: Daily interview quota
+    DAILY_INTERVIEW_QUOTA: z
+      .string()
+      .optional()
+      .default('5')
+      .transform((val) => {
+        const limit = parseInt(val, 10);
+        if (isNaN(limit) || limit < 1) {
+          throw new Error('DAILY_INTERVIEW_QUOTA must be a positive integer');
+        }
+        return limit;
+      }),
+    QUOTA_TIMEZONE: z
+      .string()
+      .trim()
+      .min(1, 'QUOTA_TIMEZONE cannot be empty')
+      .default('Asia/Ho_Chi_Minh'),
+
+    // QUO-01: Technical rate limiting
+    RATE_LIMIT_LOGIN_MAX: z
+      .string()
+      .optional()
+      .default('10')
+      .transform((val) => {
+        const limit = parseInt(val, 10);
+        if (isNaN(limit) || limit < 1) {
+          throw new Error('RATE_LIMIT_LOGIN_MAX must be a positive integer');
+        }
+        return limit;
+      }),
+    RATE_LIMIT_LOGIN_WINDOW_MS: z
+      .string()
+      .optional()
+      .default('60000')
+      .transform((val) => {
+        const window = parseInt(val, 10);
+        if (isNaN(window) || window < 1000) {
+          throw new Error('RATE_LIMIT_LOGIN_WINDOW_MS must be at least 1000');
+        }
+        return window;
+      }),
+
+    RATE_LIMIT_REGISTER_MAX: z
+      .string()
+      .optional()
+      .default('5')
+      .transform((val) => {
+        const limit = parseInt(val, 10);
+        if (isNaN(limit) || limit < 1) {
+          throw new Error('RATE_LIMIT_REGISTER_MAX must be a positive integer');
+        }
+        return limit;
+      }),
+    RATE_LIMIT_REGISTER_WINDOW_MS: z
+      .string()
+      .optional()
+      .default('600000')
+      .transform((val) => {
+        const window = parseInt(val, 10);
+        if (isNaN(window) || window < 1000) {
+          throw new Error('RATE_LIMIT_REGISTER_WINDOW_MS must be at least 1000');
+        }
+        return window;
+      }),
+
+    RATE_LIMIT_CREATE_INTERVIEW_MAX: z
+      .string()
+      .optional()
+      .default('10')
+      .transform((val) => {
+        const limit = parseInt(val, 10);
+        if (isNaN(limit) || limit < 1) {
+          throw new Error('RATE_LIMIT_CREATE_INTERVIEW_MAX must be a positive integer');
+        }
+        return limit;
+      }),
+    RATE_LIMIT_CREATE_INTERVIEW_WINDOW_MS: z
+      .string()
+      .optional()
+      .default('600000')
+      .transform((val) => {
+        const window = parseInt(val, 10);
+        if (isNaN(window) || window < 1000) {
+          throw new Error('RATE_LIMIT_CREATE_INTERVIEW_WINDOW_MS must be at least 1000');
+        }
+        return window;
+      }),
+
+    RATE_LIMIT_AI_MAX: z
+      .string()
+      .optional()
+      .default('5')
+      .transform((val) => {
+        const limit = parseInt(val, 10);
+        if (isNaN(limit) || limit < 1) {
+          throw new Error('RATE_LIMIT_AI_MAX must be a positive integer');
+        }
+        return limit;
+      }),
+    RATE_LIMIT_AI_WINDOW_MS: z
+      .string()
+      .optional()
+      .default('60000')
+      .transform((val) => {
+        const window = parseInt(val, 10);
+        if (isNaN(window) || window < 1000) {
+          throw new Error('RATE_LIMIT_AI_WINDOW_MS must be at least 1000');
+        }
+        return window;
+      }),
+
+    RATE_LIMIT_SUBMIT_MAX: z
+      .string()
+      .optional()
+      .default('10')
+      .transform((val) => {
+        const limit = parseInt(val, 10);
+        if (isNaN(limit) || limit < 1) {
+          throw new Error('RATE_LIMIT_SUBMIT_MAX must be a positive integer');
+        }
+        return limit;
+      }),
+    RATE_LIMIT_SUBMIT_WINDOW_MS: z
+      .string()
+      .optional()
+      .default('60000')
+      .transform((val) => {
+        const window = parseInt(val, 10);
+        if (isNaN(window) || window < 1000) {
+          throw new Error('RATE_LIMIT_SUBMIT_WINDOW_MS must be at least 1000');
+        }
+        return window;
+      }),
+
+    RATE_LIMIT_PROGRESS_MAX: z
+      .string()
+      .optional()
+      .default('30')
+      .transform((val) => {
+        const limit = parseInt(val, 10);
+        if (isNaN(limit) || limit < 1) {
+          throw new Error('RATE_LIMIT_PROGRESS_MAX must be a positive integer');
+        }
+        return limit;
+      }),
+    RATE_LIMIT_PROGRESS_WINDOW_MS: z
+      .string()
+      .optional()
+      .default('60000')
+      .transform((val) => {
+        const window = parseInt(val, 10);
+        if (isNaN(window) || window < 1000) {
+          throw new Error('RATE_LIMIT_PROGRESS_WINDOW_MS must be at least 1000');
+        }
+        return window;
+      }),
   })
   .superRefine((data, ctx) => {
     if (data.JWT_ACCESS_SECRET === data.JWT_REFRESH_SECRET) {
@@ -225,6 +382,7 @@ const envSchema = z
           path: ['JWT_ACCESS_SECRET'],
         });
       }
+
       if (placeholderSecrets.has(data.JWT_REFRESH_SECRET)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -232,6 +390,7 @@ const envSchema = z
           path: ['JWT_REFRESH_SECRET'],
         });
       }
+
       if (
         placeholderSecrets.has(data.PASSWORD_RESET_SECRET) ||
         data.PASSWORD_RESET_SECRET === 'default_password_reset_secret_key_at_least_32_characters_long_12345'
@@ -242,6 +401,7 @@ const envSchema = z
           path: ['PASSWORD_RESET_SECRET'],
         });
       }
+
       if (!data.SMTP_HOST || data.SMTP_HOST === 'localhost') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -249,6 +409,7 @@ const envSchema = z
           path: ['SMTP_HOST'],
         });
       }
+
       if (!data.SMTP_USER) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -256,6 +417,7 @@ const envSchema = z
           path: ['SMTP_USER'],
         });
       }
+
       if (!data.SMTP_PASS) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -263,6 +425,7 @@ const envSchema = z
           path: ['SMTP_PASS'],
         });
       }
+
       if (!data.SMTP_FROM) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -270,6 +433,7 @@ const envSchema = z
           path: ['SMTP_FROM'],
         });
       }
+
       if (placeholderSmtpValues.has(data.SMTP_HOST)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -277,6 +441,7 @@ const envSchema = z
           path: ['SMTP_HOST'],
         });
       }
+
       if (placeholderSmtpValues.has(data.SMTP_USER)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -284,6 +449,7 @@ const envSchema = z
           path: ['SMTP_USER'],
         });
       }
+
       if (placeholderSmtpValues.has(data.SMTP_PASS)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -291,6 +457,7 @@ const envSchema = z
           path: ['SMTP_PASS'],
         });
       }
+
       if (placeholderSmtpValues.has(data.SMTP_FROM)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -321,6 +488,29 @@ export interface AppEnv {
   SMTP_USER: string;
   SMTP_PASS: string;
   SMTP_FROM: string;
+
+  // QUO-01: Daily quota
+  DAILY_INTERVIEW_QUOTA: number;
+  QUOTA_TIMEZONE: string;
+
+  // QUO-01: Rate limiting
+  RATE_LIMIT_LOGIN_MAX: number;
+  RATE_LIMIT_LOGIN_WINDOW_MS: number;
+
+  RATE_LIMIT_REGISTER_MAX: number;
+  RATE_LIMIT_REGISTER_WINDOW_MS: number;
+
+  RATE_LIMIT_CREATE_INTERVIEW_MAX: number;
+  RATE_LIMIT_CREATE_INTERVIEW_WINDOW_MS: number;
+
+  RATE_LIMIT_AI_MAX: number;
+  RATE_LIMIT_AI_WINDOW_MS: number;
+
+  RATE_LIMIT_SUBMIT_MAX: number;
+  RATE_LIMIT_SUBMIT_WINDOW_MS: number;
+
+  RATE_LIMIT_PROGRESS_MAX: number;
+  RATE_LIMIT_PROGRESS_WINDOW_MS: number;
 }
 
 export const getEnv = (): AppEnv => {
