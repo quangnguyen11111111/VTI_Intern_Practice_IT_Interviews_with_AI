@@ -28,17 +28,17 @@ export class RoleController {
   });
 
   createRole = catchAsync(async (req: Request, res: Response) => {
-    const result = await this.roleService.createRole(req.body);
+    const result = await this.roleService.createRole(req.body, req.user!._id.toString(), req.requestId!);
     res.status(201).json({ success: true, message: 'Tạo Role thành công', data: result });
   });
 
   updateRole = catchAsync(async (req: Request, res: Response) => {
-    const result = await this.roleService.updateRole(req.params.id as string, req.body);
+    const result = await this.roleService.updateRole(req.params.id as string, req.body, req.user!._id.toString(), req.requestId!);
     res.status(200).json({ success: true, message: 'Cập nhật Role thành công', data: result });
   });
 
   deleteRole = catchAsync(async (req: Request, res: Response) => {
-    await this.roleService.deleteRole(req.params.id as string);
+    await this.roleService.deleteRole(req.params.id as string, req.user!._id.toString(), req.requestId!);
     res.status(200).json({ success: true, message: 'Xóa Role thành công' });
   });
 }

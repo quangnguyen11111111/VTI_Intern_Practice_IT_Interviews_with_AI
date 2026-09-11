@@ -30,9 +30,14 @@ export interface InterviewEntity {
   metadata?: import('../domain/interview/types').AiUsageMetadata;
   createdAt: Date;
   updatedAt: Date;
+  terminalAt?: Date;
+  contentPurgeAt?: Date;
+  recordPurgeAt?: Date;
 }
 
 export interface IInterviewRepository {
+  forOwner(ownerId: string): IInterviewRepository;
+  getOwnerId(): string;
   create(data: InterviewSetupPayload, userId?: string): Promise<InterviewEntity>;
   findById(id: string): Promise<InterviewEntity | null>;
   updateStatus(id: string, status: InterviewStatus): Promise<void>;
@@ -41,6 +46,6 @@ export interface IInterviewRepository {
   
   // Question management
   createQuestions(sessionId: string, questions: Omit<InterviewQuestionEntity, 'id' | 'sessionId' | 'createdAt' | 'updatedAt' | 'candidateAnswer' | 'feedback' | 'score'>[]): Promise<InterviewQuestionEntity[]>;
-  updateQuestionAnswer(questionId: string, answer: string): Promise<void>;
-  updateQuestionFeedback(questionId: string, feedback: LocalizedContent, score: number): Promise<void>;
+  updateQuestionAnswer(questionId: string, answer: string, sessionId: string): Promise<void>;
+  updateQuestionFeedback(questionId: string, feedback: LocalizedContent, score: number, sessionId: string): Promise<void>;
 }

@@ -1,13 +1,16 @@
 import { IJobHandler } from '../IJobHandler';
-import { container, inject, injectable } from 'tsyringe';
-import { IAiProvider, AnswerPayload } from '../../interview/types';
+import { inject, injectable } from 'tsyringe';
+import { IAiProvider } from '../../interview/types';
 import { IInterviewRepository } from '../../../repositories/IInterviewRepository';
 import { InterviewContext } from '../../interview/InterviewContext';
 import { IEventPublisher } from '../../events/IEventPublisher';
+import { logger } from '../../../infrastructure/logging/logger';
+import { evaluateSafely } from '../../../services/ai/prompt-security';
+import { interviewJobData } from '../../../services/ai/job-security';
 
 interface EvaluateAnswersData {
   interviewId: string;
-  data: any;
+  ownerId: string;
 }
 
 @injectable()
@@ -20,29 +23,15 @@ export class EvaluateAnswersJobHandler implements IJobHandler<EvaluateAnswersDat
     @inject('IEventPublisher') private eventPublisher?: IEventPublisher
   ) {}
 
-  private normalizeAnswers(questions: any[], submittedAnswers: any[]): AnswerPayload[] {
-    return questions.map(q => {
-      const questionId = q._id?.toString() || q.id;
-      const existingAnswer = submittedAnswers.find((a: any) => a.questionId === questionId);
-      
-      if (existingAnswer) {
-        return existingAnswer;
-      }
-      
-      return {
-        questionId,
-        candidateAnswer: "[System] Ứng viên bỏ trống không trả lời câu hỏi này."
-      };
-    });
-  }
-
   async handle(data: EvaluateAnswersData): Promise<void> {
-    console.log(`[Job] EVALUATE_ANSWERS running for interview: ${data.interviewId}`);
+    data = interviewJobData(data);
+    const repository = this.repository.forOwner(data.ownerId);
+    logger.info('job.started', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
     
     // Check state
-    const session = await this.repository.findById(data.interviewId);
+    const session = await repository.findById(data.interviewId);
     if (!session || session.status !== 'EVALUATING') {
-      console.warn(`[Job] Interview ${data.interviewId} is not in EVALUATING state. Aborting job.`);
+      logger.warn('job.skipped', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
       return;
     }
     
@@ -51,34 +40,34 @@ export class EvaluateAnswersJobHandler implements IJobHandler<EvaluateAnswersDat
     }
 
     try {
-      const normalizedAnswers = this.normalizeAnswers(session.questions, data.data);
-      const { data: evaluationResult, audit } = await this.aiProvider.evaluateAnswers(session.questions, normalizedAnswers);
+      const normalizedAnswers = session.questions.map(q => ({ questionId: q.id, candidateAnswer: q.candidateAnswer ?? '' }));
+      const { data: evaluationResult, audit } = await evaluateSafely(this.aiProvider, session.questions, normalizedAnswers);
       
       // Save feedback
       for (const evalResult of evaluationResult.evaluations) {
-         await this.repository.updateQuestionFeedback(evalResult.questionId, evalResult.feedback, evalResult.score);
+         await repository.updateQuestionFeedback(evalResult.questionId, evalResult.feedback, evalResult.score, data.interviewId);
       }
       
       // Save overallScore, dimensions and learningPath
-      await this.repository.update(data.interviewId, { 
+      await repository.update(data.interviewId, {
          overallScore: evaluationResult.overallScore,
          dimensions: evaluationResult.dimensions,
          learningPath: evaluationResult.learningPath 
       });
 
       // Save token usage
-      await this.repository.updateTokenUsage(data.interviewId, audit);
+      await repository.updateTokenUsage(data.interviewId, audit);
       
       // Transition state
-      const context = new InterviewContext(data.interviewId, this.repository, undefined, this.eventPublisher);
+      const context = new InterviewContext(data.interviewId, repository, undefined, this.eventPublisher);
       const { CompletedState } = await import('../../interview/states/CompletedState');
       await context.changeState(new CompletedState());
       
-      console.log(`[Job] EVALUATE_ANSWERS completed for interview: ${data.interviewId}`);
+      logger.info('job.completed', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
     } catch (error) {
-      console.error(`[Job] EVALUATE_ANSWERS failed for interview: ${data.interviewId}`, error);
+      logger.error('job.failed', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
       
-      const context = new InterviewContext(data.interviewId, this.repository, undefined, this.eventPublisher);
+      const context = new InterviewContext(data.interviewId, repository, undefined, this.eventPublisher);
       const { FailedState } = await import('../../interview/states/FailedState');
       await context.changeState(new FailedState());
       

@@ -4,6 +4,8 @@ import { InterviewContext } from '../InterviewContext';
 import { InvalidStateTransitionException } from '../exceptions/InvalidStateTransitionException';
 import { EvaluatingState } from './EvaluatingState';
 import { GeneratePayload, SubmitPayload } from '../types';
+import { evaluateSafely } from '../../../services/ai/prompt-security';
+import { logger } from '../../../infrastructure/logging/logger';
 
 export class InProgressState implements IInterviewState {
   getName(): InterviewStatus {
@@ -15,7 +17,7 @@ export class InProgressState implements IInterviewState {
   }
 
   async submit(context: InterviewContext, payload: SubmitPayload): Promise<void> {
-    console.log(`[InProgressState] Submitting answers for interview: ${context.getInterviewId()}`);
+    logger.info('interview.submitting', { resourceType: 'interview', resourceId: context.getInterviewId() });
     
     // Chuyển sang trạng thái chấm bài
     await context.changeState(new EvaluatingState());
@@ -26,7 +28,7 @@ export class InProgressState implements IInterviewState {
           // Queue job instead of waiting
           await payload.jobScheduler.enqueue('EVALUATE_ANSWERS', {
             interviewId: context.getInterviewId(),
-            data: payload.data
+            ownerId: context.getRepository().getOwnerId()
           });
       } else if (payload && payload.aiProvider) {
          // Fallback sync logic
@@ -35,16 +37,17 @@ export class InProgressState implements IInterviewState {
            throw new Error("Cannot find questions for this session.");
          }
          
-         const { data: evaluationResult, audit } = await payload.aiProvider.evaluateAnswers(session.questions, payload.data);
+         const { data: evaluationResult, audit } = await evaluateSafely(payload.aiProvider, session.questions, payload.data);
          
          // save feedback
          for (const evalResult of evaluationResult.evaluations) {
-            await context.getRepository().updateQuestionFeedback(evalResult.questionId, evalResult.feedback, evalResult.score);
+            await context.getRepository().updateQuestionFeedback(evalResult.questionId, evalResult.feedback, evalResult.score, context.getInterviewId());
          }
          
          // save overallScore and learningPath
          await context.getRepository().update(context.getInterviewId(), { 
             overallScore: evaluationResult.overallScore,
+            dimensions: evaluationResult.dimensions,
             learningPath: evaluationResult.learningPath 
          });
 
@@ -64,10 +67,10 @@ export class InProgressState implements IInterviewState {
   }
 
   async saveProgress(context: InterviewContext, payload: import('../types').SaveProgressPayload): Promise<void> {
-    console.log(`[InProgressState] Saving progress for interview: ${context.getInterviewId()}`);
+    logger.info('interview.saving', { resourceType: 'interview', resourceId: context.getInterviewId() });
     // Cập nhật câu trả lời vào DB mà không chuyển trạng thái
     for (const ans of payload.answers) {
-      await context.getRepository().updateQuestionAnswer(ans.questionId, ans.candidateAnswer);
+      await context.getRepository().updateQuestionAnswer(ans.questionId, ans.candidateAnswer, context.getInterviewId());
     }
   }
 }

@@ -20,13 +20,17 @@ export interface IInterviewSessionDocument extends Document {
   };
   createdAt: Date;
   updatedAt: Date;
+  terminalAt?: Date;
+  contentPurgeAt?: Date;
+  contentPurgedAt?: Date;
+  recordPurgeAt?: Date;
 }
 
 const InterviewSessionSchema: Schema = new Schema(
   {
     userId: {
       type: String,
-      required: false, // Optional for now
+      required: false, // Legacy records remain readable; every repository create requires an authenticated owner.
     },
     status: {
       type: String,
@@ -38,8 +42,12 @@ const InterviewSessionSchema: Schema = new Schema(
       jobPosition: { type: String },
       level: { type: String },
       techStacks: [{ type: String }],
-      jdText: { type: String }
+      jdText: { type: String, maxlength: 10000 }
     },
+    terminalAt: Date,
+    contentPurgeAt: Date,
+    contentPurgedAt: Date,
+    recordPurgeAt: Date,
     overallScore: {
       type: Number,
       default: null
@@ -71,4 +79,7 @@ const InterviewSessionSchema: Schema = new Schema(
   }
 );
 
+InterviewSessionSchema.index({ status: 1, contentPurgeAt: 1, _id: 1 });
+InterviewSessionSchema.index({ status: 1, recordPurgeAt: 1, _id: 1 });
+InterviewSessionSchema.index({ userId: 1, createdAt: -1 });
 export const InterviewSessionModel = mongoose.model<IInterviewSessionDocument>('InterviewSession', InterviewSessionSchema);

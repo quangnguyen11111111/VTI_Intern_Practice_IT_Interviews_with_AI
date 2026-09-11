@@ -1,48 +1,91 @@
 import { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import { ZodError } from 'zod';
-import { ApiResponse } from '../types/response.type';
+import { ApiErrorDetail, ApiResponse } from '../types/response.type';
+import { logger, Logger, LogEvent } from '../infrastructure/logging/logger';
+import { logRoute } from './http-logger.middleware';
+
+const defaultCodeByStatus: Record<number, string> = {
+  400: 'BAD_REQUEST',
+  401: 'UNAUTHORIZED',
+  403: 'FORBIDDEN',
+  404: 'NOT_FOUND',
+  409: 'CONFLICT_ERROR',
+  413: 'PAYLOAD_TOO_LARGE',
+  415: 'UNSUPPORTED_MEDIA_TYPE',
+  422: 'UNPROCESSABLE_ENTITY',
+  429: 'TOO_MANY_REQUESTS',
+  500: 'INTERNAL_SERVER_ERROR',
+};
 
 export const globalErrorHandler = (
-  err: any,
+  err: unknown,
   req: Request,
   res: Response,
   next: NextFunction
 ): void => {
-  let statusCode = typeof err.statusCode === 'number' ? err.statusCode : 500;
-  let message = err.message || 'Lỗi hệ thống ngoại lệ';
-  let code: string | undefined = typeof err.code === 'string' ? err.code : undefined;
-  let errors: Array<{ field: string; message: string }> | undefined = undefined;
+  if (res.headersSent) {
+    (res.locals.logger as Logger | undefined ?? logger).error('http.error.internal', { requestId: req.requestId });
+    res.destroy();
+    return;
+  }
+
+  const error = err as Record<string, any>;
+  let statusCode = typeof error?.statusCode === 'number' ? error.statusCode : 500;
+  let message = typeof error?.message === 'string' ? error.message : 'Lỗi hệ thống ngoại lệ';
+  let code: string | undefined = typeof error?.code === 'string' ? error.code : undefined;
+  let errors: ApiErrorDetail[] | undefined;
 
   // Xử lý lỗi từ Zod Validation
   if (err instanceof ZodError) {
     statusCode = 400;
     message = 'Dữ liệu đầu vào không hợp lệ';
     code = 'VALIDATION_ERROR';
-    errors = err.issues.flatMap((issue: any) => {
+    errors = err.issues.flatMap((issue) => {
       if (issue.code === 'unrecognized_keys' && Array.isArray(issue.keys)) {
         return issue.keys.map((k: string) => ({
           field: k,
           message: issue.message || `Trường '${k}' không được phép`,
         }));
       }
-      const fieldPath = (issue.path || [])
-        .filter((p: any) => p !== 'body' && p !== 'query' && p !== 'params')
+      const fieldPath = issue.path
+        .filter((part) => part !== 'body' && part !== 'query' && part !== 'params')
         .join('.');
       return [
         {
-          field: fieldPath || (issue.path ? issue.path.join('.') : 'unknown'),
+          field: fieldPath || issue.path.join('.') || 'unknown',
           message: issue.message,
         },
       ];
     });
   }
+  // JSON parser errors and explicit body limits
+  else if (error?.type === 'entity.parse.failed') {
+    statusCode = 400;
+    message = 'Nội dung JSON không hợp lệ';
+    code = 'INVALID_JSON';
+  } else if (error?.type === 'entity.too.large' || error?.status === 413) {
+    statusCode = 413;
+    message = 'Kích thước nội dung vượt quá giới hạn cho phép';
+    code = 'PAYLOAD_TOO_LARGE';
+  } else if (error?.type === 'charset.unsupported' || error?.type === 'encoding.unsupported') {
+    statusCode = 415;
+    message = 'Kiểu mã hóa nội dung không được hỗ trợ';
+    code = 'UNSUPPORTED_MEDIA_TYPE';
+  } else if (err instanceof multer.MulterError) {
+    statusCode = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    message = err.code === 'LIMIT_FILE_SIZE'
+      ? 'Tệp tải lên vượt quá giới hạn 5MB'
+      : 'Yêu cầu tải tệp không hợp lệ';
+    code = err.code === 'LIMIT_FILE_SIZE' ? 'UPLOAD_TOO_LARGE' : 'INVALID_UPLOAD';
+  }
   // Xử lý lỗi trùng lặp dữ liệu từ MongoDB (Duplicate Key Error)
-  else if (err.code === 11000) {
+  else if (error?.code === 11000) {
     statusCode = 409;
     const isEmailDuplicate = Boolean(
-      err.keyPattern?.email ||
-      err.keyValue?.email ||
-      (typeof err.message === 'string' && (err.message.includes('email_1') || err.message.includes('email:')))
+      error.keyPattern?.email ||
+      error.keyValue?.email ||
+      (typeof error.message === 'string' && (error.message.includes('email_1') || error.message.includes('email:')))
     );
 
     if (isEmailDuplicate) {
@@ -55,37 +98,48 @@ export const globalErrorHandler = (
     errors = undefined; // Không echo keyValue, email hoặc database internals
   }
   // Xử lý lỗi xác thực JWT
-  else if (err.name === 'JsonWebTokenError') {
+  else if (error?.name === 'JsonWebTokenError') {
     statusCode = 401;
     message = 'Token không hợp lệ, vui lòng đăng nhập lại.';
     code = 'AUTH_INVALID_TOKEN';
-  } else if (err.name === 'TokenExpiredError') {
+  } else if (error?.name === 'TokenExpiredError') {
     statusCode = 401;
     message = 'Token đã hết hạn, vui lòng đăng nhập lại.';
     code = 'AUTH_TOKEN_EXPIRED';
   }
-  // Lỗi không xác định trong môi trường production
-  else if (!err.isOperational && statusCode === 500 && process.env.NODE_ENV === 'production') {
+  const appEnvironment = req.app.get('env') as string;
+  if (appEnvironment === 'production' && statusCode >= 500) {
     message = 'Lỗi hệ thống ngoại lệ';
+    code = 'INTERNAL_SERVER_ERROR';
+    errors = undefined;
   }
+
+  code ??= defaultCodeByStatus[statusCode] ?? (statusCode >= 500 ? 'INTERNAL_SERVER_ERROR' : 'REQUEST_FAILED');
+  const errorEvent: LogEvent = statusCode >= 500 ? 'http.error.internal'
+    : statusCode === 401 ? 'http.error.authentication'
+    : statusCode === 403 ? 'http.error.authorization'
+    : statusCode === 409 ? 'http.error.conflict'
+    : statusCode === 400 ? 'http.error.validation' : 'http.error.request';
+  (res.locals.logger as Logger | undefined ?? logger).error(errorEvent, {
+    requestId: req.requestId, route: logRoute(req), method: req.method, status: statusCode,
+  });
 
   // Trả về phản hồi lỗi tuân theo chuẩn ApiResponse
   const response: ApiResponse = {
     success: false,
     message,
+    code,
+    requestId: req.requestId || res.locals.requestId,
   };
-
-  if (code) {
-    response.code = code;
-  }
 
   if (errors) {
     response.errors = errors;
   }
 
   // Ở môi trường dev, in thêm stack trace dạng string để debug nếu có
-  if (process.env.NODE_ENV === 'development' && typeof err.stack === 'string') {
-    (response as any).stack = err.stack;
+  if (appEnvironment === 'development' && typeof error?.stack === 'string' &&
+      error?.code !== 'FILE_PARSE_FAILED' && !String(error?.code ?? '').startsWith('AI_')) {
+    response.stack = error.stack;
   }
 
   res.status(statusCode).json(response);

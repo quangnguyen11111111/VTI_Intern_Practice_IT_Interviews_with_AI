@@ -1,17 +1,25 @@
 import {
   AuditAction,
-  AuditOutcome
+  AuditOutcome,
+  AuditResourceType,
 } from '../../models/audit-log.model';
+import { ClientSession } from 'mongoose';
 
 export interface CreateAuditLogInput {
-  actor: string;
-  target: string;
+  actorId: string;
+  targetId?: string;
+  resourceType: AuditResourceType;
   action: AuditAction;
   outcome: AuditOutcome;
+  requestId: string;
+  reason?: string;
 }
 
 export interface IAuditService {
+  hasAudit(requestId: string, action: AuditAction): Promise<boolean>;
+
   createAuditLog(
-    input: CreateAuditLogInput
+    input: CreateAuditLogInput,
+    session?: ClientSession,
   ): Promise<void>;
 }

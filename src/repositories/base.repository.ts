@@ -1,4 +1,4 @@
-import { Model, Document } from 'mongoose';
+import { Model, Document, ClientSession } from 'mongoose';
 import { IBaseRepository, IFindOptions } from './interfaces/IBaseRepository';
 
 export class BaseRepository<T extends Document> implements IBaseRepository<T> {
@@ -46,15 +46,18 @@ export class BaseRepository<T extends Document> implements IBaseRepository<T> {
     return this.model.countDocuments(filter).exec();
   }
 
-  async create(data: Partial<T>): Promise<T> {
-    return this.model.create(data);
+  async create(data: Partial<T>, session?: ClientSession): Promise<T> {
+    if (!session) return this.model.create(data);
+    const created = new this.model(data);
+    await created.save({ session });
+    return created;
   }
 
-  async update(id: string, data: Partial<T>): Promise<T | null> {
-    return this.model.findByIdAndUpdate(id, data, { new: true }).exec();
+  async update(id: string, data: Partial<T>, session?: ClientSession): Promise<T | null> {
+    return this.model.findByIdAndUpdate(id, data, { returnDocument: 'after', session }).exec();
   }
 
-  async softDelete(id: string): Promise<T | null> {
-    return this.model.findByIdAndUpdate(id, { status: 'INACTIVE' } as any, { new: true }).exec();
+  async softDelete(id: string, session?: ClientSession): Promise<T | null> {
+    return this.model.findByIdAndUpdate(id, { status: 'INACTIVE' } as any, { returnDocument: 'after', session }).exec();
   }
 }

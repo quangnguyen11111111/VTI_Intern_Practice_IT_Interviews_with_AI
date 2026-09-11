@@ -3,6 +3,8 @@ import { InterviewContext } from '../InterviewContext';
 import { GeneratingState } from './GeneratingState';
 import { InvalidStateTransitionException } from '../exceptions/InvalidStateTransitionException';
 import { GeneratePayload, SubmitPayload } from '../types';
+import { generateSafely } from '../../../services/ai/prompt-security';
+import { logger } from '../../../infrastructure/logging/logger';
 
 export class PendingState implements IInterviewState {
   getName(): InterviewStatus {
@@ -10,7 +12,7 @@ export class PendingState implements IInterviewState {
   }
 
   async generate(context: InterviewContext, payload: GeneratePayload): Promise<void> {
-    console.log(`[PendingState] Generating questions for interview: ${context.getInterviewId()}`);
+    logger.info('interview.generating', { resourceType: 'interview', resourceId: context.getInterviewId() });
     // Transition to Generating State
     await context.changeState(new GeneratingState());
     
@@ -20,11 +22,11 @@ export class PendingState implements IInterviewState {
          // Queue job Instead of waiting for AI directly
          await payload.jobScheduler.enqueue('GENERATE_QUESTIONS', {
            interviewId: context.getInterviewId(),
-           setupData: payload.setupData
+           ownerId: context.getRepository().getOwnerId()
          });
       } else if (payload && payload.aiProvider) {
          // Fallback to sync generation if no scheduler
-         const { data: generatedQuestions, audit } = await payload.aiProvider.generateQuestions(payload.setupData);
+         const { data: generatedQuestions, audit } = await generateSafely(payload.aiProvider, payload.setupData);
          await context.getRepository().createQuestions(context.getInterviewId(), generatedQuestions);
          await context.getRepository().updateTokenUsage(context.getInterviewId(), audit);
          const { InProgressState } = await import('./InProgressState');

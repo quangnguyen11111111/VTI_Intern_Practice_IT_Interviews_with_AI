@@ -14,7 +14,6 @@ export interface InterviewSetupPayload {
   jobPosition: string; // role ID
   level: string; // level ID
   techStacks: string[]; // array of technology IDs
-  userId?: string;
 }
 
 export interface InterviewSessionData {
@@ -84,7 +83,6 @@ export const interviewApi = {
    * Submit interview setup configuration
    */
   setupInterview: async (payload: InterviewSetupPayload): Promise<InterviewSessionData> => {
-    console.log('Sending API Request with payload:', payload);
     return request<InterviewSessionData>('interviews', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -95,7 +93,6 @@ export const interviewApi = {
    * Upload JD file for interview setup
    */
   uploadJdInterview: async (payload: FormData): Promise<InterviewSessionData> => {
-    console.log('Sending JD Upload Request');
     const accessToken = getAccessToken();
     const headers = new Headers();
     if (accessToken) {

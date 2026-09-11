@@ -28,17 +28,17 @@ export class LevelController {
   });
 
   createLevel = catchAsync(async (req: Request, res: Response) => {
-    const result = await this.levelService.createLevel(req.body);
+    const result = await this.levelService.createLevel(req.body, req.user!._id.toString(), req.requestId!);
     res.status(201).json({ success: true, message: 'Tạo Level thành công', data: result });
   });
 
   updateLevel = catchAsync(async (req: Request, res: Response) => {
-    const result = await this.levelService.updateLevel(req.params.id as string, req.body);
+    const result = await this.levelService.updateLevel(req.params.id as string, req.body, req.user!._id.toString(), req.requestId!);
     res.status(200).json({ success: true, message: 'Cập nhật Level thành công', data: result });
   });
 
   deleteLevel = catchAsync(async (req: Request, res: Response) => {
-    await this.levelService.deleteLevel(req.params.id as string);
+    await this.levelService.deleteLevel(req.params.id as string, req.user!._id.toString(), req.requestId!);
     res.status(200).json({ success: true, message: 'Xóa Level thành công' });
   });
 }

@@ -11,6 +11,8 @@ import {
 } from '../services/auth.service';
 import { ApiResponse } from '../types/response.type';
 import { AuthResponseData, SafeUser } from '../types/auth.type';
+import { container } from 'tsyringe';
+import { IAuditService } from '../services/interfaces/IAuditService';
 
 export const registerHandler = async (req: Request, res: Response): Promise<void> => {
   const result = await registerUser(req.body);
@@ -104,7 +106,12 @@ export const lockUserHandler = async (req: Request, res: Response): Promise<void
   const adminId = req.user!._id.toString();
   const targetUserId = req.params.id as string;
 
-  const result = await lockUser(adminId, targetUserId);
+  const result = await lockUser(
+    adminId,
+    targetUserId,
+    req.requestId!,
+    container.resolve<IAuditService>('IAuditService'),
+  );
 
   const response: ApiResponse<{ user: SafeUser }> = {
     success: true,

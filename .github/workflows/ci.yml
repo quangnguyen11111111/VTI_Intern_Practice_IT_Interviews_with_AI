@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
@@ -9,24 +12,53 @@ on:
       - main
 
 jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 20
+
+      - name: Scan working tree without printing values
+        run: node .github/scripts/secret-scan.mjs
+
+      - name: Scan pull request or push commit range
+        # gitleaks-action derives the event's base..head range and invokes Gitleaks with full redaction.
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITLEAKS_ENABLE_COMMENTS: 'false'
+          GITLEAKS_ENABLE_SUMMARY: 'false'
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'
+
   build-and-lint:
+    needs: security-scan
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 20
           cache: 'npm'
 
       - name: Install Root Dependencies
-        run: npm ci || npm install
+        run: npm ci
 
       - name: Install Client Dependencies
-        run: npm ci --prefix client || npm install --prefix client
+        run: npm ci --prefix client
+
+      - name: Test Backend
+        run: npm test
 
       - name: Lint Client
         run: npm run lint --prefix client
@@ -36,3 +68,6 @@ jobs:
 
       - name: Build Backend
         run: npm run build
+
+      - name: Verify production artifacts
+        run: node .github/scripts/verify-artifacts.mjs dist client/dist

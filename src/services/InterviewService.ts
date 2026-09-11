@@ -6,6 +6,8 @@ import mongoose from 'mongoose';
 import Role from '../models/role.model';
 import Level from '../models/level.model';
 import Technology from '../models/technology.model';
+import { AppError } from '../utils/AppError';
+import { generationPrompt, evaluationPrompt, minimizeText } from './ai/prompt-security';
 
 import { IJobScheduler } from '../domain/jobs/IJobScheduler';
 import { IEventPublisher } from '../domain/events/IEventPublisher';
@@ -22,8 +24,8 @@ export class InterviewService {
   /**
    * Khởi tạo phiên phỏng vấn mới (Trạng thái mặc định: PENDING)
    */
-  async createInterviewSession(setupData: InterviewSetupPayload, userId?: string) {
-    const session = await this.interviewRepo.create(setupData, userId);
+  async createInterviewSession(setupData: InterviewSetupPayload, userId: string) {
+    const session = await this.interviewRepo.forOwner(userId).create(generationPrompt(setupData).data, userId);
     return session;
   }
 
@@ -34,14 +36,18 @@ export class InterviewService {
     setupData: Omit<InterviewSetupPayload, 'jdText'>, 
     fileBuffer: Buffer, 
     mimeType: string, 
-    userId?: string
+    userId: string
   ) {
     const { FileParserFactory } = await import('../utils/parsers/FileParserFactory');
-    const parser = FileParserFactory.getParser(mimeType);
-    const jdText = await parser.parse(fileBuffer);
+    let jdText: string;
+    try {
+      this.interviewRepo.forOwner(userId).getOwnerId();
+      jdText = await FileParserFactory.getParser(mimeType).parse(fileBuffer);
+    }
+    finally { fileBuffer.fill(0); }
     
     // Giới hạn độ dài jdText để tránh payload quá lớn cho AI (ví dụ 10000 ký tự)
-    const truncatedJdText = jdText.substring(0, 10000);
+    const truncatedJdText = minimizeText(jdText).substring(0, 10000);
 
     const fullSetupData: InterviewSetupPayload = {
       ...setupData,
@@ -54,10 +60,10 @@ export class InterviewService {
   /**
    * Lấy thông tin phiên
    */
-  async getInterviewSession(id: string) {
-    const session = await this.interviewRepo.findById(id);
+  async getInterviewSession(id: string, userId: string) {
+    const session = await this.interviewRepo.forOwner(userId).findById(id);
     if (!session) {
-      throw new Error('Interview session not found');
+      throw new AppError('Interview session not found', 404, 'INTERVIEW_NOT_FOUND');
     }
     return session;
   }
@@ -65,15 +71,15 @@ export class InterviewService {
   /**
    * Sinh câu hỏi (Chuyển trạng thái từ PENDING -> GENERATING)
    */
-  async generateQuestions(id: string) {
-    const sessionData = await this.getInterviewSession(id);
+  async generateQuestions(id: string, userId: string) {
+    const sessionData = await this.getInterviewSession(id, userId);
     
     // Phục hồi State Machine từ Database state
     const currentState = InterviewContext.createStateFromStatus(sessionData.status);
-    const context = new InterviewContext(id, this.interviewRepo, currentState, this.eventPublisher);
+    const context = new InterviewContext(id, this.interviewRepo.forOwner(userId), currentState, this.eventPublisher);
 
     if (!sessionData.setupData) {
-      throw new Error('Setup data is missing from session');
+      throw new AppError('Setup data is missing from session', 500, 'INTERVIEW_SETUP_MISSING');
     }
 
     const aiSetupData = { ...sessionData.setupData };
@@ -108,23 +114,25 @@ export class InterviewService {
       jobScheduler: this.jobScheduler
     });
 
-    return await this.getInterviewSession(id);
+    return await this.getInterviewSession(id, userId);
   }
 
   /**
    * Nộp câu trả lời (Chuyển trạng thái từ IN_PROGRESS -> EVALUATING)
    */
-  async submitAnswers(id: string, answers: AnswerPayload[]) {
-    const sessionData = await this.getInterviewSession(id);
+  async submitAnswers(id: string, answers: AnswerPayload[], userId: string) {
+    const sessionData = await this.getInterviewSession(id, userId);
+    if (sessionData.status !== 'IN_PROGRESS') throw new AppError('Invalid interview state', 409, 'STATE_CONFLICT');
+    evaluationPrompt(sessionData.questions ?? [], answers);
     
     // Cập nhật câu trả lời vào DB trước
     for (const ans of answers) {
-      await this.interviewRepo.updateQuestionAnswer(ans.questionId, ans.candidateAnswer);
+      await this.interviewRepo.forOwner(userId).updateQuestionAnswer(ans.questionId, ans.candidateAnswer, id);
     }
 
     // Phục hồi State Machine
     const currentState = InterviewContext.createStateFromStatus(sessionData.status);
-    const context = new InterviewContext(id, this.interviewRepo, currentState, this.eventPublisher);
+    const context = new InterviewContext(id, this.interviewRepo.forOwner(userId), currentState, this.eventPublisher);
 
     // Kích hoạt action nộp bài
     await context.submit({
@@ -133,18 +141,19 @@ export class InterviewService {
       jobScheduler: this.jobScheduler
     });
 
-    return await this.getInterviewSession(id);
+    return await this.getInterviewSession(id, userId);
   }
 
   /**
    * Lưu tiến trình (Autosave)
    */
-  async saveProgress(id: string, answers: AnswerPayload[]) {
-    const sessionData = await this.getInterviewSession(id);
+  async saveProgress(id: string, answers: AnswerPayload[], userId: string) {
+    const sessionData = await this.getInterviewSession(id, userId);
+    evaluationPrompt(sessionData.questions ?? [], answers);
     
     // Phục hồi State Machine
     const currentState = InterviewContext.createStateFromStatus(sessionData.status);
-    const context = new InterviewContext(id, this.interviewRepo, currentState);
+    const context = new InterviewContext(id, this.interviewRepo.forOwner(userId), currentState);
 
     // Kích hoạt action lưu tiến trình
     await context.saveProgress({
