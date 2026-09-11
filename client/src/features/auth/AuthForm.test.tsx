@@ -49,6 +49,22 @@ describe('auth pages', () => {
     expect(login).not.toHaveBeenCalled();
   });
 
+  it('toggles Login password visibility without changing its value', async () => {
+    const user = userEvent.setup();
+    renderPage('/login');
+
+    const passwordInput = screen.getByLabelText('Mật khẩu');
+    await user.type(passwordInput, 'secret-password');
+
+    expect(passwordInput).toHaveAttribute('type', 'password');
+    await user.click(screen.getByRole('button', { name: 'Hiện mật khẩu' }));
+    expect(passwordInput).toHaveAttribute('type', 'text');
+    expect(passwordInput).toHaveValue('secret-password');
+
+    await user.click(screen.getByRole('button', { name: 'Ẩn mật khẩu' }));
+    expect(passwordInput).toHaveAttribute('type', 'password');
+  });
+
   it('disables Login while submitting and sends Candidate to the role landing route', async () => {
     const user = userEvent.setup();
     let resolve!: (value: typeof authResponse) => void;
@@ -115,6 +131,22 @@ describe('auth pages', () => {
 
     expect(await screen.findByText('Mật khẩu nhập lại không khớp')).toBeInTheDocument();
     expect(register).not.toHaveBeenCalled();
+  });
+
+  it('toggles Register password fields independently', async () => {
+    const user = userEvent.setup();
+    renderPage('/register');
+
+    const passwordInput = screen.getByLabelText('Mật khẩu');
+    const confirmationInput = screen.getByLabelText('Nhập lại mật khẩu');
+
+    await user.click(screen.getByRole('button', { name: 'Hiện mật khẩu' }));
+    expect(passwordInput).toHaveAttribute('type', 'text');
+    expect(confirmationInput).toHaveAttribute('type', 'password');
+
+    await user.click(screen.getByRole('button', { name: 'Hiện nhập lại mật khẩu' }));
+    expect(passwordInput).toHaveAttribute('type', 'text');
+    expect(confirmationInput).toHaveAttribute('type', 'text');
   });
 
   it('disables Register while submitting and navigates after success', async () => {

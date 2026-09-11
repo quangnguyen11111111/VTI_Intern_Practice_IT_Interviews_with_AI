@@ -154,6 +154,23 @@ describe('Password Recovery & Management UI Tests', () => {
       expect(screen.getByLabelText('Email')).toHaveValue('prefilled@example.com');
     });
 
+    it('ẩn mặc định và bật hiện từng mật khẩu độc lập', async () => {
+      const user = userEvent.setup();
+      renderResetPassword();
+
+      const newPasswordInput = screen.getByLabelText('Mật khẩu mới');
+      const confirmationInput = screen.getByLabelText('Xác nhận mật khẩu mới');
+      await user.type(newPasswordInput, 'test-password');
+
+      expect(newPasswordInput).toHaveAttribute('type', 'password');
+      expect(confirmationInput).toHaveAttribute('type', 'password');
+
+      await user.click(screen.getByRole('button', { name: 'Hiện mật khẩu mới' }));
+      expect(newPasswordInput).toHaveAttribute('type', 'text');
+      expect(newPasswordInput).toHaveValue('test-password');
+      expect(confirmationInput).toHaveAttribute('type', 'password');
+    });
+
     it('vô hiệu hóa form và hiển thị loading khi submit, hiển thị màn hình thành công', async () => {
       const user = userEvent.setup();
       let resolveReset!: (value: null) => void;
@@ -242,6 +259,23 @@ describe('Password Recovery & Management UI Tests', () => {
 
       expect(await screen.findByText('Mật khẩu hiện tại phải có ít nhất 8 ký tự')).toBeInTheDocument();
       expect(changePassword).not.toHaveBeenCalled();
+    });
+
+    it('cho phép hiện và ẩn riêng từng ô mật khẩu', async () => {
+      const user = userEvent.setup();
+      renderChangePassword();
+
+      const currentPasswordInput = screen.getByLabelText('Mật khẩu hiện tại');
+      const newPasswordInput = screen.getByLabelText('Mật khẩu mới');
+      const confirmationInput = screen.getByLabelText('Xác nhận mật khẩu mới');
+
+      await user.click(screen.getByRole('button', { name: 'Hiện mật khẩu hiện tại' }));
+      expect(currentPasswordInput).toHaveAttribute('type', 'text');
+      expect(newPasswordInput).toHaveAttribute('type', 'password');
+      expect(confirmationInput).toHaveAttribute('type', 'password');
+
+      await user.click(screen.getByRole('button', { name: 'Ẩn mật khẩu hiện tại' }));
+      expect(currentPasswordInput).toHaveAttribute('type', 'password');
     });
 
     it('đổi mật khẩu thành công: xóa session cục bộ và chuyển hướng về /login', async () => {
