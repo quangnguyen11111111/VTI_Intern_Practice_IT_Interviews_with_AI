@@ -863,15 +863,17 @@ describe(
             .post(
               '/api/v1/interviews'
             )
+            .set(
+              'Authorization',
+              `Bearer ${candidateToken}`
+            )
             .send({
               jobPosition:
                 'Software Engineer',
               level:
                 'Junior',
               techStacks:
-                ['JavaScript'],
-              userId:
-                candidate._id.toString()
+                ['JavaScript']
             });
 
         expect(
@@ -1040,15 +1042,17 @@ describe(
             .post(
               '/api/v1/interviews'
             )
+            .set(
+              'Authorization',
+              `Bearer ${candidateToken}`
+            )
             .send({
               jobPosition:
                 'Software Engineer',
               level:
                 'Junior',
               techStacks:
-                ['JavaScript'],
-              userId:
-                candidate._id.toString()
+                ['JavaScript']
             });
 
         expect(
@@ -1100,6 +1104,10 @@ describe(
           await request(app)
             .post(
               `/api/v1/interviews/${sessionId}/submit`
+            )
+            .set(
+              'Authorization',
+              `Bearer ${candidateToken}`
             )
             .send({
               answers
@@ -1301,15 +1309,17 @@ describe(
             .post(
               '/api/v1/interviews'
             )
+            .set(
+              'Authorization',
+              `Bearer ${candidateToken}`
+            )
             .send({
               jobPosition:
                 'Software Engineer',
               level:
                 'Junior',
               techStacks:
-                ['JavaScript'],
-              userId:
-                candidate._id.toString()
+                ['JavaScript']
             });
 
         expect(
@@ -1365,6 +1375,10 @@ describe(
           await request(app)
             .post(
               `/api/v1/interviews/${sessionId}/submit`
+            )
+            .set(
+              'Authorization',
+              `Bearer ${candidateToken}`
             )
             .send({
               answers

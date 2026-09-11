@@ -20,6 +20,7 @@ import {
   SubmitPayload,
   SaveProgressPayload
 } from '../types';
+import { evaluateSafely } from '../../../services/ai/prompt-security';
 import { logger } from '../../../infrastructure/logging/logger';
 
 export class InProgressState
@@ -50,41 +51,11 @@ export class InProgressState
     );
 
     try {
-      /*
-       * main:
-       * Khi có jobScheduler thì ưu tiên queue background job.
-       *
-       * ADM-04:
-       * Truyền evaluation prompt và learning-path prompt
-       * cùng payload để background handler có thể sử dụng
-       * đúng prompt version đã được chọn.
-       *
-       * Test environment:
-       * Không queue Agenda vì test integration không start
-       * background scheduler. Khi test sẽ dùng synchronous
-       * MockAiProvider ở bên dưới.
-       */
-      if (
-        payload.useAsyncJobs !== false &&
-        payload &&
-        payload.jobScheduler
-      ) {
-        await payload.jobScheduler.enqueue(
-          'EVALUATE_ANSWERS',
-          {
-            interviewId:
-              context.getInterviewId(),
-
-            data:
-              payload.data,
-
-            systemPrompt:
-              payload.systemPrompt,
-
-            learningPathPrompt:
-              payload.learningPathPrompt
-          }
-        );
+      if (payload.useAsyncJobs !== false && payload.jobScheduler) {
+        await payload.jobScheduler.enqueue('EVALUATE_ANSWERS', {
+          interviewId: context.getInterviewId(),
+          ownerId: context.getRepository().getOwnerId(),
+        });
 
         return;
       }
@@ -92,10 +63,7 @@ export class InProgressState
       /*
        * Fallback synchronous evaluation.
        */
-      if (
-        payload &&
-        payload.aiProvider
-      ) {
+      if (payload.aiProvider) {
         const session =
           await context
             .getRepository()
@@ -112,26 +80,11 @@ export class InProgressState
           );
         }
 
-        /*
-         * ADM-04:
-         * Evaluation phải dùng managed published prompt.
-         */
-        if (!payload.systemPrompt) {
-          throw new Error(
-            'SYSTEM_PROMPT_NOT_AVAILABLE'
-          );
-        }
-
-        const {
-          data: evaluationResult,
-          audit
-        } =
-          await payload.aiProvider
-            .evaluateAnswers(
-              session.questions,
-              payload.data,
-              payload.systemPrompt
-            );
+        const { data: evaluationResult, audit } = await evaluateSafely(
+          payload.aiProvider,
+          session.questions,
+          payload.data,
+        );
 
         /*
          * Save feedback cho từng câu trả lời.
@@ -145,90 +98,26 @@ export class InProgressState
             .updateQuestionFeedback(
               evalResult.questionId,
               evalResult.feedback,
-              evalResult.score
+              evalResult.score,
+              context.getInterviewId()
             );
         }
 
-        /*
-         * Mặc định giữ learning path từ
-         * evaluation result để backward compatible.
-         *
-         * Nếu có published LEARNING_PATH prompt,
-         * sẽ generate lại bằng AI operation riêng.
-         */
-        let learningPath =
-          evaluationResult.learningPath;
-
-        /*
-         * ADM-04:
-         * Learning Path dùng prompt riêng nếu có.
-         */
-        if (
-          payload.learningPathPrompt
-        ) {
-          const {
-            data: learningPathResult,
-            audit:
-              learningPathAudit
-          } =
-            await payload.aiProvider
-              .generateLearningPath(
-                session.questions,
-                payload.data,
-                evaluationResult,
-                payload.learningPathPrompt
-              );
-
-          learningPath =
-            learningPathResult.learningPath;
-
-          /*
-           * Cộng token usage của learning-path call.
-           */
-          await context
-            .getRepository()
-            .updateTokenUsage(
-              context.getInterviewId(),
-              learningPathAudit
-            );
-
-          /*
-           * Lưu chính xác prompt version đã dùng.
-           */
-          await context
-            .getRepository()
-            .updatePromptVersion(
-              context.getInterviewId(),
-              'learningPath',
-              {
-                promptId:
-                  payload
-                    .learningPathPrompt
-                    .promptId,
-
-                version:
-                  payload
-                    .learningPathPrompt
-                    .version,
-
-                language:
-                  payload
-                    .learningPathPrompt
-                    .language
-              }
-            );
-        }
+        const learningPath = evaluationResult.learningPath;
 
         /*
          * Save overall score và learning path.
          */
-        await context
-          .getRepository()
-          .update(
+          await context
+            .getRepository()
+            .update(
             context.getInterviewId(),
             {
               overallScore:
                 evaluationResult.overallScore,
+
+              dimensions:
+                evaluationResult.dimensions,
 
               learningPath
             }
@@ -242,32 +131,6 @@ export class InProgressState
           .updateTokenUsage(
             context.getInterviewId(),
             audit
-          );
-
-        /*
-         * Lưu chính xác evaluation prompt version.
-         */
-        await context
-          .getRepository()
-          .updatePromptVersion(
-            context.getInterviewId(),
-            'evaluation',
-            {
-              promptId:
-                payload
-                  .systemPrompt
-                  .promptId,
-
-              version:
-                payload
-                  .systemPrompt
-                  .version,
-
-              language:
-                payload
-                  .systemPrompt
-                  .language
-            }
           );
 
         // Success -> COMPLETED
@@ -313,7 +176,8 @@ export class InProgressState
         .getRepository()
         .updateQuestionAnswer(
           answer.questionId,
-          answer.candidateAnswer
+          answer.candidateAnswer,
+          context.getInterviewId()
         );
     }
   }
