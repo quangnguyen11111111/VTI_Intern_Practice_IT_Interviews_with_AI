@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import Role from '../models/role.model';
 import Level from '../models/level.model';
 import Technology from '../models/technology.model';
+import { AppError } from '../utils/AppError';
 
 import { IJobScheduler } from '../domain/jobs/IJobScheduler';
 import { IEventPublisher } from '../domain/events/IEventPublisher';
@@ -57,7 +58,7 @@ export class InterviewService {
   async getInterviewSession(id: string) {
     const session = await this.interviewRepo.findById(id);
     if (!session) {
-      throw new Error('Interview session not found');
+      throw new AppError('Interview session not found', 404, 'INTERVIEW_NOT_FOUND');
     }
     return session;
   }
@@ -73,7 +74,7 @@ export class InterviewService {
     const context = new InterviewContext(id, this.interviewRepo, currentState, this.eventPublisher);
 
     if (!sessionData.setupData) {
-      throw new Error('Setup data is missing from session');
+      throw new AppError('Setup data is missing from session', 500, 'INTERVIEW_SETUP_MISSING');
     }
 
     const aiSetupData = { ...sessionData.setupData };
