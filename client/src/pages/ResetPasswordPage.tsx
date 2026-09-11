@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { resetPasswordSchema, type ResetPasswordInput } from '../auth/schemas';
 import { resetPassword } from '../auth/apiClient';
 import { toApiError, type ApiError } from '../auth/types';
+import { PasswordInput } from '../features/auth/PasswordInput';
 
 export function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -181,9 +182,9 @@ export function ResetPasswordPage() {
                   <label htmlFor="newPassword" className="mb-2 block text-sm font-semibold text-slate-700">
                     Mật khẩu mới
                   </label>
-                  <input
+                  <PasswordInput
                     id="newPassword"
-                    type="password"
+                    visibilityLabel="Mật khẩu mới"
                     autoComplete="new-password"
                     aria-invalid={Boolean(errors.newPassword)}
                     aria-describedby={errors.newPassword ? 'newPassword-error' : undefined}
@@ -206,9 +207,9 @@ export function ResetPasswordPage() {
                   <label htmlFor="confirmPassword" className="mb-2 block text-sm font-semibold text-slate-700">
                     Xác nhận mật khẩu mới
                   </label>
-                  <input
+                  <PasswordInput
                     id="confirmPassword"
-                    type="password"
+                    visibilityLabel="Xác nhận mật khẩu mới"
                     autoComplete="new-password"
                     aria-invalid={Boolean(errors.confirmPassword)}
                     aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}

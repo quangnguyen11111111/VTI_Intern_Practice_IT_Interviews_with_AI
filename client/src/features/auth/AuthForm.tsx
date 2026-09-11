@@ -9,6 +9,7 @@ import {
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { ZodType } from 'zod';
 import { toApiError, type ApiError } from '../../auth/types';
+import { PasswordInput } from './PasswordInput';
 
 interface AuthField<T extends FieldValues> {
   name: FieldPath<T>;
@@ -90,6 +91,12 @@ export function AuthForm<T extends FieldValues>({
           const fieldError = get(errors, field.name);
           const errorId = `${field.name}-error`;
           const hasError = Boolean(fieldError);
+          const isPassword = field.type === 'password';
+          const inputClassName = `w-full rounded-xl border-2 px-4 py-3.5 font-medium text-slate-800 outline-none transition placeholder:text-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 ${
+            hasError
+              ? 'border-red-300 bg-red-50/40 focus:border-red-500 focus:ring-4 focus:ring-red-500/10'
+              : 'border-slate-100 bg-slate-50 hover:border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10'
+          }`;
 
           return (
             <div key={field.name}>
@@ -99,19 +106,27 @@ export function AuthForm<T extends FieldValues>({
               >
                 {field.label}
               </label>
-              <input
-                id={field.name}
-                type={field.type}
-                autoComplete={field.autoComplete}
-                aria-invalid={hasError}
-                aria-describedby={hasError ? errorId : undefined}
-                className={`w-full rounded-xl border-2 px-4 py-3.5 font-medium text-slate-800 outline-none transition placeholder:text-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 ${
-                  hasError
-                    ? 'border-red-300 bg-red-50/40 focus:border-red-500 focus:ring-4 focus:ring-red-500/10'
-                    : 'border-slate-100 bg-slate-50 hover:border-slate-200 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10'
-                }`}
-                {...registerField(field.name)}
-              />
+              {isPassword ? (
+                <PasswordInput
+                  id={field.name}
+                  visibilityLabel={field.label}
+                  autoComplete={field.autoComplete}
+                  aria-invalid={hasError}
+                  aria-describedby={hasError ? errorId : undefined}
+                  className={inputClassName}
+                  {...registerField(field.name)}
+                />
+              ) : (
+                <input
+                  id={field.name}
+                  type={field.type}
+                  autoComplete={field.autoComplete}
+                  aria-invalid={hasError}
+                  aria-describedby={hasError ? errorId : undefined}
+                  className={inputClassName}
+                  {...registerField(field.name)}
+                />
+              )}
               {fieldError?.message && (
                 <p
                   id={errorId}
