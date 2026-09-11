@@ -17,7 +17,7 @@ const validProductionEnv = {
   FORM_BODY_LIMIT: '64kb',
   TRUST_PROXY_HOPS: '1',
   MONGODB_URI: productionMongoUri,
-  GEMINI_API_KEY: 'gk_live_Q7mN4vL8rT2pX6cK9zW3bH5s',
+  GEMINI_API_KEY: 'runtime-gemini-key-for-environment-validation-2026',
 };
 
 describe('AIP-52 HTTP environment validation', () => {
