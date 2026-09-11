@@ -17,7 +17,7 @@ const validProductionEnv = {
   FORM_BODY_LIMIT: '64kb',
   TRUST_PROXY_HOPS: '1',
   MONGODB_URI: productionMongoUri,
-  GEMINI_API_KEY: 'gk_live_Q7mN4vL8rT2pX6cK9zW3bH5s',
+  GEMINI_API_KEY: 'runtime-gemini-key-for-environment-validation-2026',
 };
 
 describe('AIP-52 HTTP environment validation', () => {
@@ -63,7 +63,6 @@ describe('AIP-52 HTTP environment validation', () => {
     expect(() => getEnv()).toThrow(/JSON_BODY_LIMIT/);
     expect(() => getEnv()).toThrow(/TRUST_PROXY_HOPS/);
   });
-
   it('fails closed for missing, placeholder, or reused purpose-specific production secrets', () => {
     delete process.env.GEMINI_API_KEY;
     expect(() => getEnv()).toThrow(/GEMINI_API_KEY/);

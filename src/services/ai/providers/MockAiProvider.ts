@@ -1,7 +1,14 @@
 import { injectable } from 'tsyringe';
 import { IAiProvider, InterviewSetupPayload, AnswerPayload } from '../../../domain/interview/types';
 import { logger } from '../../../infrastructure/logging/logger';
-import { DIMENSIONS, EvaluationQuestion, generationPrompt, evaluationPrompt, validateGeneration, validateEvaluation } from '../prompt-security';
+import {
+  DIMENSIONS,
+  EvaluationQuestion,
+  generationPrompt,
+  evaluationPrompt,
+  validateGeneration,
+  validateEvaluation,
+} from '../prompt-security';
 
 @injectable()
 export class MockAiProvider implements IAiProvider {
@@ -16,25 +23,47 @@ export class MockAiProvider implements IAiProvider {
       { en: 'How does prototypal inheritance work?', vi: 'Kế thừa nguyên mẫu hoạt động như thế nào?' },
     ];
     const data = validateGeneration(content.map((text, index) => ({
-      order: index + 1, difficulty: ['Easy','Medium','Medium','Hard','Hard'][index],
-      category: 'Language fundamentals', content: text,
+      order: index + 1,
+      difficulty: ['Easy', 'Medium', 'Medium', 'Hard', 'Hard'][index],
+      category: 'Language fundamentals',
+      content: text,
     })));
-    return { data, audit: { promptTokenCount: 10, candidatesTokenCount: 50, totalTokenCount: 60 } };
+    return {
+      data,
+      audit: { promptTokenCount: 10, candidatesTokenCount: 50, totalTokenCount: 60 },
+    };
   }
 
   async evaluateAnswers(questions: EvaluationQuestion[], answers: AnswerPayload[]) {
     const prompt = evaluationPrompt(questions, answers);
     logger.info('ai.evaluating');
     const data = validateEvaluation({
-      evaluations: prompt.questions.map(q => ({
-        questionId: q.id, score: 8,
-        feedback: { en: 'Explain the technical tradeoffs in more detail.', vi: 'Giải thích kỹ hơn về các đánh đổi kỹ thuật.' },
+      evaluations: prompt.questions.map((question) => ({
+        questionId: question.id,
+        score: 8,
+        feedback: {
+          en: 'Explain the technical tradeoffs in more detail.',
+          vi: 'Giải thích kỹ hơn về các đánh đổi kỹ thuật.',
+        },
       })),
       overallScore: 8,
-      dimensions: DIMENSIONS.map(name => ({ name, score: 8, reasoning: 'Demonstrates technical understanding.' })),
-      learningPath: [{ topic: { en: 'Language fundamentals', vi: 'Kiến thức ngôn ngữ' }, priority: 'Medium',
-        suggestion: { en: 'Practice with small examples.', vi: 'Luyện tập với các ví dụ nhỏ.' } }],
+      dimensions: DIMENSIONS.map((name) => ({
+        name,
+        score: 8,
+        reasoning: 'Demonstrates technical understanding.',
+      })),
+      learningPath: [{
+        topic: { en: 'Language fundamentals', vi: 'Kiến thức ngôn ngữ' },
+        priority: 'Medium',
+        suggestion: {
+          en: 'Practice with small examples.',
+          vi: 'Luyện tập với các ví dụ nhỏ.',
+        },
+      }],
     }, prompt.questions, prompt.answers);
-    return { data, audit: { promptTokenCount: 20, candidatesTokenCount: 100, totalTokenCount: 120 } };
+    return {
+      data,
+      audit: { promptTokenCount: 20, candidatesTokenCount: 100, totalTokenCount: 120 },
+    };
   }
 }

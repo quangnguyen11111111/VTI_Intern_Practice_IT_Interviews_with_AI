@@ -81,9 +81,25 @@ export class InterviewController {
     try {
       const session = await this.interviewService.createInterviewSessionFromJD(
         setupData, req.file.buffer, req.file.mimetype, userId
-      );
-      res.status(201).json({ success: true, data: session });
-    } finally { req.file.buffer.fill(0); req.file = undefined; }
+    );
+    res.status(201).json({ success: true, data: session });
+  } finally { req.file.buffer.fill(0); req.file = undefined; }
+  });
+
+  /**
+   * GET /api/interviews/history
+   */
+  getHistory = catchAsync(async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user?._id?.toString();
+
+    if (!userId) {
+      throw new AppError('Yêu cầu xác thực', 401, 'AUTH_UNAUTHORIZED');
+    }
+
+    const query = req.query as any;
+    const result = await this.interviewService.getInterviewHistory(userId, query);
+
+    res.status(200).json({ success: true, data: result });
   });
 
   /**

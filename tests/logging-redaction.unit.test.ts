@@ -59,7 +59,7 @@ describe('AIP-53 structured logging and redaction', () => {
     const output = createLogger(line => lines.push(line));
     const requestId = '5a873aa1-a006-4bc1-9fd4-ea7f99094ab5';
     const response = await request(createApp(getEnv(), output))
-      .post('/api/v1/auth/login')
+      .post('/api/v1/auth/refresh')
       .set('X-Request-Id', requestId)
       .set('Authorization', 'Bearer SENTINEL_AUTHORIZATION_VALUE')
       .set('Cookie', 'session=SENTINEL_COOKIE_VALUE')

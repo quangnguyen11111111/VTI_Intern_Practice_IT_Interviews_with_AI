@@ -1,25 +1,27 @@
+import { ClientSession } from 'mongoose';
 import {
   AuditAction,
   AuditOutcome,
   AuditResourceType,
+  AuditTargetType,
 } from '../../models/audit-log.model';
-import { ClientSession } from 'mongoose';
 
 export interface CreateAuditLogInput {
-  actorId: string;
+  actorId?: string;
   targetId?: string;
-  resourceType: AuditResourceType;
+  resourceType?: AuditResourceType;
+  // Legacy aliases are retained for system-prompt mutations.
+  actor?: string;
+  target?: string;
+  targetType?: AuditTargetType;
   action: AuditAction;
   outcome: AuditOutcome;
-  requestId: string;
+  requestId?: string;
   reason?: string;
+  version?: number;
 }
 
 export interface IAuditService {
   hasAudit(requestId: string, action: AuditAction): Promise<boolean>;
-
-  createAuditLog(
-    input: CreateAuditLogInput,
-    session?: ClientSession,
-  ): Promise<void>;
+  createAuditLog(input: CreateAuditLogInput, session?: ClientSession): Promise<void>;
 }

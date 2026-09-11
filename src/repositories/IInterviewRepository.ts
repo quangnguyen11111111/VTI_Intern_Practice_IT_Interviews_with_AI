@@ -1,6 +1,12 @@
 import { InterviewStatus } from '../domain/interview/IInterviewState';
 import { InterviewSetupPayload, LocalizedContent } from '../domain/interview/types';
 
+export interface InterviewPromptVersion {
+  promptId: string;
+  version: number;
+  language: 'EN' | 'VI';
+}
+
 export interface InterviewQuestionEntity {
   id: string;
   sessionId: string;
@@ -22,11 +28,16 @@ export interface InterviewEntity {
   questions?: InterviewQuestionEntity[];
   dimensions?: { name: string; score: number; reasoning: string }[] | null;
   overallScore?: number | null;
-  learningPath?: { 
-    topic: LocalizedContent; 
-    priority: string; 
-    suggestion: LocalizedContent 
+  learningPath?: {
+    topic: LocalizedContent;
+    priority: string;
+    suggestion: LocalizedContent;
   }[] | null;
+  promptVersions?: {
+    generation?: InterviewPromptVersion;
+    evaluation?: InterviewPromptVersion;
+    learningPath?: InterviewPromptVersion;
+  };
   metadata?: import('../domain/interview/types').AiUsageMetadata;
   createdAt: Date;
   updatedAt: Date;
@@ -42,10 +53,28 @@ export interface IInterviewRepository {
   findById(id: string): Promise<InterviewEntity | null>;
   updateStatus(id: string, status: InterviewStatus): Promise<void>;
   update(id: string, data: Partial<InterviewEntity>): Promise<void>;
-  updateTokenUsage(id: string, usage: import('../domain/interview/types').AiUsageMetadata): Promise<void>;
-  
-  // Question management
-  createQuestions(sessionId: string, questions: Omit<InterviewQuestionEntity, 'id' | 'sessionId' | 'createdAt' | 'updatedAt' | 'candidateAnswer' | 'feedback' | 'score'>[]): Promise<InterviewQuestionEntity[]>;
-  updateQuestionAnswer(questionId: string, answer: string, sessionId: string): Promise<void>;
-  updateQuestionFeedback(questionId: string, feedback: LocalizedContent, score: number, sessionId: string): Promise<void>;
+  updateTokenUsage(
+    id: string,
+    usage: import('../domain/interview/types').AiUsageMetadata,
+  ): Promise<void>;
+  updatePromptVersion(
+    id: string,
+    type: 'generation' | 'evaluation' | 'learningPath',
+    promptVersion: InterviewPromptVersion,
+  ): Promise<void>;
+
+  createQuestions(
+    sessionId: string,
+    questions: Omit<
+      InterviewQuestionEntity,
+      'id' | 'sessionId' | 'createdAt' | 'updatedAt' | 'candidateAnswer' | 'feedback' | 'score'
+    >[],
+  ): Promise<InterviewQuestionEntity[]>;
+  updateQuestionAnswer(questionId: string, answer: string, sessionId?: string): Promise<void>;
+  updateQuestionFeedback(
+    questionId: string,
+    feedback: LocalizedContent,
+    score: number,
+    sessionId?: string,
+  ): Promise<void>;
 }

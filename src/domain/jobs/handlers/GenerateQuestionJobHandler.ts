@@ -11,16 +11,28 @@ import { interviewJobData, resolveGenerationSetup } from '../../../services/ai/j
 interface GenerateQuestionData {
   interviewId: string;
   ownerId: string;
+  requestId?: string;
 }
 
 @injectable()
-export class GenerateQuestionJobHandler implements IJobHandler<GenerateQuestionData> {
-  public readonly name = 'GENERATE_QUESTIONS';
+export class GenerateQuestionJobHandler
+  implements IJobHandler<GenerateQuestionData>
+{
+  public readonly name =
+    'GENERATE_QUESTIONS';
 
   constructor(
-    @inject('IAiProvider') private aiProvider: IAiProvider,
-    @inject('IInterviewRepository') private repository: IInterviewRepository,
-    @inject('IEventPublisher') private eventPublisher?: IEventPublisher
+    @inject('IAiProvider')
+    private readonly aiProvider:
+      IAiProvider,
+
+    @inject('IInterviewRepository')
+    private readonly repository:
+      IInterviewRepository,
+
+    @inject('IEventPublisher')
+    private readonly eventPublisher?:
+      IEventPublisher
   ) {}
 
   async handle(data: GenerateQuestionData): Promise<void> {
