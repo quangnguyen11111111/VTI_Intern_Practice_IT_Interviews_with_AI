@@ -14,6 +14,7 @@ import { createApp } from '../src/app';
 import { getEnv } from '../src/config/env';
 import { globalErrorHandler } from '../src/middlewares/error.middleware';
 import { requestContext } from '../src/middlewares/request-context.middleware';
+import { uploadMiddleware } from '../src/middlewares/upload.middleware';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -110,6 +111,31 @@ describe('AIP-52 HTTP security controls', () => {
       })
       .expect(401);
     expect(unsupported.body).toMatchObject({ success: false, code: 'AUTH_UNAUTHORIZED' });
+  });
+
+  it('rejects unsupported upload types and files above 5MB', async () => {
+    // Isolate Multer limits; the production authenticated pipeline is covered by SEC-03 integration tests.
+    const app = express(); app.use(requestContext);
+    app.post('/api/v1/interviews/generate-from-jd', uploadMiddleware.single('jdFile'), (_req,res) => res.sendStatus(204));
+    app.use(globalErrorHandler);
+
+    const unsupported = await request(app)
+      .post('/api/v1/interviews/generate-from-jd')
+      .attach('jdFile', Buffer.from('plain text'), {
+        filename: 'job-description.txt',
+        contentType: 'text/plain',
+      })
+      .expect(415);
+    const oversized = await request(app)
+      .post('/api/v1/interviews/generate-from-jd')
+      .attach('jdFile', Buffer.alloc(5 * 1024 * 1024 + 1), {
+        filename: 'job-description.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(413);
+
+    expect(unsupported.body).toMatchObject({ success: false, code: 'UNSUPPORTED_FILE_TYPE' });
+    expect(oversized.body).toMatchObject({ success: false, code: 'UPLOAD_TOO_LARGE' });
   });
 
   it('validates params, query, and body before controllers run', async () => {

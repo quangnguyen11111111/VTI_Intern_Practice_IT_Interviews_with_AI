@@ -16,7 +16,9 @@ import { InterviewQuestionModel } from '../src/models/InterviewQuestion';
 import { createInterviewSessionFixture } from './fixtures/aip55.factories';
 
 let mongo: MongoMemoryServer;
-let repository: MongoInterviewRepository;
+
+const repositoryFor = (session: { userId: string }): MongoInterviewRepository =>
+  new MongoInterviewRepository(session.userId);
 
 const statuses: InterviewStatus[] = [
   'PENDING',
@@ -50,7 +52,6 @@ const stateFor = (status: InterviewStatus): IInterviewState => {
 beforeAll(async () => {
   mongo = await MongoMemoryServer.create();
   await mongoose.connect(mongo.getUri('aip55_state_machine'));
-  repository = new MongoInterviewRepository();
 });
 
 afterAll(async () => {
@@ -70,7 +71,7 @@ describe('AIP-55 interview state-machine persistence', () => {
     const session = await createInterviewSessionFixture();
     const context = new InterviewContext(
       session._id.toString(),
-      repository,
+      repositoryFor(session),
       new PendingState(),
       undefined,
       0
@@ -90,14 +91,14 @@ describe('AIP-55 interview state-machine persistence', () => {
   it('persists failure and both supported recovery transitions', async () => {
     const generationFailure = await createInterviewSessionFixture({ status: 'GENERATING' });
     const generationContext = new InterviewContext(
-      generationFailure._id.toString(), repository, new GeneratingState(), undefined, 0
+      generationFailure._id.toString(), repositoryFor(generationFailure), new GeneratingState(), undefined, 0
     );
     await generationContext.changeState(new FailedState());
     await generationContext.changeState(new GeneratingState());
 
     const evaluationFailure = await createInterviewSessionFixture({ status: 'EVALUATING' });
     const evaluationContext = new InterviewContext(
-      evaluationFailure._id.toString(), repository, new EvaluatingState(), undefined, 0
+      evaluationFailure._id.toString(), repositoryFor(evaluationFailure), new EvaluatingState(), undefined, 0
     );
     await evaluationContext.changeState(new FailedState());
     await evaluationContext.changeState(new EvaluatingState());
@@ -116,13 +117,13 @@ describe('AIP-55 interview state-machine persistence', () => {
     const scheduler = { enqueue: vi.fn().mockResolvedValue(undefined) };
     const pending = await createInterviewSessionFixture();
     const pendingContext = new InterviewContext(
-      pending._id.toString(), repository, new PendingState(), undefined, 0
+      pending._id.toString(), repositoryFor(pending), new PendingState(), undefined, 0
     );
     await pendingContext.generate({ setupData: {}, jobScheduler: scheduler });
 
     const inProgress = await createInterviewSessionFixture({ status: 'IN_PROGRESS' });
     const inProgressContext = new InterviewContext(
-      inProgress._id.toString(), repository, new InProgressState(), undefined, 0
+      inProgress._id.toString(), repositoryFor(inProgress), new InProgressState(), undefined, 0
     );
     await inProgressContext.submit({ data: [], jobScheduler: scheduler });
 
@@ -142,10 +143,10 @@ describe('AIP-55 interview state-machine persistence', () => {
     const failedGeneration = await createInterviewSessionFixture({ status: 'FAILED' });
     const failedSubmission = await createInterviewSessionFixture({ status: 'FAILED' });
     await new InterviewContext(
-      failedGeneration._id.toString(), repository, new FailedState(), undefined, 0
+      failedGeneration._id.toString(), repositoryFor(failedGeneration), new FailedState(), undefined, 0
     ).generate({ setupData: {}, jobScheduler: scheduler });
     await new InterviewContext(
-      failedSubmission._id.toString(), repository, new FailedState(), undefined, 0
+      failedSubmission._id.toString(), repositoryFor(failedSubmission), new FailedState(), undefined, 0
     ).submit({ data: [], jobScheduler: scheduler });
 
     const illegalActions: Record<InterviewStatus, Array<'generate' | 'submit' | 'saveProgress'>> = {
@@ -161,7 +162,7 @@ describe('AIP-55 interview state-machine persistence', () => {
       for (const action of illegalActions[status]) {
         const session = await createInterviewSessionFixture({ status });
         const context = new InterviewContext(
-          session._id.toString(), repository, stateFor(status), undefined, 0
+          session._id.toString(), repositoryFor(session), stateFor(status), undefined, 0
         );
         const operation = action === 'generate'
           ? context.generate({ setupData: {}, jobScheduler: scheduler })
@@ -195,7 +196,7 @@ describe('AIP-55 interview state-machine persistence', () => {
       for (const to of statuses.filter((candidate) => !allowed[from].includes(candidate))) {
         const session = await createInterviewSessionFixture({ status: from });
         const context = new InterviewContext(
-          session._id.toString(), repository, stateFor(from), undefined, 0
+          session._id.toString(), repositoryFor(session), stateFor(from), undefined, 0
         );
 
         await expect(
@@ -215,7 +216,7 @@ describe('AIP-55 interview state-machine persistence', () => {
   it('rejects a stale version and preserves the newer database state', async () => {
     const session = await createInterviewSessionFixture({ status: 'PENDING', version: 1 });
     const staleContext = new InterviewContext(
-      session._id.toString(), repository, new PendingState(), undefined, 0
+      session._id.toString(), repositoryFor(session), new PendingState(), undefined, 0
     );
 
     await expect(staleContext.changeState(new GeneratingState())).rejects.toMatchObject({
@@ -232,7 +233,7 @@ describe('AIP-55 interview state-machine persistence', () => {
   it('allows exactly one concurrent transition winner and verifies final database state', async () => {
     const session = await createInterviewSessionFixture();
     const contexts = [1, 2].map(() => new InterviewContext(
-      session._id.toString(), repository, new PendingState(), undefined, 0
+      session._id.toString(), repositoryFor(session), new PendingState(), undefined, 0
     ));
 
     const results = await Promise.allSettled(

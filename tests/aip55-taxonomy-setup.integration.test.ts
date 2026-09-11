@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import request from 'supertest';
 
 vi.hoisted(() => {
@@ -28,7 +28,7 @@ import {
   UserFixture,
 } from './fixtures/aip55.factories';
 
-let mongo: MongoMemoryServer;
+let mongo: MongoMemoryReplSet;
 let candidate: UserFixture;
 let secondCandidate: UserFixture;
 let admin: UserFixture;
@@ -45,7 +45,7 @@ const validSetup = () => ({
 });
 
 beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
+  mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   await mongoose.connect(mongo.getUri('aip55_configuration'));
 });
 

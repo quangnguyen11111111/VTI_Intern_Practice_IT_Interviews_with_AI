@@ -4,6 +4,7 @@ import { PendingState } from './PendingState';
 import { InProgressState } from './InProgressState';
 import { GeneratePayload, SubmitPayload, SaveProgressPayload } from '../types';
 import { InvalidStateTransitionException } from '../exceptions/InvalidStateTransitionException';
+import { logger } from '../../../infrastructure/logging/logger';
 
 export class FailedState implements IInterviewState {
   getName(): InterviewStatus {
@@ -11,13 +12,13 @@ export class FailedState implements IInterviewState {
   }
 
   async generate(context: InterviewContext, payload: GeneratePayload): Promise<void> {
-    console.log(`[FailedState] Retrying generation for interview: ${context.getInterviewId()}`);
+    logger.info('interview.retry_generation', { resourceType: 'interview', resourceId: context.getInterviewId() });
     const pendingState = new PendingState();
     await pendingState.generate(context, payload);
   }
 
   async submit(context: InterviewContext, payload: SubmitPayload): Promise<void> {
-    console.log(`[FailedState] Retrying submission for interview: ${context.getInterviewId()}`);
+    logger.info('interview.retry_submission', { resourceType: 'interview', resourceId: context.getInterviewId() });
     const inProgressState = new InProgressState();
     await inProgressState.submit(context, payload);
   }

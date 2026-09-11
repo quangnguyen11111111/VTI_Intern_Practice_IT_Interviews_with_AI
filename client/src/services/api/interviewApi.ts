@@ -19,6 +19,47 @@ export interface InterviewSetupPayload {
   strategy?: 'STANDARD' | 'ADAPTIVE';
 }
 
+export type InterviewHistoryStatus =
+  | 'PENDING'
+  | 'GENERATING'
+  | 'IN_PROGRESS'
+  | 'EVALUATING'
+  | 'COMPLETED'
+  | 'FAILED';
+
+export interface InterviewHistoryQuery {
+  page?: number;
+  limit?: number;
+  role?: string;
+  level?: string;
+  technology?: string;
+  status?: InterviewHistoryStatus;
+  from?: string;
+  to?: string;
+  sort?: 'newest' | 'oldest';
+}
+
+export interface InterviewHistoryItem {
+  sessionId: string;
+  role?: string;
+  level?: string;
+  technologies: string[];
+  score: number | null;
+  status: InterviewHistoryStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InterviewHistoryResult {
+  items: InterviewHistoryItem[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
 export interface InterviewSessionData {
   _id: string;
   status?: string;
@@ -84,7 +125,6 @@ export const interviewApi = {
    * Submit interview setup configuration
    */
   setupInterview: async (payload: InterviewSetupPayload): Promise<InterviewSessionData> => {
-    console.log('Sending API Request with payload:', payload);
     return request<InterviewSessionData>('interviews', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -95,7 +135,6 @@ export const interviewApi = {
    * Upload JD file for interview setup
    */
   uploadJdInterview: async (payload: FormData): Promise<InterviewSessionData> => {
-    console.log('Sending JD Upload Request');
     const accessToken = getAccessToken();
     const headers = new Headers();
     if (accessToken) {
@@ -115,6 +154,27 @@ export const interviewApi = {
     
     const body = await response.json();
     return body.data;
+  },
+
+  /**
+   * Fetch current-user interview history.
+   */
+  fetchInterviewHistory: async (
+    query: InterviewHistoryQuery = {}
+  ): Promise<InterviewHistoryResult> => {
+    const params = new URLSearchParams();
+    if (query.page !== undefined) params.set('page', String(query.page));
+    if (query.limit !== undefined) params.set('limit', String(query.limit));
+    if (query.role) params.set('role', query.role);
+    if (query.level) params.set('level', query.level);
+    if (query.technology) params.set('technology', query.technology);
+    if (query.status) params.set('status', query.status);
+    if (query.from) params.set('from', query.from);
+    if (query.to) params.set('to', query.to);
+    if (query.sort) params.set('sort', query.sort);
+
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    return request<InterviewHistoryResult>(`interviews/history${suffix}`);
   },
 
   /**

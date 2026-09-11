@@ -1,32 +1,77 @@
 import { injectable, inject } from 'tsyringe';
+
 import { IInterviewRepository } from '../repositories/IInterviewRepository';
+import { InterviewPromptVersion } from '../repositories/IInterviewRepository';
+import {
+  IInterviewHistoryRepository,
+  InterviewHistoryQuery,
+  InterviewHistoryResult,
+} from '../repositories/interfaces/IInterviewHistoryRepository';
 import { InterviewContext } from '../domain/interview/InterviewContext';
 import { InterviewSetupPayload, AnswerPayload, IAiProvider } from '../domain/interview/types';
-import mongoose from 'mongoose';
 import Role from '../models/role.model';
 import Level from '../models/level.model';
 import Technology from '../models/technology.model';
 import { AppError } from '../utils/AppError';
-
+import { generationPrompt, evaluationPrompt, minimizeText } from './ai/prompt-security';
+import { resolveGenerationSetup } from './ai/job-security';
 import { IJobScheduler } from '../domain/jobs/IJobScheduler';
 import { IEventPublisher } from '../domain/events/IEventPublisher';
+import { AppEnv } from '../config/env';
+import { ISystemPromptService } from './interfaces/ISystemPromptService';
 
 @injectable()
 export class InterviewService {
   constructor(
-    @inject('IInterviewRepository') private interviewRepo: IInterviewRepository,
-    @inject('IAiProvider') private aiProvider: IAiProvider,
-    @inject('IJobScheduler') private jobScheduler?: IJobScheduler,
-    @inject('IEventPublisher') private eventPublisher?: IEventPublisher
+    @inject('IInterviewRepository') private readonly interviewRepo: IInterviewRepository,
+    @inject('IAiProvider') private readonly aiProvider: IAiProvider,
+    @inject('IJobScheduler') private readonly jobScheduler?: IJobScheduler,
+    @inject('IEventPublisher') private readonly eventPublisher?: IEventPublisher,
+    @inject('IInterviewHistoryRepository') private readonly interviewHistoryRepo?: IInterviewHistoryRepository,
+    @inject('AppEnv') private readonly env?: AppEnv,
+    @inject('ISystemPromptService') private readonly systemPromptService?: ISystemPromptService,
   ) {}
 
   /**
-   * Khởi tạo phiên phỏng vấn mới (Trạng thái mặc định: PENDING)
+   * Store prompt provenance without passing mutable admin content to the AI path.
+   * AIP-54 always uses the fixed prompt-security templates for execution.
    */
+  private async recordPublishedPromptVersion(
+    repository: IInterviewRepository,
+    id: string,
+    type: 'generation' | 'evaluation' | 'learningPath',
+  ): Promise<void> {
+    if (!this.systemPromptService) return;
+
+    const promptType = type === 'generation'
+      ? 'GENERATION'
+      : type === 'evaluation'
+        ? 'EVALUATION'
+        : 'LEARNING_PATH';
+
+    try {
+      const prompt = await this.systemPromptService.getPublished('interview', promptType, 'EN');
+      const promptVersion: InterviewPromptVersion = {
+        promptId: prompt._id.toString(),
+        version: prompt.version,
+        language: prompt.language,
+      };
+      await repository.updatePromptVersion(id, type, promptVersion);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'PUBLISHED_SYSTEM_PROMPT_NOT_FOUND') return;
+      throw error;
+    }
+  }
+
   async createInterviewSession(setupData: InterviewSetupPayload, userId: string) {
     await this.validateSetupTaxonomy(setupData);
-    const session = await this.interviewRepo.create(setupData, userId);
-    return session;
+    const safeSetupData = {
+      ...generationPrompt(setupData).data,
+      ...(setupData.language !== undefined ? { language: setupData.language } : {}),
+      ...(setupData.secondsPerQuestion !== undefined ? { secondsPerQuestion: setupData.secondsPerQuestion } : {}),
+      ...(setupData.strategy !== undefined ? { strategy: setupData.strategy } : {}),
+    };
+    return this.interviewRepo.forOwner(userId).create(safeSetupData, userId);
   }
 
   private async validateSetupTaxonomy(setupData: InterviewSetupPayload): Promise<void> {
@@ -57,142 +102,128 @@ export class InterviewService {
       throw new AppError(
         'Technology không tồn tại, không hoạt động hoặc không thuộc Role đã chọn',
         400,
-        'SETUP_TECHNOLOGY_INVALID'
+        'SETUP_TECHNOLOGY_INVALID',
       );
     }
   }
 
-  /**
-   * Khởi tạo phiên phỏng vấn mới từ file JD
-   */
   async createInterviewSessionFromJD(
-    setupData: Omit<InterviewSetupPayload, 'jdText'>, 
-    fileBuffer: Buffer, 
-    mimeType: string, 
-    userId: string
+    setupData: Omit<InterviewSetupPayload, 'jdText'>,
+    fileBuffer: Buffer,
+    mimeType: string,
+    userId: string,
   ) {
     const { FileParserFactory } = await import('../utils/parsers/FileParserFactory');
-    const parser = FileParserFactory.getParser(mimeType);
-    const jdText = await parser.parse(fileBuffer);
-    
-    // Giới hạn độ dài jdText để tránh payload quá lớn cho AI (ví dụ 10000 ký tự)
-    const truncatedJdText = jdText.substring(0, 10000);
+    let jdText: string;
+    try {
+      this.interviewRepo.forOwner(userId).getOwnerId();
+      jdText = await FileParserFactory.getParser(mimeType).parse(fileBuffer);
+    } finally {
+      fileBuffer.fill(0);
+    }
 
-    const fullSetupData: InterviewSetupPayload = {
+    return this.createInterviewSession({
       ...setupData,
-      jdText: truncatedJdText
-    };
-
-    return this.createInterviewSession(fullSetupData, userId);
+      jdText: minimizeText(jdText).substring(0, 10000),
+    }, userId);
   }
 
-  /**
-   * Lấy thông tin phiên
-   */
-  async getInterviewSession(id: string) {
-    const session = await this.interviewRepo.findById(id);
+  async getInterviewSession(id: string, userId: string) {
+    const session = await this.interviewRepo.forOwner(userId).findById(id);
     if (!session) {
       throw new AppError('Interview session not found', 404, 'INTERVIEW_NOT_FOUND');
     }
     return session;
   }
 
-  /**
-   * Sinh câu hỏi (Chuyển trạng thái từ PENDING -> GENERATING)
-   */
-  async generateQuestions(id: string) {
-    const sessionData = await this.getInterviewSession(id);
-    
-    // Phục hồi State Machine từ Database state
-    const currentState = InterviewContext.createStateFromStatus(sessionData.status);
-    const context = new InterviewContext(
-      id,
-      this.interviewRepo,
-      currentState,
-      this.eventPublisher,
-      sessionData.version
-    );
+  async getInterviewHistory(
+    userId: string,
+    query: InterviewHistoryQuery,
+  ): Promise<InterviewHistoryResult> {
+    if (!this.interviewHistoryRepo) {
+      throw new AppError('Interview history unavailable', 500, 'INTERVIEW_HISTORY_UNAVAILABLE');
+    }
+    return this.interviewHistoryRepo.findHistory(userId, query);
+  }
 
+  async generateQuestions(id: string, userId: string) {
+    const sessionData = await this.getInterviewSession(id, userId);
     if (!sessionData.setupData) {
       throw new AppError('Setup data is missing from session', 500, 'INTERVIEW_SETUP_MISSING');
     }
 
-    const aiSetupData = { ...sessionData.setupData };
-
-    if (mongoose.Types.ObjectId.isValid(aiSetupData.jobPosition || '')) {
-      const role = await Role.findById(aiSetupData.jobPosition);
-      if (role) aiSetupData.jobPosition = role.name;
-    }
-
-    if (mongoose.Types.ObjectId.isValid(aiSetupData.level || '')) {
-      const level = await Level.findById(aiSetupData.level);
-      if (level) aiSetupData.level = level.name;
-    }
-
-    if (aiSetupData.techStacks && Array.isArray(aiSetupData.techStacks)) {
-      const techNames = [];
-      for (const techId of aiSetupData.techStacks) {
-        if (mongoose.Types.ObjectId.isValid(techId)) {
-          const tech = await Technology.findById(techId);
-          if (tech) techNames.push(tech.name);
-          else techNames.push(techId);
-        } else {
-          techNames.push(techId);
-        }
-      }
-      aiSetupData.techStacks = techNames;
-    }
-
-    await context.generate({
-      setupData: aiSetupData,
-      aiProvider: this.aiProvider,
-      jobScheduler: this.jobScheduler
-    });
-
-    return await this.getInterviewSession(id);
-  }
-
-  /**
-   * Nộp câu trả lời (Chuyển trạng thái từ IN_PROGRESS -> EVALUATING)
-   */
-  async submitAnswers(id: string, answers: AnswerPayload[]) {
-    const sessionData = await this.getInterviewSession(id);
-    
-    // Phục hồi State Machine
-    const currentState = InterviewContext.createStateFromStatus(sessionData.status);
+    const repository = this.interviewRepo.forOwner(userId);
     const context = new InterviewContext(
       id,
-      this.interviewRepo,
-      currentState,
+      repository,
+      InterviewContext.createStateFromStatus(sessionData.status),
       this.eventPublisher,
-      sessionData.version
+      sessionData.version,
     );
 
-    // Kích hoạt action nộp bài
+    await this.recordPublishedPromptVersion(repository, id, 'generation');
+
+    await context.generate({
+      setupData: await resolveGenerationSetup(sessionData.setupData),
+      aiProvider: this.aiProvider,
+      useAsyncJobs: this.env ? this.env.NODE_ENV !== 'test' : undefined,
+      jobScheduler: this.jobScheduler,
+    });
+
+    return this.getInterviewSession(id, userId);
+  }
+
+  async submitAnswers(id: string, answers: AnswerPayload[], userId: string) {
+    const sessionData = await this.getInterviewSession(id, userId);
+    if (sessionData.status !== 'IN_PROGRESS') {
+      throw new AppError('Invalid interview state', 409, 'STATE_CONFLICT');
+    }
+
+    // Validate every question ID before any answer is written.
+    evaluationPrompt(sessionData.questions ?? [], answers);
+
+    const repository = this.interviewRepo.forOwner(userId);
+    await this.recordPublishedPromptVersion(repository, id, 'evaluation');
+    await this.recordPublishedPromptVersion(repository, id, 'learningPath');
+    for (const answer of answers) {
+      await repository.updateQuestionAnswer(
+        answer.questionId,
+        answer.candidateAnswer,
+        id,
+      );
+    }
+
+    const context = new InterviewContext(
+      id,
+      repository,
+      InterviewContext.createStateFromStatus(sessionData.status),
+      this.eventPublisher,
+      sessionData.version,
+    );
+
     await context.submit({
       data: answers,
       aiProvider: this.aiProvider,
-      jobScheduler: this.jobScheduler
+      useAsyncJobs: this.env ? this.env.NODE_ENV !== 'test' : undefined,
+      jobScheduler: this.jobScheduler,
     });
 
-    return await this.getInterviewSession(id);
+    return this.getInterviewSession(id, userId);
   }
 
-  /**
-   * Lưu tiến trình (Autosave)
-   */
-  async saveProgress(id: string, answers: AnswerPayload[]) {
-    const sessionData = await this.getInterviewSession(id);
-    
-    // Phục hồi State Machine
-    const currentState = InterviewContext.createStateFromStatus(sessionData.status);
-    const context = new InterviewContext(id, this.interviewRepo, currentState, undefined, sessionData.version);
+  async saveProgress(id: string, answers: AnswerPayload[], userId: string) {
+    const sessionData = await this.getInterviewSession(id, userId);
+    evaluationPrompt(sessionData.questions ?? [], answers);
 
-    // Kích hoạt action lưu tiến trình
-    await context.saveProgress({
-      answers
-    });
+    const context = new InterviewContext(
+      id,
+      this.interviewRepo.forOwner(userId),
+      InterviewContext.createStateFromStatus(sessionData.status),
+      this.eventPublisher,
+      sessionData.version,
+    );
 
+    await context.saveProgress({ answers });
     return { message: 'Progress saved successfully' };
   }
 }

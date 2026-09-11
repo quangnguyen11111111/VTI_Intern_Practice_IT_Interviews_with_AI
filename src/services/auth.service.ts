@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
@@ -15,6 +16,10 @@ import {
 } from '../utils/token';
 import { AppError } from '../utils/AppError';
 import { SafeUser, AuthResponseData, JwtTokenPayload } from '../types/auth.type';
+import { IAuditService } from './interfaces/IAuditService';
+import { runAuditedMutation } from './audited-mutation';
+import { AuditService } from './audit.service';
+import { AuditRepository } from '../repositories/audit.repository';
 
 // Precomputed dummy bcrypt hash (cost 12) for constant-time comparison when email is not found
 const DUMMY_HASH = '$2a$12$K1r6fQ9Z2yD0kX4J8nC1Ou9z9qK8jH7gF5d4s3a2P1o0I9u8Y7t6e';
@@ -471,17 +476,20 @@ export const logoutUser = async (rawRefreshToken: string): Promise<void> => {
 
 export const lockUser = async (
   adminUserId: string,
-  targetUserId: string
+  targetUserId: string,
+  requestId: string = crypto.randomUUID(),
+  auditService: IAuditService = new AuditService(new AuditRepository()),
 ): Promise<SafeUser> => {
-  if (adminUserId === targetUserId) {
-    throw new AppError('Không thể tự khóa tài khoản của chính mình', 400, 'AUTH_CANNOT_LOCK_SELF');
-  }
-
-  let updatedTargetUser: IUser | null = null;
-
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
+  const updatedTargetUser = await runAuditedMutation(auditService, {
+    actorId: adminUserId,
+    targetId: targetUserId,
+    resourceType: 'USER',
+    action: 'LOCK_USER',
+    requestId,
+  }, async session => {
+      if (adminUserId === targetUserId) {
+        throw new AppError('Không thể tự khóa tài khoản của chính mình', 400, 'AUTH_CANNOT_LOCK_SELF');
+      }
       const currentAdmin = await User.findById(adminUserId).session(session);
       if (!currentAdmin) {
         throw new AppError('Người dùng không tồn tại', 401, 'AUTH_UNAUTHORIZED');
@@ -501,7 +509,7 @@ export const lockUser = async (
         throw new AppError('Người dùng không tồn tại', 404, 'AUTH_USER_NOT_FOUND');
       }
 
-      updatedTargetUser = await User.findByIdAndUpdate(
+      const updated = await User.findByIdAndUpdate(
         targetUserId,
         { status: 'LOCKED', $inc: { authVersion: 1, credentialVersion: 1 } },
         { session, returnDocument: 'after' }
@@ -513,14 +521,9 @@ export const lockUser = async (
         { isRevoked: true, revokedAt: new Date() },
         { session }
       );
-    });
-  } finally {
-    await session.endSession();
-  }
-
-  if (!updatedTargetUser) {
-    throw new AppError('Người dùng không tồn tại', 404, 'AUTH_USER_NOT_FOUND');
-  }
+      if (!updated) throw new AppError('Người dùng không tồn tại', 404, 'AUTH_USER_NOT_FOUND');
+      return { value: updated };
+  });
 
   return formatSafeUser(updatedTargetUser);
 };

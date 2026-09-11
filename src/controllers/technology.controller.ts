@@ -28,17 +28,17 @@ export class TechnologyController {
   });
 
   createTechnology = catchAsync(async (req: Request, res: Response) => {
-    const result = await this.technologyService.createTechnology(req.body);
+    const result = await this.technologyService.createTechnology(req.body, req.user!._id.toString(), req.requestId!);
     res.status(201).json({ success: true, message: 'Tạo Technology thành công', data: result });
   });
 
   updateTechnology = catchAsync(async (req: Request, res: Response) => {
-    const result = await this.technologyService.updateTechnology(req.params.id as string, req.body);
+    const result = await this.technologyService.updateTechnology(req.params.id as string, req.body, req.user!._id.toString(), req.requestId!);
     res.status(200).json({ success: true, message: 'Cập nhật Technology thành công', data: result });
   });
 
   deleteTechnology = catchAsync(async (req: Request, res: Response) => {
-    await this.technologyService.deleteTechnology(req.params.id as string);
+    await this.technologyService.deleteTechnology(req.params.id as string, req.user!._id.toString(), req.requestId!);
     res.status(200).json({ success: true, message: 'Xóa Technology thành công' });
   });
 }

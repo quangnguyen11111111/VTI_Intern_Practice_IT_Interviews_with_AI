@@ -2,11 +2,14 @@ import { injectable, inject } from 'tsyringe';
 import { ITechnologyService } from './interfaces/ITechnologyService';
 import { AppError } from '../utils/AppError';
 import { ITechnologyRepository } from '../repositories/interfaces/ITechnologyRepository';
+import { IAuditService } from './interfaces/IAuditService';
+import { runAuditedMutation } from './audited-mutation';
 
 @injectable()
 export class TechnologyService implements ITechnologyService {
   constructor(
-    @inject('ITechnologyRepository') private technologyRepository: ITechnologyRepository
+    @inject('ITechnologyRepository') private technologyRepository: ITechnologyRepository,
+    @inject('IAuditService') private auditService: IAuditService,
   ) {}
 
   async getAllTechnologies(query: any) {
@@ -46,27 +49,39 @@ export class TechnologyService implements ITechnologyService {
     return technology;
   }
 
-  async createTechnology(data: any) {
-    if (data.code) {
-      const existing = await this.technologyRepository.findOne({ code: data.code });
-      if (existing) throw new AppError('Mã Technology đã tồn tại', 400);
-    }
-    return this.technologyRepository.create(data);
+  async createTechnology(data: any, actorId: string, requestId: string) {
+    return runAuditedMutation(this.auditService, {
+      actorId, resourceType: 'TECHNOLOGY', action: 'CREATE_TECHNOLOGY', requestId,
+    }, async session => {
+      if (data.code && await this.technologyRepository.findOne({ code: data.code })) {
+        throw new AppError('Mã Technology đã tồn tại', 400, 'TAXONOMY_CODE_EXISTS');
+      }
+      const value = await this.technologyRepository.create(data, session);
+      return { value, targetId: value._id.toString() };
+    });
   }
 
-  async updateTechnology(id: string, data: any) {
-    if (data.code) {
-      const existing = await this.technologyRepository.findOne({ code: data.code });
-      if (existing && existing._id.toString() !== id) throw new AppError('Mã Technology đã tồn tại', 400);
-    }
-    const technology = await this.technologyRepository.update(id, data);
-    if (!technology) throw new AppError('Technology không tồn tại', 404);
-    return technology;
+  async updateTechnology(id: string, data: any, actorId: string, requestId: string) {
+    return runAuditedMutation(this.auditService, {
+      actorId, targetId: id, resourceType: 'TECHNOLOGY', action: 'UPDATE_TECHNOLOGY', requestId,
+    }, async session => {
+      if (data.code) {
+        const existing = await this.technologyRepository.findOne({ code: data.code });
+        if (existing && existing._id.toString() !== id) throw new AppError('Mã Technology đã tồn tại', 400, 'TAXONOMY_CODE_EXISTS');
+      }
+      const value = await this.technologyRepository.update(id, data, session);
+      if (!value) throw new AppError('Technology không tồn tại', 404, 'TAXONOMY_NOT_FOUND');
+      return { value };
+    });
   }
 
-  async deleteTechnology(id: string) {
-    const technology = await this.technologyRepository.softDelete(id);
-    if (!technology) throw new AppError('Technology không tồn tại', 404);
-    return technology;
+  async deleteTechnology(id: string, actorId: string, requestId: string) {
+    return runAuditedMutation(this.auditService, {
+      actorId, targetId: id, resourceType: 'TECHNOLOGY', action: 'DELETE_TECHNOLOGY', requestId,
+    }, async session => {
+      const value = await this.technologyRepository.softDelete(id, session);
+      if (!value) throw new AppError('Technology không tồn tại', 404, 'TAXONOMY_NOT_FOUND');
+      return { value };
+    });
   }
 }

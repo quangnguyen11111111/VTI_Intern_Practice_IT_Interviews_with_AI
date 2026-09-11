@@ -2,7 +2,10 @@ import { Agenda, Job } from 'agenda';
 import mongoose from 'mongoose';
 import { IJobScheduler } from '../../domain/jobs/IJobScheduler';
 import { IJobHandler } from '../../domain/jobs/IJobHandler';
-import { singleton } from 'tsyringe';
+import { inject, singleton } from 'tsyringe';
+import { AppEnv } from '../../config/env';
+import { logger, logContext } from '../logging/logger';
+import { interviewJobData } from '../../services/ai/job-security';
 
 @singleton()
 export class AgendaJobScheduler implements IJobScheduler {
@@ -10,7 +13,7 @@ export class AgendaJobScheduler implements IJobScheduler {
   private handlers = new Map<string, IJobHandler>();
   private isStarted = false;
 
-  constructor() {
+  constructor(@inject('AppEnv') private readonly env: AppEnv) {
     // Agenda will be instantiated in start() because it requires mongo connection
   }
 
@@ -23,7 +26,7 @@ export class AgendaJobScheduler implements IJobScheduler {
     
     // Make sure we wait for mongoose to be connected before starting agenda
     if (mongoose.connection.readyState !== 1) {
-      console.warn('[Agenda] Mongoose not connected yet, waiting...');
+      logger.warn('scheduler.waiting');
       await new Promise(resolve => mongoose.connection.once('open', resolve));
     }
     
@@ -32,35 +35,39 @@ export class AgendaJobScheduler implements IJobScheduler {
     // Actually, agenda can just be re-initialized if needed. But let's try calling agenda.database() or pass it directly.
     this.agenda = new Agenda({
       db: { 
-        address: process.env.MONGODB_URI || 'mongodb://localhost:27017/it-interview-ai',
+        address: this.env.MONGODB_URI,
         collection: 'agendaJobs'
-      }
+      },
+      disableAutoIndex: this.env.NODE_ENV === 'production',
     });
     
     // Re-register handlers
     for (const handler of this.handlers.values()) {
       this.agenda.define(handler.name, async (job: Job) => {
-        console.log(`[Agenda] Starting job: ${handler.name}`);
-        try {
-          await handler.handle(job.attrs.data);
-          console.log(`[Agenda] Job completed: ${handler.name}`);
-        } catch (error) {
-          console.error(`[Agenda] Job failed: ${handler.name}`, error);
-          throw error;
-        }
+        return logContext.run({ requestId: job.attrs.data?.requestId }, async () => {
+          logger.info('job.started', { jobName: handler.name, attempt: (job.attrs.failCount ?? 0) + 1 });
+          try {
+            await handler.handle(job.attrs.data);
+            logger.info('job.completed', { jobName: handler.name });
+          } catch {
+            logger.error('job.failed', { jobName: handler.name });
+            // Agenda persists failReason: never let it store a provider message or stack.
+            throw new Error('JOB_EXECUTION_FAILED');
+          }
+        });
       });
     }
 
     await this.agenda.start();
     this.isStarted = true;
-    console.log('[Agenda] Background Job Scheduler started.');
+    logger.info('scheduler.started');
   }
 
   public async stop(): Promise<void> {
     if (!this.isStarted) return;
     await this.agenda.stop();
     this.isStarted = false;
-    console.log('[Agenda] Background Job Scheduler stopped.');
+    logger.info('scheduler.stopped');
   }
 
   public async enqueue<T>(jobName: string, data: T, options?: any): Promise<void> {
@@ -68,8 +75,9 @@ export class AgendaJobScheduler implements IJobScheduler {
       throw new Error(`Job handler for ${jobName} not registered`);
     }
     
-    const job = this.agenda.create(jobName, data as any);
+    const safeData = interviewJobData({ ...data, requestId: logContext.getStore()?.requestId });
+    const job = this.agenda.create(jobName, safeData);
     await job.save();
-    console.log(`[Agenda] Queued job: ${jobName}`);
+    logger.info('job.queued', { jobName });
   }
 }

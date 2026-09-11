@@ -1,46 +1,63 @@
 import { IJobHandler } from '../IJobHandler';
-import { container, inject, injectable } from 'tsyringe';
+import { inject, injectable } from 'tsyringe';
 import { IAiProvider } from '../../interview/types';
 import { IInterviewRepository } from '../../../repositories/IInterviewRepository';
 import { InterviewContext } from '../../interview/InterviewContext';
 import { IEventPublisher } from '../../events/IEventPublisher';
+import { logger } from '../../../infrastructure/logging/logger';
+import { generateSafely } from '../../../services/ai/prompt-security';
+import { interviewJobData, resolveGenerationSetup } from '../../../services/ai/job-security';
 
 interface GenerateQuestionData {
   interviewId: string;
-  setupData: any;
+  ownerId: string;
+  requestId?: string;
 }
 
 @injectable()
-export class GenerateQuestionJobHandler implements IJobHandler<GenerateQuestionData> {
-  public readonly name = 'GENERATE_QUESTIONS';
+export class GenerateQuestionJobHandler
+  implements IJobHandler<GenerateQuestionData>
+{
+  public readonly name =
+    'GENERATE_QUESTIONS';
 
   constructor(
-    @inject('IAiProvider') private aiProvider: IAiProvider,
-    @inject('IInterviewRepository') private repository: IInterviewRepository,
-    @inject('IEventPublisher') private eventPublisher?: IEventPublisher
+    @inject('IAiProvider')
+    private readonly aiProvider:
+      IAiProvider,
+
+    @inject('IInterviewRepository')
+    private readonly repository:
+      IInterviewRepository,
+
+    @inject('IEventPublisher')
+    private readonly eventPublisher?:
+      IEventPublisher
   ) {}
 
   async handle(data: GenerateQuestionData): Promise<void> {
-    console.log(`[Job] GENERATE_QUESTIONS running for interview: ${data.interviewId}`);
-    
+    data = interviewJobData(data);
+    const repository = this.repository.forOwner(data.ownerId);
+    logger.info('job.started', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
+
     // Check if interview is still in GENERATING state (sanity check)
-    const session = await this.repository.findById(data.interviewId);
+    const session = await repository.findById(data.interviewId);
     if (!session || session.status !== 'GENERATING') {
-      console.warn(`[Job] Interview ${data.interviewId} is not in GENERATING state. Aborting job.`);
+      logger.warn('job.skipped', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
       return;
     }
 
     try {
-      const { data: generatedQuestions, audit } = await this.aiProvider.generateQuestions(data.setupData);
+      const { data: generatedQuestions, audit } = await generateSafely(this.aiProvider, await resolveGenerationSetup(session.setupData));
       
       // Update DB
-      await this.repository.createQuestions(data.interviewId, generatedQuestions);
-      await this.repository.updateTokenUsage(data.interviewId, audit);
+      await repository.createQuestions(data.interviewId, generatedQuestions);
+      await repository.updateTokenUsage(data.interviewId, audit);
 
       // Transition state
       const context = new InterviewContext(
         data.interviewId,
-        this.repository,
+        repository,
         InterviewContext.createStateFromStatus(session.status),
         this.eventPublisher,
         session.version
@@ -48,14 +65,14 @@ export class GenerateQuestionJobHandler implements IJobHandler<GenerateQuestionD
       const { InProgressState } = await import('../../interview/states/InProgressState');
       await context.changeState(new InProgressState());
       
-      console.log(`[Job] GENERATE_QUESTIONS completed for interview: ${data.interviewId}`);
+      logger.info('job.completed', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
     } catch (error) {
-      console.error(`[Job] GENERATE_QUESTIONS failed for interview: ${data.interviewId}`, error);
+      logger.error('job.failed', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
       
       // Transition to FAILED state
       const context = new InterviewContext(
         data.interviewId,
-        this.repository,
+        repository,
         InterviewContext.createStateFromStatus(session.status),
         this.eventPublisher,
         session.version

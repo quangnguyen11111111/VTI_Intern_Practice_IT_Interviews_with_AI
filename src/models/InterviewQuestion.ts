@@ -25,6 +25,7 @@ const InterviewQuestionSchema: Schema = new Schema(
       ref: 'InterviewSession',
       required: true
     },
+    ownerId: { type: String }, // New writes set this; legacy children remain scoped through their parent.
     order: {
       type: Number,
       required: true
@@ -55,4 +56,5 @@ const InterviewQuestionSchema: Schema = new Schema(
   }
 );
 
+InterviewQuestionSchema.index({ sessionId: 1, order: 1 }, { unique: true });
 export const InterviewQuestionModel = mongoose.model<IInterviewQuestionDocument>('InterviewQuestion', InterviewQuestionSchema);

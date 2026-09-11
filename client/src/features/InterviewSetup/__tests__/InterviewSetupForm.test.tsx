@@ -31,14 +31,18 @@ const mockTechnologies = [
   { _id: 't2', code: 'NODE', name: 'Node.js' },
 ];
 
-const renderForm = () => render(
-  <MemoryRouter initialEntries={['/']}>
-    <Routes>
-      <Route path="/" element={<InterviewSetupForm />} />
-      <Route path="/interview/:id" element={<div>Interview session opened</div>} />
-    </Routes>
-  </MemoryRouter>
-);
+const renderForm = () =>
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <Routes>
+        <Route path="/" element={<InterviewSetupForm />} />
+        <Route
+          path="/interview/:id"
+          element={<div>Interview session opened</div>}
+        />
+      </Routes>
+    </MemoryRouter>
+  );
 
 describe('InterviewSetupForm', () => {
   beforeEach(() => {

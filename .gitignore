@@ -1,5 +1,17 @@
 node_modules/
+.npm-cache-aip54/
+.npm-cache-aip54-client/
 dist/
 .env
+.env.*
+!.env.example
+.cache/
+coverage/
+logs/
+*.pem
+*.key
+*.p12
+*.pfx
+deploy.tar.gz
 *.log
 .DS_Store

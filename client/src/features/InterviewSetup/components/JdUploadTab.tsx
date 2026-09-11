@@ -104,7 +104,7 @@ export const JdUploadTab: React.FC<JdUploadTabProps> = ({
           <input
             type="file"
             id="jdFile"
-            accept=".pdf,.doc,.docx"
+            accept=".pdf,.docx"
             {...form.register('jdFile', { required: 'Vui lòng chọn file JD' })}
             className="sr-only"
             disabled={isLoading}
