@@ -20,6 +20,7 @@ import {
   SubmitPayload,
   SaveProgressPayload
 } from '../types';
+import { logger } from '../../../infrastructure/logging/logger';
 
 export class InProgressState
   implements IInterviewState
@@ -41,9 +42,7 @@ export class InProgressState
     context: InterviewContext,
     payload: SubmitPayload
   ): Promise<void> {
-    console.log(
-      `[InProgressState] Submitting answers for interview: ${context.getInterviewId()}`
-    );
+    logger.info('interview.submitting', { resourceType: 'interview', resourceId: context.getInterviewId() });
 
     // Chuyển sang trạng thái chấm bài
     await context.changeState(
@@ -66,7 +65,7 @@ export class InProgressState
        * MockAiProvider ở bên dưới.
        */
       if (
-        process.env.NODE_ENV !== 'test' &&
+        payload.useAsyncJobs !== false &&
         payload &&
         payload.jobScheduler
       ) {
@@ -302,9 +301,7 @@ export class InProgressState
     context: InterviewContext,
     payload: SaveProgressPayload
   ): Promise<void> {
-    console.log(
-      `[InProgressState] Saving progress for interview: ${context.getInterviewId()}`
-    );
+    logger.info('interview.saving', { resourceType: 'interview', resourceId: context.getInterviewId() });
 
     /*
      * Lưu câu trả lời nhưng không chuyển state.
@@ -321,4 +318,3 @@ export class InProgressState
     }
   }
 }
-

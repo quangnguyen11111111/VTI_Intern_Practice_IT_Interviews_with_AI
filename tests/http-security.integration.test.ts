@@ -14,6 +14,8 @@ import { createApp } from '../src/app';
 import { getEnv } from '../src/config/env';
 import { globalErrorHandler } from '../src/middlewares/error.middleware';
 import { requestContext } from '../src/middlewares/request-context.middleware';
+import { validate } from '../src/middlewares/validate.middleware';
+import { taxonomyListSchema } from '../src/validators/taxonomy.validator';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -124,8 +126,14 @@ describe('AIP-52 HTTP security controls', () => {
   it('validates params, query, and body before controllers run', async () => {
     const app = createApp(getEnv());
 
+    const queryApp = express();
+    queryApp.set('env', 'test');
+    queryApp.use(requestContext);
+    queryApp.get('/query', validate(taxonomyListSchema), (_req, res) => res.sendStatus(204));
+    queryApp.use(globalErrorHandler);
+
     const params = await request(app).get('/api/v1/interviews/not-an-object-id').expect(400);
-    const query = await request(app).get('/api/v1/roles?limit=0&unexpected=true').expect(400);
+    const query = await request(queryApp).get('/query?limit=0&unexpected=true').expect(400);
     const body = await request(app)
       .post('/api/v1/interviews')
       .send({ jobPosition: 'bad', level: 'bad', techStacks: [], unexpected: true })

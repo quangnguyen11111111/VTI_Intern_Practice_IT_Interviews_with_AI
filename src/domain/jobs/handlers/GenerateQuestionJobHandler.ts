@@ -22,6 +22,7 @@ import {
 import {
   IEventPublisher
 } from '../../events/IEventPublisher';
+import { logger } from '../../../infrastructure/logging/logger';
 
 interface GenerateQuestionData {
   interviewId: string;
@@ -53,9 +54,7 @@ export class GenerateQuestionJobHandler
   async handle(
     data: GenerateQuestionData
   ): Promise<void> {
-    console.log(
-      `[Job] GENERATE_QUESTIONS running for interview: ${data.interviewId}`
-    );
+    logger.info('job.started', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
 
     // Check if interview is still in GENERATING state.
     const session =
@@ -67,9 +66,7 @@ export class GenerateQuestionJobHandler
       !session ||
       session.status !== 'GENERATING'
     ) {
-      console.warn(
-        `[Job] Interview ${data.interviewId} is not in GENERATING state. Aborting job.`
-      );
+      logger.warn('job.skipped', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
       return;
     }
 
@@ -145,14 +142,9 @@ export class GenerateQuestionJobHandler
         new InProgressState()
       );
 
-      console.log(
-        `[Job] GENERATE_QUESTIONS completed for interview: ${data.interviewId}`
-      );
+      logger.info('job.completed', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
     } catch (error) {
-      console.error(
-        `[Job] GENERATE_QUESTIONS failed for interview: ${data.interviewId}`,
-        error
-      );
+      logger.error('job.failed', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
 
       // Transition to FAILED state.
       const context =

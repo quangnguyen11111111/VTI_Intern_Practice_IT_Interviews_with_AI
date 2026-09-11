@@ -1,5 +1,5 @@
 import nodemailer, { type Transporter } from 'nodemailer';
-import { getEnv } from '../config/env';
+import { AppEnv, getEnv } from '../config/env';
 
 export interface SendEmailOptions {
   to: string;
@@ -14,18 +14,18 @@ export interface IEmailProvider {
 
 export class NodemailerEmailProvider implements IEmailProvider {
   private transporter: Transporter | null = null;
+  constructor(private readonly env: AppEnv) {}
 
   private getTransporter(): Transporter {
     if (!this.transporter) {
-      const env = getEnv();
       this.transporter = nodemailer.createTransport({
-        host: env.SMTP_HOST,
-        port: env.SMTP_PORT,
-        secure: env.SMTP_SECURE,
-        auth: env.SMTP_USER
+        host: this.env.SMTP_HOST,
+        port: this.env.SMTP_PORT,
+        secure: this.env.SMTP_SECURE,
+        auth: this.env.SMTP_USER
           ? {
-              user: env.SMTP_USER,
-              pass: env.SMTP_PASS,
+              user: this.env.SMTP_USER,
+              pass: this.env.SMTP_PASS,
             }
           : undefined,
       });
@@ -34,10 +34,9 @@ export class NodemailerEmailProvider implements IEmailProvider {
   }
 
   async sendEmail(options: SendEmailOptions): Promise<void> {
-    const env = getEnv();
     const transporter = this.getTransporter();
     await transporter.sendMail({
-      from: env.SMTP_FROM,
+      from: this.env.SMTP_FROM,
       to: options.to,
       subject: options.subject,
       text: options.text,
@@ -50,7 +49,7 @@ export class EmailService {
   private provider: IEmailProvider;
 
   constructor(provider?: IEmailProvider) {
-    this.provider = provider || new NodemailerEmailProvider();
+    this.provider = provider || new NodemailerEmailProvider(getEnv());
   }
 
   public setProvider(provider: IEmailProvider): void {

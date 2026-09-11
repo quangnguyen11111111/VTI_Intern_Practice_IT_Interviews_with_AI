@@ -106,6 +106,8 @@ export interface GeneratePayload {
 
   systemPrompt?: SystemPromptContext;
 
+  useAsyncJobs?: boolean;
+
   jobScheduler?: import('../jobs/IJobScheduler').IJobScheduler;
 }
 
@@ -117,6 +119,8 @@ export interface SubmitPayload {
   systemPrompt?: SystemPromptContext;
 
   learningPathPrompt?: SystemPromptContext;
+
+  useAsyncJobs?: boolean;
 
   jobScheduler?: import('../jobs/IJobScheduler').IJobScheduler;
 }

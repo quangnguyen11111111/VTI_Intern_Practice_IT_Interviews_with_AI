@@ -9,8 +9,8 @@ import {
   interviewAnswersSchema,
   interviewCreateSchema,
   interviewGetSchema,
-  interviewHistoryQuerySchema,
   interviewJdCreateSchema,
+  interviewHistoryQuerySchema,
 } from '../validators/interview.validator';
 import { RateLimitMiddleware } from '../middlewares/rate-limit.middleware';
 import { InterviewQuotaMiddleware } from '../middlewares/interview-quota.middleware';
