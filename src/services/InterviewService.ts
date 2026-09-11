@@ -29,6 +29,7 @@ import {
 import Role from '../models/role.model';
 import Level from '../models/level.model';
 import Technology from '../models/technology.model';
+import { AppError } from '../utils/AppError';
 
 import {
   IJobScheduler
@@ -144,8 +145,10 @@ export class InterviewService {
       await this.interviewRepo.findById(id);
 
     if (!session) {
-      throw new Error(
-        'Interview session not found'
+      throw new AppError(
+        'Interview session not found',
+        404,
+        'INTERVIEW_NOT_FOUND'
       );
     }
 
@@ -364,8 +367,10 @@ export class InterviewService {
       );
 
     if (!sessionData.setupData) {
-      throw new Error(
-        'Setup data is missing from session'
+      throw new AppError(
+        'Setup data is missing from session',
+        500,
+        'INTERVIEW_SETUP_MISSING'
       );
     }
 

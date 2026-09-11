@@ -14,10 +14,92 @@ const placeholderSmtpValues = new Set([
 ]);
 
 const expiresInRegex = /^(\d+)(ms|s|m|h|d|w|y)?$/i;
+const byteSizeRegex = /^(\d+)(b|kb|mb)$/i;
+
+const byteSizeSchema = (name: string, defaultValue: string, maxBytes: number) =>
+  z
+    .string()
+    .trim()
+    .regex(byteSizeRegex, `${name} must use a size such as 256kb or 1mb`)
+    .optional()
+    .default(defaultValue)
+    .transform((value) => {
+      const match = byteSizeRegex.exec(value);
+      if (!match) {
+        return 0;
+      }
+
+      const amount = Number(match[1]);
+      const unit = match[2].toLowerCase();
+      const multiplier = unit === 'mb' ? 1024 * 1024 : unit === 'kb' ? 1024 : 1;
+      return amount * multiplier;
+    })
+    .refine((value) => value >= 1024 && value <= maxBytes, {
+      message: `${name} must be between 1kb and ${
+        maxBytes >= 1024 * 1024 ? `${maxBytes / (1024 * 1024)}mb` : `${maxBytes / 1024}kb`
+      }`,
+    });
+
+const corsAllowedOriginsSchema = z
+  .string()
+  .optional()
+  .default('')
+  .transform((rawValue, ctx) => {
+    const origins = rawValue
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+    const normalizedOrigins: string[] = [];
+
+    for (const origin of origins) {
+      if (origin.includes('*')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'CORS_ALLOWED_ORIGINS does not support wildcard origins',
+        });
+        continue;
+      }
+
+      try {
+        const parsed = new URL(origin);
+        const hasUnexpectedParts =
+          !['http:', 'https:'].includes(parsed.protocol) ||
+          parsed.username !== '' ||
+          parsed.password !== '' ||
+          parsed.pathname !== '/' ||
+          parsed.search !== '' ||
+          parsed.hash !== '';
+
+        if (hasUnexpectedParts) {
+          throw new Error('invalid origin');
+        }
+
+        normalizedOrigins.push(parsed.origin);
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `CORS_ALLOWED_ORIGINS contains an invalid origin: ${origin}`,
+        });
+      }
+    }
+
+    return [...new Set(normalizedOrigins)];
+  });
 
 const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    CORS_ALLOWED_ORIGINS: corsAllowedOriginsSchema,
+    JSON_BODY_LIMIT: byteSizeSchema('JSON_BODY_LIMIT', '256kb', 2 * 1024 * 1024),
+    FORM_BODY_LIMIT: byteSizeSchema('FORM_BODY_LIMIT', '64kb', 512 * 1024),
+    TRUST_PROXY_HOPS: z
+      .string()
+      .optional()
+      .default('0')
+      .transform((value) => Number(value))
+      .refine((value) => Number.isInteger(value) && value >= 0 && value <= 5, {
+        message: 'TRUST_PROXY_HOPS must be an integer between 0 and 5',
+      }),
     PORT: z
       .string()
       .optional()
@@ -266,6 +348,33 @@ const envSchema = z
     }
 
     if (data.NODE_ENV === 'production') {
+      if (data.CORS_ALLOWED_ORIGINS.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'CORS_ALLOWED_ORIGINS must contain at least one origin in production',
+          path: ['CORS_ALLOWED_ORIGINS'],
+        });
+      }
+
+      for (const origin of data.CORS_ALLOWED_ORIGINS) {
+        const parsedOrigin = new URL(origin);
+        const hostname = parsedOrigin.hostname.toLowerCase();
+        if (parsedOrigin.protocol !== 'https:') {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'CORS_ALLOWED_ORIGINS must use HTTPS in production',
+            path: ['CORS_ALLOWED_ORIGINS'],
+          });
+        }
+        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]') {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'CORS_ALLOWED_ORIGINS cannot contain loopback origins in production',
+            path: ['CORS_ALLOWED_ORIGINS'],
+          });
+        }
+      }
+
       if (placeholderSecrets.has(data.JWT_ACCESS_SECRET)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -361,6 +470,10 @@ const envSchema = z
 
 export interface AppEnv {
   NODE_ENV: 'development' | 'production' | 'test';
+  CORS_ALLOWED_ORIGINS: string[];
+  JSON_BODY_LIMIT: number;
+  FORM_BODY_LIMIT: number;
+  TRUST_PROXY_HOPS: number;
   PORT: number;
   MONGODB_URI: string;
   JWT_ACCESS_SECRET: string;

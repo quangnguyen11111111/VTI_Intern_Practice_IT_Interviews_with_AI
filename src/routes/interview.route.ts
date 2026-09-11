@@ -4,7 +4,14 @@ import { container } from '../config/di';
 import { uploadMiddleware } from '../middlewares/upload.middleware';
 import { authenticate } from '../middlewares/auth.middleware';
 import { validate } from '../middlewares/validate.middleware';
-import { interviewHistoryQuerySchema } from '../validators/interview.validator';
+import {
+  interviewActionSchema,
+  interviewAnswersSchema,
+  interviewCreateSchema,
+  interviewGetSchema,
+  interviewHistoryQuerySchema,
+  interviewJdCreateSchema,
+} from '../validators/interview.validator';
 import { RateLimitMiddleware } from '../middlewares/rate-limit.middleware';
 import { InterviewQuotaMiddleware } from '../middlewares/interview-quota.middleware';
 import { getEnv } from '../config/env';
@@ -54,12 +61,18 @@ const progressRateLimit = rateLimitMiddleware.create({
 const interviewQuotaMiddleware = container.resolve(InterviewQuotaMiddleware).create();
 
 // Routes
-router.post('/', createInterviewRateLimit, interviewController.createSession);
+router.post(
+  '/',
+  validate(interviewCreateSchema),
+  createInterviewRateLimit,
+  interviewController.createSession
+);
 
 router.post(
   '/generate-from-jd',
-  createInterviewRateLimit,
   uploadMiddleware.single('jdFile'),
+  validate(interviewJdCreateSchema),
+  createInterviewRateLimit,
   interviewController.createSessionFromJD
 );
 
@@ -72,12 +85,13 @@ router.get(
   interviewController.getHistory
 );
 
-router.get('/:id', interviewController.getSession);
-router.get('/:id/stream', interviewController.streamStatus);
+router.get('/:id', validate(interviewGetSchema), interviewController.getSession);
+router.get('/:id/stream', validate(interviewGetSchema), interviewController.streamStatus);
 
 router.post(
   '/:id/generate',
   authenticate,
+  validate(interviewActionSchema),
   aiRateLimit,
   interviewQuotaMiddleware,
   interviewController.generateQuestions
@@ -85,12 +99,14 @@ router.post(
 
 router.post(
   '/:id/progress',
+  validate(interviewAnswersSchema),
   progressRateLimit,
   interviewController.saveProgress
 );
 
 router.post(
   '/:id/submit',
+  validate(interviewAnswersSchema),
   submitRateLimit,
   interviewController.submitAnswers
 );

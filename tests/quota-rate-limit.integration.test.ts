@@ -1475,7 +1475,11 @@ describe(
 
             expect(
               second.status
-            ).toBe(400);
+            ).toBe(409);
+
+            expect(
+              second.body.code
+            ).toBe('STATE_CONFLICT');
 
             const quotaAfterRetry =
               await InterviewQuotaModel.findOne(
