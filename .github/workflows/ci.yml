@@ -57,8 +57,11 @@ jobs:
       - name: Install Client Dependencies
         run: npm ci --prefix client
 
-      - name: Test Backend
-        run: npm test
+      - name: Test Backend with Coverage
+        run: npm run test:coverage
+
+      - name: Test Client with Coverage
+        run: npm run test:coverage --prefix client
 
       - name: Lint Client
         run: npm run lint --prefix client

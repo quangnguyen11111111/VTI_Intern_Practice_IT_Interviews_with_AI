@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
@@ -17,6 +18,8 @@ import { AppError } from '../utils/AppError';
 import { SafeUser, AuthResponseData, JwtTokenPayload } from '../types/auth.type';
 import { IAuditService } from './interfaces/IAuditService';
 import { runAuditedMutation } from './audited-mutation';
+import { AuditService } from './audit.service';
+import { AuditRepository } from '../repositories/audit.repository';
 
 // Precomputed dummy bcrypt hash (cost 12) for constant-time comparison when email is not found
 const DUMMY_HASH = '$2a$12$K1r6fQ9Z2yD0kX4J8nC1Ou9z9qK8jH7gF5d4s3a2P1o0I9u8Y7t6e';
@@ -439,8 +442,14 @@ export const logoutUser = async (rawRefreshToken: string): Promise<void> => {
         sessionId: payload.sessionId,
       }).session(session);
 
-      if (!existingSession || existingSession.isRevoked) {
+      if (!existingSession) {
         throw new AppError('Phiên đăng nhập không tồn tại hoặc đã bị thu hồi', 401, 'AUTH_INVALID_REFRESH_TOKEN');
+      }
+
+      // Logout is idempotent for a refresh token that is validly bound to a
+      // known session. A repeated request must not reveal or mutate more state.
+      if (existingSession.isRevoked) {
+        return;
       }
 
       // Atomically thu hồi đúng phiên đăng nhập này
@@ -451,7 +460,7 @@ export const logoutUser = async (rawRefreshToken: string): Promise<void> => {
       );
 
       if (!updatedSession) {
-        throw new AppError('Phiên đăng nhập không tồn tại hoặc đã bị thu hồi', 401, 'AUTH_INVALID_REFRESH_TOKEN');
+        return;
       }
 
       await User.updateOne(
@@ -468,8 +477,8 @@ export const logoutUser = async (rawRefreshToken: string): Promise<void> => {
 export const lockUser = async (
   adminUserId: string,
   targetUserId: string,
-  requestId: string,
-  auditService: IAuditService,
+  requestId: string = crypto.randomUUID(),
+  auditService: IAuditService = new AuditService(new AuditRepository()),
 ): Promise<SafeUser> => {
   const updatedTargetUser = await runAuditedMutation(auditService, {
     actorId: adminUserId,

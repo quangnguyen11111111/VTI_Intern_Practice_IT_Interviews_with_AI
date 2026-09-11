@@ -54,7 +54,7 @@ export class TechnologyService implements ITechnologyService {
       actorId, resourceType: 'TECHNOLOGY', action: 'CREATE_TECHNOLOGY', requestId,
     }, async session => {
       if (data.code && await this.technologyRepository.findOne({ code: data.code })) {
-        throw new AppError('Mã Technology đã tồn tại', 409, 'TAXONOMY_CODE_EXISTS');
+        throw new AppError('Mã Technology đã tồn tại', 400, 'TAXONOMY_CODE_EXISTS');
       }
       const value = await this.technologyRepository.create(data, session);
       return { value, targetId: value._id.toString() };
@@ -67,7 +67,7 @@ export class TechnologyService implements ITechnologyService {
     }, async session => {
       if (data.code) {
         const existing = await this.technologyRepository.findOne({ code: data.code });
-        if (existing && existing._id.toString() !== id) throw new AppError('Mã Technology đã tồn tại', 409, 'TAXONOMY_CODE_EXISTS');
+        if (existing && existing._id.toString() !== id) throw new AppError('Mã Technology đã tồn tại', 400, 'TAXONOMY_CODE_EXISTS');
       }
       const value = await this.technologyRepository.update(id, data, session);
       if (!value) throw new AppError('Technology không tồn tại', 404, 'TAXONOMY_NOT_FOUND');

@@ -14,10 +14,7 @@ import { createApp } from '../src/app';
 import { getEnv } from '../src/config/env';
 import { globalErrorHandler } from '../src/middlewares/error.middleware';
 import { requestContext } from '../src/middlewares/request-context.middleware';
-import { validate } from '../src/middlewares/validate.middleware';
-import { taxonomyListSchema } from '../src/validators/taxonomy.validator';
 import { uploadMiddleware } from '../src/middlewares/upload.middleware';
-import { interviewGetSchema, interviewCreateSchema } from '../src/validators/interview.validator';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -104,11 +101,24 @@ describe('AIP-52 HTTP security controls', () => {
     expect(response.body.requestId).toMatch(uuidPattern);
   });
 
+  it('rejects an unauthenticated upload before allocating file-parser memory', async () => {
+    const app = createApp(getEnv());
+    const unsupported = await request(app)
+      .post('/api/v1/interviews/generate-from-jd')
+      .attach('jdFile', Buffer.from('plain text'), {
+        filename: 'job-description.txt',
+        contentType: 'text/plain',
+      })
+      .expect(401);
+    expect(unsupported.body).toMatchObject({ success: false, code: 'AUTH_UNAUTHORIZED' });
+  });
+
   it('rejects unsupported upload types and files above 5MB', async () => {
     // Isolate Multer limits; the production authenticated pipeline is covered by SEC-03 integration tests.
     const app = express(); app.use(requestContext);
     app.post('/api/v1/interviews/generate-from-jd', uploadMiddleware.single('jdFile'), (_req,res) => res.sendStatus(204));
     app.use(globalErrorHandler);
+
     const unsupported = await request(app)
       .post('/api/v1/interviews/generate-from-jd')
       .attach('jdFile', Buffer.from('plain text'), {
@@ -129,19 +139,10 @@ describe('AIP-52 HTTP security controls', () => {
   });
 
   it('validates params, query, and body before controllers run', async () => {
-    const app = express(); app.use(express.json()); app.use(requestContext);
-    app.get('/api/v1/interviews/:id', validate(interviewGetSchema), (_req,res) => res.sendStatus(204));
-    app.post('/api/v1/interviews', validate(interviewCreateSchema), (_req,res) => res.sendStatus(204));
-    app.use(globalErrorHandler);
-
-    const queryApp = express();
-    queryApp.set('env', 'test');
-    queryApp.use(requestContext);
-    queryApp.get('/query', validate(taxonomyListSchema), (_req, res) => res.sendStatus(204));
-    queryApp.use(globalErrorHandler);
+    const app = createApp(getEnv());
 
     const params = await request(app).get('/api/v1/interviews/not-an-object-id').expect(400);
-    const query = await request(queryApp).get('/query?limit=0&unexpected=true').expect(400);
+    const query = await request(app).get('/api/v1/roles?limit=0&unexpected=true').expect(400);
     const body = await request(app)
       .post('/api/v1/interviews')
       .send({ jobPosition: 'bad', level: 'bad', techStacks: [], unexpected: true })

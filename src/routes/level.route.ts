@@ -9,17 +9,15 @@ import {
   taxonomyListSchema,
   taxonomyUpdateSchema,
 } from '../validators/taxonomy.validator';
-import { authenticate, requireAdmin } from '../middlewares/auth.middleware';
+import { authenticate, authorize } from '../middlewares/auth.middleware';
 
 const router = Router();
 const levelController = container.resolve(LevelController);
 
-router.use(authenticate);
-
-router.get('/', validate(taxonomyListSchema), levelController.getLevels);
-router.get('/:id', validate(taxonomyGetSchema), levelController.getLevelById);
-router.post('/', requireAdmin, validate(taxonomyCreateSchema), levelController.createLevel);
-router.put('/:id', requireAdmin, validate(taxonomyUpdateSchema), levelController.updateLevel);
-router.delete('/:id', requireAdmin, validate(taxonomyDeleteSchema), levelController.deleteLevel);
+router.get('/', validate(taxonomyListSchema), authenticate, levelController.getLevels);
+router.get('/:id', validate(taxonomyGetSchema), authenticate, levelController.getLevelById);
+router.post('/', validate(taxonomyCreateSchema), authenticate, authorize('ADMIN'), levelController.createLevel);
+router.put('/:id', validate(taxonomyUpdateSchema), authenticate, authorize('ADMIN'), levelController.updateLevel);
+router.delete('/:id', validate(taxonomyDeleteSchema), authenticate, authorize('ADMIN'), levelController.deleteLevel);
 
 export default router;

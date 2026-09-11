@@ -29,6 +29,9 @@ vi.hoisted(() => {
 import app from '../src/app';
 
 import User from '../src/models/user.model';
+import Role from '../src/models/role.model';
+import Level from '../src/models/level.model';
+import Technology from '../src/models/technology.model';
 
 import AuditLog from '../src/models/audit-log.model';
 
@@ -45,6 +48,7 @@ import {
 } from '../src/utils/token';
 
 let mongoReplSet: MongoMemoryReplSet;
+let interviewSetup: { jobPosition: string; level: string; techStacks: string[] };
 
 beforeAll(async () => {
   mongoReplSet =
@@ -67,6 +71,33 @@ beforeEach(async () => {
   await AuditLog.deleteMany({});
   await SystemPromptModel.deleteMany({});
   await InterviewSessionModel.deleteMany({});
+
+  await Promise.all([
+    Role.deleteMany({}),
+    Level.deleteMany({}),
+    Technology.deleteMany({}),
+  ]);
+  const role = await Role.create({
+    code: `SYSTEM_PROMPT_ROLE_${Date.now()}`,
+    name: 'System Prompt Role',
+    status: 'ACTIVE',
+  });
+  const level = await Level.create({
+    code: `SYSTEM_PROMPT_LEVEL_${Date.now()}`,
+    name: 'System Prompt Level',
+    status: 'ACTIVE',
+  });
+  const technology = await Technology.create({
+    code: `SYSTEM_PROMPT_TECH_${Date.now()}`,
+    name: 'System Prompt Technology',
+    status: 'ACTIVE',
+    roles: [role._id],
+  });
+  interviewSetup = {
+    jobPosition: role._id.toString(),
+    level: level._id.toString(),
+    techStacks: [technology._id.toString()],
+  };
 });
 
 const createUser = async (
@@ -867,14 +898,7 @@ describe(
               'Authorization',
               `Bearer ${candidateToken}`
             )
-            .send({
-              jobPosition:
-                'Software Engineer',
-              level:
-                'Junior',
-              techStacks:
-                ['JavaScript']
-            });
+            .send(interviewSetup);
 
         expect(
           sessionRes.status
@@ -1046,14 +1070,7 @@ describe(
               'Authorization',
               `Bearer ${candidateToken}`
             )
-            .send({
-              jobPosition:
-                'Software Engineer',
-              level:
-                'Junior',
-              techStacks:
-                ['JavaScript']
-            });
+            .send(interviewSetup);
 
         expect(
           sessionRes.status
@@ -1313,14 +1330,7 @@ describe(
               'Authorization',
               `Bearer ${candidateToken}`
             )
-            .send({
-              jobPosition:
-                'Software Engineer',
-              level:
-                'Junior',
-              techStacks:
-                ['JavaScript']
-            });
+            .send(interviewSetup);
 
         expect(
           sessionRes.status

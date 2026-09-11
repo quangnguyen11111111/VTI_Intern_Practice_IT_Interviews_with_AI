@@ -813,7 +813,7 @@ describe('AIP-15 & AIP-16: Authentication & Session Management Tests', () => {
       expect(['AUTH_TOKEN_REVOKED', 'AUTH_INVALID_REFRESH_TOKEN']).toContain(refreshRes.body.code);
     });
 
-    it('8.2 Logout với token đã thu hồi hoặc không tồn tại trả về 401', async () => {
+    it('8.2 Logout lặp lại với token đã thu hồi giữ contract idempotent 200', async () => {
       const regRes = await request(app)
         .post('/api/v1/auth/register')
         .send({
@@ -834,8 +834,8 @@ describe('AIP-15 & AIP-16: Authentication & Session Management Tests', () => {
         .post('/api/v1/auth/logout')
         .send({ refreshToken });
 
-      expect(secondLogout.status).toBe(401);
-      expect(secondLogout.body.code).toBe('AUTH_INVALID_REFRESH_TOKEN');
+      expect(secondLogout.status).toBe(200);
+      expect(secondLogout.body).toMatchObject({ success: true, message: 'Đăng xuất thành công' });
     });
 
     it('8.3 Validation Logout: Gửi kèm field thừa bị từ chối 400', async () => {
@@ -1456,7 +1456,7 @@ describe('AIP-15 & AIP-16: Authentication & Session Management Tests', () => {
       }
     });
 
-    it('10.7a Tuần tự Refresh trước Logout: Refresh thành công thu hồi token cũ, logout bằng token cũ trả 401 AUTH_INVALID_REFRESH_TOKEN, replacement token vẫn refresh thành công', async () => {
+    it('10.7a Tuần tự Refresh trước Logout: logout token cũ idempotent và không thu hồi replacement token', async () => {
       const regRes = await request(app)
         .post('/api/v1/auth/register')
         .send({
@@ -1474,12 +1474,12 @@ describe('AIP-15 & AIP-16: Authentication & Session Management Tests', () => {
       expect(refreshRes.body.success).toBe(true);
       const replacementRefreshToken = refreshRes.body.data.tokens.refreshToken;
 
-      // 2. Logout bằng token cũ trả 401 AUTH_INVALID_REFRESH_TOKEN
+      // 2. Logout bằng token cũ là idempotent
       const logoutOldRes = await request(app)
         .post('/api/v1/auth/logout')
         .send({ refreshToken: initialRefreshToken });
-      expect(logoutOldRes.status).toBe(401);
-      expect(logoutOldRes.body.code).toBe('AUTH_INVALID_REFRESH_TOKEN');
+      expect(logoutOldRes.status).toBe(200);
+      expect(logoutOldRes.body.success).toBe(true);
 
       // 3. Replacement token vẫn refresh thành công
       const nextRefreshRes = await request(app)

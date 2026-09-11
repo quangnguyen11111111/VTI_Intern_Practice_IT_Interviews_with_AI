@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { getEnv } from '../src/config/env';
 
 const productionMongoUri = ['mongodb+srv://runtime_app', 'Q7mN4vL8rT2pX6cK@cluster.company.test/interviews'].join(':');
-
 const validProductionEnv = {
   NODE_ENV: 'production',
   JWT_ACCESS_SECRET: 'production-access-secret-123456789012',

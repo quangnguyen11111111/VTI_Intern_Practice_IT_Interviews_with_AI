@@ -48,7 +48,7 @@ export class LevelService implements ILevelService {
       actorId, resourceType: 'LEVEL', action: 'CREATE_LEVEL', requestId,
     }, async session => {
       if (data.code && await this.levelRepository.findOne({ code: data.code })) {
-        throw new AppError('Mã Level đã tồn tại', 409, 'TAXONOMY_CODE_EXISTS');
+        throw new AppError('Mã Level đã tồn tại', 400, 'TAXONOMY_CODE_EXISTS');
       }
       const value = await this.levelRepository.create(data, session);
       return { value, targetId: value._id.toString() };
@@ -61,7 +61,7 @@ export class LevelService implements ILevelService {
     }, async session => {
       if (data.code) {
         const existing = await this.levelRepository.findOne({ code: data.code });
-        if (existing && existing._id.toString() !== id) throw new AppError('Mã Level đã tồn tại', 409, 'TAXONOMY_CODE_EXISTS');
+        if (existing && existing._id.toString() !== id) throw new AppError('Mã Level đã tồn tại', 400, 'TAXONOMY_CODE_EXISTS');
       }
       const value = await this.levelRepository.update(id, data, session);
       if (!value) throw new AppError('Level không tồn tại', 404, 'TAXONOMY_NOT_FOUND');

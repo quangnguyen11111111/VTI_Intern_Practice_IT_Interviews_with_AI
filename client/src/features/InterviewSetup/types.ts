@@ -14,7 +14,7 @@ export interface ManualSetupFormData {
   techStacks: string[]; // Will store technology _ids
 }
 
-export interface JDUploadFormData {
+export interface JDUploadFormData extends ManualSetupFormData {
   jdFile: FileList | null;
 }
 
@@ -29,6 +29,7 @@ export interface UseInterviewSetupReturn {
   roles: BaseEntity[];
   levels: BaseEntity[];
   technologies: BaseEntity[];
+  jdTechnologies: BaseEntity[];
   onSubmitManual: (data: ManualSetupFormData) => Promise<void>;
   onSubmitJd: (data: JDUploadFormData) => Promise<void>;
 }

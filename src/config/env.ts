@@ -83,7 +83,7 @@ const corsAllowedOriginsSchema = z
       } catch {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'CORS_ALLOWED_ORIGINS contains an invalid origin',
+          message: `CORS_ALLOWED_ORIGINS contains an invalid origin: ${origin}`,
         });
       }
     }

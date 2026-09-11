@@ -9,17 +9,15 @@ import {
   technologyListSchema,
   technologyUpdateSchema,
 } from '../validators/taxonomy.validator';
-import { authenticate, requireAdmin } from '../middlewares/auth.middleware';
+import { authenticate, authorize } from '../middlewares/auth.middleware';
 
 const router = Router();
 const technologyController = container.resolve(TechnologyController);
 
-router.use(authenticate);
-
-router.get('/', validate(technologyListSchema), technologyController.getTechnologies);
-router.get('/:id', validate(taxonomyGetSchema), technologyController.getTechnologyById);
-router.post('/', requireAdmin, validate(technologyCreateSchema), technologyController.createTechnology);
-router.put('/:id', requireAdmin, validate(technologyUpdateSchema), technologyController.updateTechnology);
-router.delete('/:id', requireAdmin, validate(taxonomyDeleteSchema), technologyController.deleteTechnology);
+router.get('/', validate(technologyListSchema), authenticate, technologyController.getTechnologies);
+router.get('/:id', validate(taxonomyGetSchema), authenticate, technologyController.getTechnologyById);
+router.post('/', validate(technologyCreateSchema), authenticate, authorize('ADMIN'), technologyController.createTechnology);
+router.put('/:id', validate(technologyUpdateSchema), authenticate, authorize('ADMIN'), technologyController.updateTechnology);
+router.delete('/:id', validate(taxonomyDeleteSchema), authenticate, authorize('ADMIN'), technologyController.deleteTechnology);
 
 export default router;

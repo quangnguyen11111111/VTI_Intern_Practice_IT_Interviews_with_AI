@@ -21,6 +21,7 @@ export interface IInterviewSessionDocument
   extends Document {
   userId: string;
   status: InterviewStatus;
+  version: number;
   setupData: InterviewSetupPayload;
 
   overallScore: number | null;
@@ -62,11 +63,20 @@ const InterviewSessionSchema = new Schema<IInterviewSessionDocument>(
       default: 'PENDING',
       required: true
     },
+    version: {
+      type: Number,
+      default: 0,
+      min: 0,
+      required: true,
+    },
     setupData: {
       jobPosition: { type: String },
       level: { type: String },
       techStacks: [{ type: String }],
-      jdText: { type: String, maxlength: 10000 }
+      jdText: { type: String, maxlength: 10000 },
+      language: { type: String, enum: ['VI', 'EN'], default: 'VI' },
+      secondsPerQuestion: { type: Number, min: 60, max: 600, default: 300 },
+      strategy: { type: String, enum: ['STANDARD', 'ADAPTIVE'], default: 'STANDARD' }
     },
     terminalAt: Date,
     contentPurgeAt: Date,

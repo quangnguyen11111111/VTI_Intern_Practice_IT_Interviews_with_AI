@@ -75,8 +75,9 @@ export class EvaluateAnswersJobHandler implements IJobHandler<EvaluateAnswersDat
       const context = new InterviewContext(
         data.interviewId,
         repository,
-        undefined,
+        InterviewContext.createStateFromStatus(session.status),
         this.eventPublisher,
+        session.version,
       );
       const { CompletedState } = await import('../../interview/states/CompletedState');
       await context.changeState(new CompletedState());
@@ -94,8 +95,9 @@ export class EvaluateAnswersJobHandler implements IJobHandler<EvaluateAnswersDat
       const context = new InterviewContext(
         data.interviewId,
         repository,
-        undefined,
+        InterviewContext.createStateFromStatus(session.status),
         this.eventPublisher,
+        session.version,
       );
       const { FailedState } = await import('../../interview/states/FailedState');
       await context.changeState(new FailedState());

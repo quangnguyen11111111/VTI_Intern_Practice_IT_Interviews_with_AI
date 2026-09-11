@@ -25,9 +25,11 @@ import { DAY_MS } from '../src/services/retention-policy';
 import { generated, docx } from './helpers/ai-fixtures';
 import { getEnv } from '../src/config/env';
 import { FileParserFactory } from '../src/utils/parsers/FileParserFactory';
+import { createTaxonomyFixture } from './fixtures/aip55.factories';
 
 describe('SEC-03 ownership, async boundary and disposable retention', () => {
   let repl:MongoMemoryReplSet;
+  let taxonomy: Awaited<ReturnType<typeof createTaxonomyFixture>>;
   const repo = new MongoInterviewRepository();
   const mock = new MockAiProvider();
   beforeAll(async () => { repl=await MongoMemoryReplSet.create({replSet:{count:1}}); });
@@ -37,11 +39,18 @@ describe('SEC-03 ownership, async boundary and disposable retention', () => {
     // Never use getEnv().MONGODB_URI: every test gets a database on the newly created disposable replica set.
     await mongoose.connect(repl.getUri('aip54_'+randomUUID().replaceAll('-','')));
     await Promise.all([InterviewSessionModel.createIndexes(),InterviewQuestionModel.createIndexes(),RetentionRun.createIndexes()]);
+    taxonomy = await createTaxonomyFixture();
   });
   afterAll(async () => { await mongoose.disconnect(); await repl.stop(); });
   const user = (role:'ADMIN'|'CANDIDATE'='CANDIDATE') => User.create({email:`${randomUUID()}@example.invalid`,fullName:'Fixture',
     passwordHash:'unused-in-token-tests',role,status:'ACTIVE',credentialVersion:0,authVersion:0});
   const token = (u:any) => `Bearer ${generateAuthTokens(u._id.toString(),u.role,undefined,undefined,0).accessToken}`;
+  const validSetup = (overrides:Record<string, unknown> = {}) => ({
+    jobPosition: taxonomy.role._id.toString(),
+    level: taxonomy.level._id.toString(),
+    techStacks: [taxonomy.technology._id.toString()],
+    ...overrides,
+  });
   const fixture = async () => {
     const owner=await user(); const ownerId=owner._id.toString(); const scoped=repo.forOwner(ownerId);
     const session=await scoped.create({jdText:'OWNER_PRIVATE_JD',jobPosition:'Developer'},ownerId);
@@ -91,7 +100,7 @@ describe('SEC-03 ownership, async boundary and disposable retention', () => {
   it('stores only minimized extracted text and releases original buffer on success/failure', async () => {
     const owner=await user(); const service=new InterviewService(repo,mock);
     const buffer=docx('Build APIs\nEmail: private.person@example.invalid');
-    const session=await service.createInterviewSessionFromJD({},buffer,'application/vnd.openxmlformats-officedocument.wordprocessingml.document',owner.id);
+    const session=await service.createInterviewSessionFromJD(validSetup(),buffer,'application/vnd.openxmlformats-officedocument.wordprocessingml.document',owner.id);
     expect(buffer.every(byte=>byte===0)).toBe(true);
     expect(session.setupData.jdText).not.toContain('private.person@example.invalid');
     const invalid=Buffer.from('%PDF-malformed');
@@ -100,7 +109,7 @@ describe('SEC-03 ownership, async boundary and disposable retention', () => {
   });
   it('sync flow validates mock output, stores derived results and terminal timestamps', async () => {
     const owner=await user();const service=new InterviewService(repo,mock);
-    const session=await service.createInterviewSession({jobPosition:'Developer'},owner.id);
+    const session=await service.createInterviewSession(validSetup(),owner.id);
     const ready=await service.generateQuestions(session.id,owner.id); expect(ready.questions).toHaveLength(5);
     const result=await service.submitAnswers(session.id,ready.questions!.map(q=>({questionId:q.id,candidateAnswer:'Technical evidence'})),owner.id);
     expect(result.status).toBe('COMPLETED'); expect(result.overallScore).toBe(8); expect(result.dimensions).toHaveLength(5);
@@ -112,7 +121,7 @@ describe('SEC-03 ownership, async boundary and disposable retention', () => {
   it('queue stores IDs only and worker reads owner-scoped data through shared validation', async () => {
     const owner=await user();const enqueue=vi.fn().mockResolvedValue(undefined);
     const service=new InterviewService(repo,mock,{enqueue} as never);
-    const session=await service.createInterviewSession({jdText:'PRIVATE_JOB_CONTENT'},owner.id);
+    const session=await service.createInterviewSession(validSetup({jdText:'PRIVATE_JOB_CONTENT'}),owner.id);
     await service.generateQuestions(session.id,owner.id);
     expect(enqueue.mock.calls[0]).toEqual(['GENERATE_QUESTIONS',{interviewId:session.id,ownerId:owner.id}]);
     await new GenerateQuestionJobHandler(mock,repo).handle(enqueue.mock.calls[0][1]);
@@ -126,10 +135,10 @@ describe('SEC-03 ownership, async boundary and disposable retention', () => {
   it('does not persist malformed provider output from sync or background paths', async () => {
     const owner=await user();const provider={generateQuestions:vi.fn().mockResolvedValue({data:[{order:1,secret:'SENTINEL'}],audit:{}})};
     const service=new InterviewService(repo,provider as never);
-    const s=await service.createInterviewSession({},owner.id);
+    const s=await service.createInterviewSession(validSetup(),owner.id);
     await expect(service.generateQuestions(s.id,owner.id)).rejects.toMatchObject({code:'AI_OUTPUT_INVALID'});
     expect(await InterviewQuestionModel.countDocuments({sessionId:s.id})).toBe(0);
-    const other=await service.createInterviewSession({},owner.id); await repo.forOwner(owner.id).updateStatus(other.id,'GENERATING');
+    const other=await service.createInterviewSession(validSetup(),owner.id); await repo.forOwner(owner.id).updateStatus(other.id,'GENERATING');
     await expect(new GenerateQuestionJobHandler(provider as never,repo).handle({interviewId:other.id,ownerId:owner.id})).rejects.toMatchObject({code:'AI_OUTPUT_INVALID'});
     expect(await InterviewQuestionModel.countDocuments({sessionId:other.id})).toBe(0);
     const outsider=await user();

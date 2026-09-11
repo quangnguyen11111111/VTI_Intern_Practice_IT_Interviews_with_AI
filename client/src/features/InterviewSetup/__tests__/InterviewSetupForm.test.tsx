@@ -136,6 +136,10 @@ describe('InterviewSetupForm', () => {
     
     // Go to JD Upload tab
     await user.click(screen.getByRole('button', { name: /Tải Lên JD/i }));
+    await user.selectOptions(screen.getByLabelText(/Chức danh cho JD/i), 'r1');
+    await waitFor(() => expect(interviewApi.fetchTechnologies).toHaveBeenCalledWith('r1'));
+    await user.selectOptions(screen.getByLabelText(/Trình độ cho JD/i), 'l1');
+    await user.click(screen.getByLabelText('React'));
     
     // The input should be present (hidden)
     const fileInput = document.getElementById('jdFile') as HTMLInputElement;
@@ -166,6 +170,10 @@ describe('InterviewSetupForm', () => {
     const formDataArg = vi.mocked(interviewApi.uploadJdInterview).mock.calls[0][0];
     expect(formDataArg instanceof FormData).toBe(true);
     expect(formDataArg.get('jdFile')).toBe(file);
+    expect(formDataArg.get('jobPosition')).toBe('r1');
+    expect(formDataArg.get('level')).toBe('l1');
+    expect(formDataArg.get('techStacks')).toBe(JSON.stringify(['t1']));
+    expect(formDataArg.has('userId')).toBe(false);
     
     // Successful setup navigates to the newly created interview session.
     expect(await screen.findByText('Interview session opened')).toBeInTheDocument();

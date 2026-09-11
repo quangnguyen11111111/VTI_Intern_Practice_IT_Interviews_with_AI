@@ -48,7 +48,7 @@ export class RoleService implements IRoleService {
       actorId, resourceType: 'ROLE', action: 'CREATE_ROLE', requestId,
     }, async session => {
       if (data.code && await this.roleRepository.findOne({ code: data.code })) {
-        throw new AppError('Mã Role đã tồn tại', 409, 'TAXONOMY_CODE_EXISTS');
+        throw new AppError('Mã Role đã tồn tại', 400, 'TAXONOMY_CODE_EXISTS');
       }
       const value = await this.roleRepository.create(data, session);
       return { value, targetId: value._id.toString() };
@@ -61,7 +61,7 @@ export class RoleService implements IRoleService {
     }, async session => {
       if (data.code) {
         const existing = await this.roleRepository.findOne({ code: data.code });
-        if (existing && existing._id.toString() !== id) throw new AppError('Mã Role đã tồn tại', 409, 'TAXONOMY_CODE_EXISTS');
+        if (existing && existing._id.toString() !== id) throw new AppError('Mã Role đã tồn tại', 400, 'TAXONOMY_CODE_EXISTS');
       }
       const value = await this.roleRepository.update(id, data, session);
       if (!value) throw new AppError('Role không tồn tại', 404, 'TAXONOMY_NOT_FOUND');

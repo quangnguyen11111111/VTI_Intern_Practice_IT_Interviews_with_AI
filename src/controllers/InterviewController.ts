@@ -59,10 +59,12 @@ export class InterviewController {
    * POST /api/interviews
    */
   createSession = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const { jobPosition, level, techStacks } = req.body;
-    const userId = req.user!._id.toString();
-    const setupData = { jobPosition, level, techStacks };
-    const session = await this.interviewService.createInterviewSession(setupData, userId);
+    const { jobPosition, level, techStacks, language, secondsPerQuestion, strategy } = req.body;
+    const setupData = { jobPosition, level, techStacks, language, secondsPerQuestion, strategy };
+    const session = await this.interviewService.createInterviewSession(
+      setupData,
+      req.user!._id.toString()
+    );
     res.status(201).json({ success: true, data: session });
   });
 
@@ -74,16 +76,21 @@ export class InterviewController {
       throw new AppError('JD file is required', 400, 'JD_FILE_REQUIRED');
     }
 
-    const { jobPosition, level, techStacks } = req.body;
-    const userId = req.user!._id.toString();
-    const setupData = { jobPosition, level, techStacks };
+    const { jobPosition, level, techStacks, language, secondsPerQuestion, strategy } = req.body;
+    const setupData = { jobPosition, level, techStacks, language, secondsPerQuestion, strategy };
 
     try {
       const session = await this.interviewService.createInterviewSessionFromJD(
-        setupData, req.file.buffer, req.file.mimetype, userId
-    );
-    res.status(201).json({ success: true, data: session });
-  } finally { req.file.buffer.fill(0); req.file = undefined; }
+        setupData,
+        req.file.buffer,
+        req.file.mimetype,
+        req.user!._id.toString(),
+      );
+      res.status(201).json({ success: true, data: session });
+    } finally {
+      req.file.buffer.fill(0);
+      req.file = undefined;
+    }
   });
 
   /**

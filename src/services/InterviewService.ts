@@ -9,6 +9,9 @@ import {
 } from '../repositories/interfaces/IInterviewHistoryRepository';
 import { InterviewContext } from '../domain/interview/InterviewContext';
 import { InterviewSetupPayload, AnswerPayload, IAiProvider } from '../domain/interview/types';
+import Role from '../models/role.model';
+import Level from '../models/level.model';
+import Technology from '../models/technology.model';
 import { AppError } from '../utils/AppError';
 import { generationPrompt, evaluationPrompt, minimizeText } from './ai/prompt-security';
 import { resolveGenerationSetup } from './ai/job-security';
@@ -61,8 +64,47 @@ export class InterviewService {
   }
 
   async createInterviewSession(setupData: InterviewSetupPayload, userId: string) {
-    const safeSetupData = generationPrompt(setupData).data;
+    await this.validateSetupTaxonomy(setupData);
+    const safeSetupData = {
+      ...generationPrompt(setupData).data,
+      ...(setupData.language !== undefined ? { language: setupData.language } : {}),
+      ...(setupData.secondsPerQuestion !== undefined ? { secondsPerQuestion: setupData.secondsPerQuestion } : {}),
+      ...(setupData.strategy !== undefined ? { strategy: setupData.strategy } : {}),
+    };
     return this.interviewRepo.forOwner(userId).create(safeSetupData, userId);
+  }
+
+  private async validateSetupTaxonomy(setupData: InterviewSetupPayload): Promise<void> {
+    if (setupData.strategy === 'ADAPTIVE') {
+      throw new AppError('Chiến lược ADAPTIVE chưa được bật', 409, 'FEATURE_DISABLED');
+    }
+
+    const [role, level] = await Promise.all([
+      Role.findOne({ _id: setupData.jobPosition, status: 'ACTIVE' }).lean(),
+      Level.findOne({ _id: setupData.level, status: 'ACTIVE' }).lean(),
+    ]);
+
+    if (!role) {
+      throw new AppError('Role không tồn tại hoặc không hoạt động', 400, 'SETUP_ROLE_INVALID');
+    }
+    if (!level) {
+      throw new AppError('Level không tồn tại hoặc không hoạt động', 400, 'SETUP_LEVEL_INVALID');
+    }
+
+    const technologyIds = setupData.techStacks ?? [];
+    const activeTechnologies = await Technology.countDocuments({
+      _id: { $in: technologyIds },
+      status: 'ACTIVE',
+      roles: role._id,
+    });
+
+    if (activeTechnologies !== technologyIds.length) {
+      throw new AppError(
+        'Technology không tồn tại, không hoạt động hoặc không thuộc Role đã chọn',
+        400,
+        'SETUP_TECHNOLOGY_INVALID',
+      );
+    }
   }
 
   async createInterviewSessionFromJD(
@@ -116,6 +158,7 @@ export class InterviewService {
       repository,
       InterviewContext.createStateFromStatus(sessionData.status),
       this.eventPublisher,
+      sessionData.version,
     );
 
     await this.recordPublishedPromptVersion(repository, id, 'generation');
@@ -155,6 +198,7 @@ export class InterviewService {
       repository,
       InterviewContext.createStateFromStatus(sessionData.status),
       this.eventPublisher,
+      sessionData.version,
     );
 
     await context.submit({
@@ -176,6 +220,7 @@ export class InterviewService {
       this.interviewRepo.forOwner(userId),
       InterviewContext.createStateFromStatus(sessionData.status),
       this.eventPublisher,
+      sessionData.version,
     );
 
     await context.saveProgress({ answers });

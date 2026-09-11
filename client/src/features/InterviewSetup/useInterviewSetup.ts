@@ -20,6 +20,9 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
   const jdForm = useForm<JDUploadFormData>({
     defaultValues: {
       jdFile: null,
+      jobPosition: '',
+      level: '',
+      techStacks: [],
     }
   });
 
@@ -27,6 +30,7 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
   const [roles, setRoles] = useState<BaseEntity[]>([]);
   const [levels, setLevels] = useState<BaseEntity[]>([]);
   const [technologies, setTechnologies] = useState<BaseEntity[]>([]);
+  const [jdTechnologies, setJdTechnologies] = useState<BaseEntity[]>([]);
   const [isFetchingData, setIsFetchingData] = useState<boolean>(true);
 
   // States for form submission
@@ -83,6 +87,32 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
     fetchTechsByRole();
   }, [jobPosition, manualForm]);
 
+  // Keep JD technology choices scoped to the selected role as well.
+  const jdJobPosition = jdForm.watch('jobPosition');
+  useEffect(() => {
+    const fetchJdTechsByRole = async () => {
+      if (!jdJobPosition) {
+        setJdTechnologies([]);
+        jdForm.setValue('techStacks', []);
+        return;
+      }
+
+      try {
+        const fetchedTechs = await interviewApi.fetchTechnologies(jdJobPosition);
+        setJdTechnologies(fetchedTechs);
+        const validTechIds = new Set(fetchedTechs.map((technology) => technology._id));
+        jdForm.setValue(
+          'techStacks',
+          jdForm.getValues('techStacks').filter((id) => validTechIds.has(id))
+        );
+      } catch (err) {
+        console.error('Lỗi khi lấy công nghệ cho JD:', err);
+      }
+    };
+
+    fetchJdTechsByRole();
+  }, [jdJobPosition, jdForm]);
+
   const onSubmitManual = async (data: ManualSetupFormData) => {
     // Validate manually for techStacks since it's a custom field
     if (data.techStacks.length === 0) {
@@ -116,6 +146,11 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
       return;
     }
 
+    if (data.techStacks.length === 0) {
+      setError('Vui lòng chọn ít nhất một công nghệ (Tech Stack).');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -123,6 +158,9 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
       // Create FormData to upload file
       const formData = new FormData();
       formData.append('jdFile', data.jdFile[0]);
+      formData.append('jobPosition', data.jobPosition);
+      formData.append('level', data.level);
+      formData.append('techStacks', JSON.stringify(data.techStacks));
 
       const session = await interviewApi.uploadJdInterview(formData);
       
@@ -151,6 +189,7 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
     roles,
     levels,
     technologies,
+    jdTechnologies,
     onSubmitManual,
     onSubmitJd,
   };
