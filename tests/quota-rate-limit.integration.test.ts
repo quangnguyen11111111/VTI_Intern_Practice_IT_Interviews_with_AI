@@ -156,6 +156,20 @@ class MockJobScheduler implements IJobScheduler {
 const mockJobScheduler =
   new MockJobScheduler();
 
+const waitForQuotaRelease = async (userId: string) => {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const quota = await InterviewQuotaModel.findOne({ userId });
+
+    if (quota?.used === 0 && quota.reservations.length === 0) {
+      return quota;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+
+  return InterviewQuotaModel.findOne({ userId });
+};
+
 container.register('IJobScheduler', {
   useValue: mockJobScheduler,
 });
@@ -1558,11 +1572,8 @@ describe(
               ).toBe(500);
 
               const quota =
-                await InterviewQuotaModel.findOne(
-                  {
-                    userId:
-                      user._id.toString(),
-                  }
+                await waitForQuotaRelease(
+                  user._id.toString()
                 );
 
               expect(
