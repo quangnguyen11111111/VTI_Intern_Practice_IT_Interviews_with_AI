@@ -1,9 +1,10 @@
 import { IJobHandler } from '../IJobHandler';
-import { container, inject, injectable } from 'tsyringe';
+import { inject, injectable } from 'tsyringe';
 import { IAiProvider } from '../../interview/types';
 import { IInterviewRepository } from '../../../repositories/IInterviewRepository';
 import { InterviewContext } from '../../interview/InterviewContext';
 import { IEventPublisher } from '../../events/IEventPublisher';
+import { logger } from '../../../infrastructure/logging/logger';
 
 interface GenerateQuestionData {
   interviewId: string;
@@ -21,12 +22,12 @@ export class GenerateQuestionJobHandler implements IJobHandler<GenerateQuestionD
   ) {}
 
   async handle(data: GenerateQuestionData): Promise<void> {
-    console.log(`[Job] GENERATE_QUESTIONS running for interview: ${data.interviewId}`);
+    logger.info('job.started', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
     
     // Check if interview is still in GENERATING state (sanity check)
     const session = await this.repository.findById(data.interviewId);
     if (!session || session.status !== 'GENERATING') {
-      console.warn(`[Job] Interview ${data.interviewId} is not in GENERATING state. Aborting job.`);
+      logger.warn('job.skipped', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
       return;
     }
 
@@ -42,9 +43,9 @@ export class GenerateQuestionJobHandler implements IJobHandler<GenerateQuestionD
       const { InProgressState } = await import('../../interview/states/InProgressState');
       await context.changeState(new InProgressState());
       
-      console.log(`[Job] GENERATE_QUESTIONS completed for interview: ${data.interviewId}`);
+      logger.info('job.completed', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
     } catch (error) {
-      console.error(`[Job] GENERATE_QUESTIONS failed for interview: ${data.interviewId}`, error);
+      logger.error('job.failed', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
       
       // Transition to FAILED state
       const context = new InterviewContext(data.interviewId, this.repository, undefined, this.eventPublisher);

@@ -4,6 +4,7 @@ import { InterviewContext } from '../InterviewContext';
 import { InvalidStateTransitionException } from '../exceptions/InvalidStateTransitionException';
 import { EvaluatingState } from './EvaluatingState';
 import { GeneratePayload, SubmitPayload } from '../types';
+import { logger } from '../../../infrastructure/logging/logger';
 
 export class InProgressState implements IInterviewState {
   getName(): InterviewStatus {
@@ -15,7 +16,7 @@ export class InProgressState implements IInterviewState {
   }
 
   async submit(context: InterviewContext, payload: SubmitPayload): Promise<void> {
-    console.log(`[InProgressState] Submitting answers for interview: ${context.getInterviewId()}`);
+    logger.info('interview.submitting', { resourceType: 'interview', resourceId: context.getInterviewId() });
     
     // Chuyển sang trạng thái chấm bài
     await context.changeState(new EvaluatingState());
@@ -64,7 +65,7 @@ export class InProgressState implements IInterviewState {
   }
 
   async saveProgress(context: InterviewContext, payload: import('../types').SaveProgressPayload): Promise<void> {
-    console.log(`[InProgressState] Saving progress for interview: ${context.getInterviewId()}`);
+    logger.info('interview.saving', { resourceType: 'interview', resourceId: context.getInterviewId() });
     // Cập nhật câu trả lời vào DB mà không chuyển trạng thái
     for (const ans of payload.answers) {
       await context.getRepository().updateQuestionAnswer(ans.questionId, ans.candidateAnswer);

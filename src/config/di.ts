@@ -1,4 +1,5 @@
 import { container } from 'tsyringe';
+import { getEnv } from './env';
 import { AgendaJobScheduler } from '../infrastructure/jobs/AgendaJobScheduler';
 import { GenerateQuestionJobHandler } from '../domain/jobs/handlers/GenerateQuestionJobHandler';
 
@@ -35,7 +36,9 @@ container.register('IInterviewRepository', { useClass: MongoInterviewRepository 
 
 
 // Register AI Provider based on .env
-if (process.env.NODE_ENV === 'test') {
+const env = getEnv();
+container.register('AppEnv', { useValue: env });
+if (env.NODE_ENV === 'test') {
   container.register('IAiProvider', { useClass: MockAiProvider });
 } else {
 

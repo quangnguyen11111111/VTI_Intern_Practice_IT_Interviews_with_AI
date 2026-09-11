@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Documented scanner-only fake credential"
+paths = ['''tests/fixtures/secret-scan/allowed-placeholder\.txt''']

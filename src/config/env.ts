@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import dotenv from 'dotenv';
+
+export const isPlaceholder = (value: string): boolean =>
+  /replace[-_ ]?with|change[-_ ]?me|placeholder|default[_-]|your[-_ ]|example|dummy|^test(?:[-_ ]|$)/i.test(value) ||
+  /^(.)\1+$/.test(value);
 
 const placeholderSecrets = new Set([
   'replace-with-at-least-32-random-characters',
@@ -14,10 +19,92 @@ const placeholderSmtpValues = new Set([
 ]);
 
 const expiresInRegex = /^(\d+)(ms|s|m|h|d|w|y)?$/i;
+const byteSizeRegex = /^(\d+)(b|kb|mb)$/i;
+
+const byteSizeSchema = (name: string, defaultValue: string, maxBytes: number) =>
+  z
+    .string()
+    .trim()
+    .regex(byteSizeRegex, `${name} must use a size such as 256kb or 1mb`)
+    .optional()
+    .default(defaultValue)
+    .transform((value) => {
+      const match = byteSizeRegex.exec(value);
+      if (!match) {
+        return 0;
+      }
+
+      const amount = Number(match[1]);
+      const unit = match[2].toLowerCase();
+      const multiplier = unit === 'mb' ? 1024 * 1024 : unit === 'kb' ? 1024 : 1;
+      return amount * multiplier;
+    })
+    .refine((value) => value >= 1024 && value <= maxBytes, {
+      message: `${name} must be between 1kb and ${
+        maxBytes >= 1024 * 1024 ? `${maxBytes / (1024 * 1024)}mb` : `${maxBytes / 1024}kb`
+      }`,
+    });
+
+const corsAllowedOriginsSchema = z
+  .string()
+  .optional()
+  .default('')
+  .transform((rawValue, ctx) => {
+    const origins = rawValue
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+    const normalizedOrigins: string[] = [];
+
+    for (const origin of origins) {
+      if (origin.includes('*')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'CORS_ALLOWED_ORIGINS does not support wildcard origins',
+        });
+        continue;
+      }
+
+      try {
+        const parsed = new URL(origin);
+        const hasUnexpectedParts =
+          !['http:', 'https:'].includes(parsed.protocol) ||
+          parsed.username !== '' ||
+          parsed.password !== '' ||
+          parsed.pathname !== '/' ||
+          parsed.search !== '' ||
+          parsed.hash !== '';
+
+        if (hasUnexpectedParts) {
+          throw new Error('invalid origin');
+        }
+
+        normalizedOrigins.push(parsed.origin);
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'CORS_ALLOWED_ORIGINS contains an invalid origin',
+        });
+      }
+    }
+
+    return [...new Set(normalizedOrigins)];
+  });
 
 const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    CORS_ALLOWED_ORIGINS: corsAllowedOriginsSchema,
+    JSON_BODY_LIMIT: byteSizeSchema('JSON_BODY_LIMIT', '256kb', 2 * 1024 * 1024),
+    FORM_BODY_LIMIT: byteSizeSchema('FORM_BODY_LIMIT', '64kb', 512 * 1024),
+    TRUST_PROXY_HOPS: z
+      .string()
+      .optional()
+      .default('0')
+      .transform((value) => Number(value))
+      .refine((value) => Number.isInteger(value) && value >= 0 && value <= 5, {
+        message: 'TRUST_PROXY_HOPS must be an integer between 0 and 5',
+      }),
     PORT: z
       .string()
       .optional()
@@ -33,6 +120,7 @@ const envSchema = z
       .string()
       .min(1, 'MONGODB_URI is required')
       .default('mongodb://127.0.0.1:27017/ai_interview_practice'),
+    GEMINI_API_KEY: z.string().optional().default(''),
     JWT_ACCESS_SECRET: z
       .string()
       .min(32, 'JWT_ACCESS_SECRET must be at least 32 characters long'),
@@ -109,6 +197,59 @@ const envSchema = z
     }
 
     if (data.NODE_ENV === 'production') {
+      let mongoPassword = '';
+      try {
+        const uri = new URL(data.MONGODB_URI);
+        mongoPassword = decodeURIComponent(uri.password);
+        if (!['mongodb:', 'mongodb+srv:'].includes(uri.protocol) || !uri.username || !mongoPassword ||
+            uri.pathname === '/' || !uri.pathname || isPlaceholder(uri.username) || isPlaceholder(mongoPassword) ||
+            ['localhost', '127.0.0.1', '[::1]'].includes(uri.hostname)) throw new Error();
+      } catch {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['MONGODB_URI'],
+          message: 'MONGODB_URI must specify a production database and non-placeholder runtime credentials' });
+      }
+      const credentials: Record<string, string> = {
+        JWT_ACCESS_SECRET: data.JWT_ACCESS_SECRET, JWT_REFRESH_SECRET: data.JWT_REFRESH_SECRET,
+        PASSWORD_RESET_SECRET: data.PASSWORD_RESET_SECRET, SMTP_PASS: data.SMTP_PASS,
+        GEMINI_API_KEY: data.GEMINI_API_KEY, MONGODB_URI: mongoPassword,
+      };
+      const used = new Set<string>();
+      for (const [name, value] of Object.entries(credentials)) {
+        if (!value.trim() || isPlaceholder(value) || value !== value.trim()) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [name], message: `${name} requires a non-placeholder production secret` });
+        }
+        if (value && used.has(value)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [name], message: 'Production credentials must be different for every purpose' });
+        }
+        used.add(value);
+      }
+      if (data.CORS_ALLOWED_ORIGINS.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'CORS_ALLOWED_ORIGINS must contain at least one origin in production',
+          path: ['CORS_ALLOWED_ORIGINS'],
+        });
+      }
+
+      for (const origin of data.CORS_ALLOWED_ORIGINS) {
+        const parsedOrigin = new URL(origin);
+        const hostname = parsedOrigin.hostname.toLowerCase();
+        if (parsedOrigin.protocol !== 'https:') {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'CORS_ALLOWED_ORIGINS must use HTTPS in production',
+            path: ['CORS_ALLOWED_ORIGINS'],
+          });
+        }
+        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]') {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'CORS_ALLOWED_ORIGINS cannot contain loopback origins in production',
+            path: ['CORS_ALLOWED_ORIGINS'],
+          });
+        }
+      }
+
       if (placeholderSecrets.has(data.JWT_ACCESS_SECRET)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -194,8 +335,13 @@ const envSchema = z
 
 export interface AppEnv {
   NODE_ENV: 'development' | 'production' | 'test';
+  CORS_ALLOWED_ORIGINS: string[];
+  JSON_BODY_LIMIT: number;
+  FORM_BODY_LIMIT: number;
+  TRUST_PROXY_HOPS: number;
   PORT: number;
   MONGODB_URI: string;
+  GEMINI_API_KEY: string;
   JWT_ACCESS_SECRET: string;
   JWT_REFRESH_SECRET: string;
   JWT_ACCESS_EXPIRES_IN: string;
@@ -210,7 +356,20 @@ export interface AppEnv {
   SMTP_FROM: string;
 }
 
+let dotenvLoaded = false;
 export const getEnv = (): AppEnv => {
+  if (!dotenvLoaded && !['production', 'test'].includes(process.env.NODE_ENV ?? '')) {
+    dotenv.config({ quiet: true });
+    dotenvLoaded = true;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    const forbidden = ['MONGODB_MIGRATION_URI', 'MONGO_MIGRATION_PASSWORD', 'DEPLOY_TOKEN', 'DEPLOY_SSH_KEY',
+      'SERVER_SSH_KEY', 'SERVER_PASSWORD', 'GITHUB_TOKEN', 'GH_TOKEN', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY',
+      'AZURE_CLIENT_SECRET', 'GOOGLE_APPLICATION_CREDENTIALS'];
+    if (forbidden.some(key => Boolean(process.env[key]))) {
+      throw new Error('Environment validation failed: deploy/migration credentials must not enter the application process');
+    }
+  }
   const result = envSchema.safeParse(process.env);
   if (!result.success) {
     const errorMessages = result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');

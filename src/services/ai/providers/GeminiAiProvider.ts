@@ -1,4 +1,6 @@
-import { injectable } from 'tsyringe';
+import { inject, injectable } from 'tsyringe';
+import { AppEnv } from '../../../config/env';
+import { logger } from '../../../infrastructure/logging/logger';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { IAiProvider, InterviewSetupPayload, GeneratedQuestion, AnswerPayload, EvaluationResult, AiUsageMetadata } from '../../../domain/interview/types';
 
@@ -10,9 +12,8 @@ export class GeminiAiProvider implements IAiProvider {
   private genAI: GoogleGenerativeAI;
   private modelName = 'gemini-3.6-flash';
 
-  constructor() {
-    const apiKey = process.env.GEMINI_API_KEY || '';
-    this.genAI = new GoogleGenerativeAI(apiKey);
+  constructor(@inject('AppEnv') env: AppEnv) {
+    this.genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
   }
 
   private async retryWithBackoff<T>(operation: () => Promise<T>): Promise<T> {
@@ -22,9 +23,9 @@ export class GeminiAiProvider implements IAiProvider {
         return await operation();
       } catch (error: any) {
         attempt++;
-        console.error(`[GeminiAI] Attempt ${attempt} failed:`, error.message);
+        logger.error('ai.provider_failed', { attempt });
         if (attempt >= MAX_RETRIES) {
-          throw new Error(`[GeminiAI] Operation failed after ${MAX_RETRIES} attempts. Error: ${error.message}`);
+          throw new Error('AI_PROVIDER_UNAVAILABLE');
         }
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt));
       }
@@ -85,7 +86,7 @@ export class GeminiAiProvider implements IAiProvider {
   }
 
   async generateQuestions(setupData: InterviewSetupPayload): Promise<{ data: GeneratedQuestion[], audit: AiUsageMetadata }> {
-    console.log(`[GeminiAI] Generating questions with data:`, setupData);
+    logger.info('ai.generating');
     const model = this.genAI.getGenerativeModel({
       model: this.modelName,
       generationConfig: {
@@ -214,13 +215,13 @@ Unique Session ID: ${Date.now()}-${Math.random().toString(36).substring(2, 10)}`
         totalTokenCount: metadata?.totalTokenCount || 0,
       };
 
-      console.log(`[GeminiAI] Generated questions from domains: ${selectedDomains.join(', ')}`);
+      logger.info('ai.generated');
       return { data: parsed, audit };
     });
   }
 
   async evaluateAnswers(questions: any[], answers: AnswerPayload[]): Promise<{ data: EvaluationResult, audit: AiUsageMetadata }> {
-    console.log(`[GeminiAI] Evaluating answers...`);
+    logger.info('ai.evaluating');
     const model = this.genAI.getGenerativeModel({
       model: this.modelName,
       generationConfig: {

@@ -3,6 +3,7 @@ import { InterviewContext } from '../InterviewContext';
 import { GeneratingState } from './GeneratingState';
 import { InvalidStateTransitionException } from '../exceptions/InvalidStateTransitionException';
 import { GeneratePayload, SubmitPayload } from '../types';
+import { logger } from '../../../infrastructure/logging/logger';
 
 export class PendingState implements IInterviewState {
   getName(): InterviewStatus {
@@ -10,7 +11,7 @@ export class PendingState implements IInterviewState {
   }
 
   async generate(context: InterviewContext, payload: GeneratePayload): Promise<void> {
-    console.log(`[PendingState] Generating questions for interview: ${context.getInterviewId()}`);
+    logger.info('interview.generating', { resourceType: 'interview', resourceId: context.getInterviewId() });
     // Transition to Generating State
     await context.changeState(new GeneratingState());
     

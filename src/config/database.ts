@@ -1,18 +1,15 @@
 import mongoose from "mongoose";
+import { AppEnv } from './env';
+import { logger } from '../infrastructure/logging/logger';
 
-export const connectDatabase = async (): Promise<void> => {
+export const connectDatabase = async (env: AppEnv): Promise<void> => {
   try {
-    const mongoUri = process.env.MONGODB_URI;
-
-    if (!mongoUri) {
-      throw new Error("MONGODB_URI is not defined");
-    }
-
-    await mongoose.connect(mongoUri);
-
-    console.log("MongoDB connected successfully");
+    await mongoose.connect(env.MONGODB_URI, {
+      autoIndex: env.NODE_ENV !== 'production', autoCreate: env.NODE_ENV !== 'production',
+    });
+    logger.info('database.connected');
   } catch (error) {
-    console.error("MongoDB connection failed:", error);
-    process.exit(1);
+    logger.error('database.connection_failed');
+    throw new Error('DATABASE_CONNECTION_FAILED');
   }
 };

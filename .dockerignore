@@ -1,0 +1,27 @@
+# Default deny: only application sources and reproducible manifests enter context.
+**
+!package.json
+!package-lock.json
+!tsconfig.json
+!src/
+!src/**
+!client/
+!client/package.json
+!client/package-lock.json
+!client/tsconfig*.json
+!client/vite.config.ts
+!client/index.html
+!client/src/
+!client/src/**
+!client/public/
+!client/public/**
+**/.env*
+**/*.log
+**/logs/**
+**/coverage/**
+**/fixtures/**
+**/__tests__/**
+**/*.test.*
+**/*.spec.*
+src/seeds/**
+src/test-*.ts

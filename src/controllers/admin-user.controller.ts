@@ -60,7 +60,8 @@ export class AdminUserController {
     const user =
       await this.adminUserService.lockUser(
         id,
-        actorId
+        actorId,
+        req.requestId!,
       );
 
     return res.status(200).json({
@@ -101,7 +102,8 @@ export class AdminUserController {
     const user =
       await this.adminUserService.unlockUser(
         id,
-        actorId
+        actorId,
+        req.requestId!,
       );
 
     return res.status(200).json({

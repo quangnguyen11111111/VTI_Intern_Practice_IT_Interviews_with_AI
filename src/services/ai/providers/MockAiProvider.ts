@@ -1,10 +1,11 @@
 import { injectable } from 'tsyringe';
+import { logger } from '../../../infrastructure/logging/logger';
 import { IAiProvider, InterviewSetupPayload, GeneratedQuestion, AnswerPayload, EvaluationResult, AiUsageMetadata } from '../../../domain/interview/types';
 
 @injectable()
 export class MockAiProvider implements IAiProvider {
   async generateQuestions(setupData: InterviewSetupPayload): Promise<{ data: GeneratedQuestion[], audit: AiUsageMetadata }> {
-    console.log(`[MockAI] Generating questions with data:`, setupData);
+    logger.info('ai.generating');
     // Simulate background work...
     await new Promise<void>(resolve => setTimeout(resolve, 2000));
     
@@ -43,7 +44,7 @@ export class MockAiProvider implements IAiProvider {
   }
 
   async evaluateAnswers(questions: any[], answers: AnswerPayload[]): Promise<{ data: EvaluationResult, audit: AiUsageMetadata }> {
-    console.log(`[MockAI] Evaluating answers...`);
+    logger.info('ai.evaluating');
     await new Promise<void>(resolve => setTimeout(resolve, 2000));
     
     const evaluations = questions.map(q => {
