@@ -4,3 +4,8 @@ useDefault = true
 [[allowlists]]
 description = "Documented scanner-only fake credential"
 paths = ['''tests/fixtures/secret-scan/allowed-placeholder\.txt''']
+
+[[allowlists]]
+description = "Reviewed false positive in the AIP-53 environment validation fixture"
+commits = ['''2a08daa172157c9ff5b782ac5edd86acc57f5257''']
+paths = ['''tests/http-env\.unit\.test\.ts''']
