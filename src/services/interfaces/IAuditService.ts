@@ -2,17 +2,22 @@ import {
   AuditAction,
   AuditOutcome,
   AuditResourceType,
+  AuditTargetType
 } from '../../models/audit-log.model';
 import { ClientSession } from 'mongoose';
 
 export interface CreateAuditLogInput {
-  actorId: string;
+  actorId?: string;
   targetId?: string;
-  resourceType: AuditResourceType;
+  resourceType?: AuditResourceType;
+  actor?: string;
+  target?: string;
+  targetType?: AuditTargetType;
   action: AuditAction;
   outcome: AuditOutcome;
-  requestId: string;
+  requestId?: string;
   reason?: string;
+  version?: number;
 }
 
 export interface IAuditService {

@@ -18,18 +18,24 @@ export type AuditAction =
   | 'DELETE_LEVEL'
   | 'CREATE_TECHNOLOGY'
   | 'UPDATE_TECHNOLOGY'
-  | 'DELETE_TECHNOLOGY';
+  | 'DELETE_TECHNOLOGY'
+  | 'CREATE_PROMPT_DRAFT'
+  | 'PUBLISH_PROMPT'
+  | 'ROLLBACK_PROMPT';
 
 export type AuditResourceType = 'USER' | 'ROLE' | 'LEVEL' | 'TECHNOLOGY';
+export type AuditTargetType = 'USER' | 'SYSTEM_PROMPT';
 
 export interface IAuditLog extends Document {
   actor: mongoose.Types.ObjectId;
   target?: mongoose.Types.ObjectId;
-  resourceType: AuditResourceType;
+  targetType: AuditTargetType;
+  resourceType?: AuditResourceType;
   action: AuditAction;
   outcome: AuditOutcome;
   requestId: string;
   reason?: string;
+  version?: number;
   timestamp: Date;
 }
 
@@ -49,10 +55,18 @@ const auditLogSchema =
         immutable: true,
       },
 
+      targetType: {
+        type: String,
+        enum: ['USER', 'SYSTEM_PROMPT'],
+        default: 'USER',
+        required: true,
+        immutable: true,
+      },
+
       resourceType: {
         type: String,
         enum: ['USER', 'ROLE', 'LEVEL', 'TECHNOLOGY'],
-        required: true,
+        required: false,
         immutable: true,
       },
 
@@ -70,6 +84,9 @@ const auditLogSchema =
           'CREATE_TECHNOLOGY',
           'UPDATE_TECHNOLOGY',
           'DELETE_TECHNOLOGY',
+          'CREATE_PROMPT_DRAFT',
+          'PUBLISH_PROMPT',
+          'ROLLBACK_PROMPT',
         ],
         required: true,
         immutable: true,
@@ -79,7 +96,7 @@ const auditLogSchema =
         type: String,
         enum: [
           'SUCCESS',
-          'FAILURE',
+          'FAILURE'
         ],
         required: true,
         immutable: true,
@@ -100,6 +117,11 @@ const auditLogSchema =
         match: /^[A-Z][A-Z0-9_]{2,63}$/,
       },
 
+      version: {
+        type: Number,
+        min: 1
+      },
+
       timestamp: {
         type: Date,
         default: Date.now,
@@ -108,16 +130,17 @@ const auditLogSchema =
       },
     },
     {
-      timestamps: false,
+      timestamps: false
     }
   );
 
 auditLogSchema.index({ actor: 1 });
 auditLogSchema.index({ target: 1 });
+auditLogSchema.index({ targetType: 1, target: 1 });
+auditLogSchema.index({ resourceType: 1, target: 1, timestamp: -1 });
 auditLogSchema.index({ action: 1 });
 auditLogSchema.index({ timestamp: -1 });
 auditLogSchema.index({ requestId: 1, action: 1 }, { unique: true });
-auditLogSchema.index({ resourceType: 1, target: 1, timestamp: -1 });
 
 const AuditLog =
   mongoose.model<IAuditLog>(

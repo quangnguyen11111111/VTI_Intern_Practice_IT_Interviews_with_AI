@@ -63,7 +63,6 @@ describe('AIP-52 HTTP environment validation', () => {
     expect(() => getEnv()).toThrow(/JSON_BODY_LIMIT/);
     expect(() => getEnv()).toThrow(/TRUST_PROXY_HOPS/);
   });
-
   it('fails closed for missing, placeholder, or reused purpose-specific production secrets', () => {
     delete process.env.GEMINI_API_KEY;
     expect(() => getEnv()).toThrow(/GEMINI_API_KEY/);

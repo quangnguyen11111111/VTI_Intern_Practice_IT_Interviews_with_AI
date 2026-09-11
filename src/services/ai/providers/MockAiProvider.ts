@@ -1,50 +1,95 @@
 import { injectable } from 'tsyringe';
 import { logger } from '../../../infrastructure/logging/logger';
-import { IAiProvider, InterviewSetupPayload, GeneratedQuestion, AnswerPayload, EvaluationResult, AiUsageMetadata } from '../../../domain/interview/types';
+import {
+  IAiProvider,
+  InterviewSetupPayload,
+  GeneratedQuestion,
+  AnswerPayload,
+  EvaluationResult,
+  AiUsageMetadata,
+  SystemPromptContext,
+  LearningPathResult
+} from '../../../domain/interview/types';
 
 @injectable()
-export class MockAiProvider implements IAiProvider {
-  async generateQuestions(setupData: InterviewSetupPayload): Promise<{ data: GeneratedQuestion[], audit: AiUsageMetadata }> {
+export class MockAiProvider
+  implements IAiProvider
+{
+  async generateQuestions(
+    setupData: InterviewSetupPayload,
+    systemPrompt?: SystemPromptContext
+  ): Promise<{
+    data: GeneratedQuestion[];
+    audit: AiUsageMetadata;
+  }> {
     logger.info('ai.generating');
-    // Simulate background work...
-    await new Promise<void>(resolve => setTimeout(resolve, 2000));
-    
-    const data = [
+    void setupData;
+    void systemPrompt;
+
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, 2000)
+    );
+
+    const data: GeneratedQuestion[] = [
       {
         order: 1,
         difficulty: 'Easy',
-        content: { en: 'What is a variable?', vi: 'Biến là gì?' }
+        content: {
+          en: 'What is a variable?',
+          vi: 'Biến là gì?'
+        }
       },
       {
         order: 2,
         difficulty: 'Medium',
-        content: { en: 'Explain closure in JavaScript.', vi: 'Giải thích closure trong JavaScript.' }
+        content: {
+          en: 'Explain closure in JavaScript.',
+          vi: 'Giải thích closure trong JavaScript.'
+        }
       },
       {
         order: 3,
         difficulty: 'Medium',
-        content: { en: 'What is the difference between let and const?', vi: 'Sự khác biệt giữa let và const là gì?' }
+        content: {
+          en: 'What is the difference between let and const?',
+          vi: 'Sự khác biệt giữa let và const là gì?'
+        }
       },
       {
         order: 4,
         difficulty: 'Hard',
-        content: { en: 'Explain the event loop.', vi: 'Giải thích event loop.' }
+        content: {
+          en: 'Explain the event loop.',
+          vi: 'Giải thích event loop trong JavaScript.'
+        }
       },
       {
         order: 5,
         difficulty: 'Hard',
-        content: { en: 'How does prototypal inheritance work?', vi: 'Kế thừa nguyên mẫu (prototypal inheritance) hoạt động như thế nào?' }
+        content: {
+          en: 'How does prototypal inheritance work?',
+          vi: 'Kế thừa nguyên mẫu hoạt động như thế nào?'
+        }
       }
     ];
 
     return {
       data,
-      audit: { promptTokenCount: 10, candidatesTokenCount: 50, totalTokenCount: 60 }
+      audit: {
+        promptTokenCount: 10,
+        candidatesTokenCount: 50,
+        totalTokenCount: 60
+      }
     };
   }
 
-  async evaluateAnswers(questions: any[], answers: AnswerPayload[]): Promise<{ data: EvaluationResult, audit: AiUsageMetadata }> {
+  async evaluateAnswers(
+    questions: any[],
+    answers: AnswerPayload[],
+    systemPrompt?: SystemPromptContext
+  ): Promise<{ data: EvaluationResult, audit: AiUsageMetadata }> {
     logger.info('ai.evaluating');
+    void systemPrompt;
     await new Promise<void>(resolve => setTimeout(resolve, 2000));
     
     const evaluations = questions.map(q => {
@@ -92,7 +137,47 @@ export class MockAiProvider implements IAiProvider {
 
     return {
       data,
-      audit: { promptTokenCount: 20, candidatesTokenCount: 100, totalTokenCount: 120 }
+      audit: {
+        promptTokenCount: 20,
+        candidatesTokenCount: 100,
+        totalTokenCount: 120
+      }
+    };
+  }
+
+  async generateLearningPath(
+    questions: any[],
+    answers: AnswerPayload[],
+    evaluation: EvaluationResult,
+    systemPrompt?: SystemPromptContext
+  ): Promise<{
+    data: LearningPathResult;
+    audit: AiUsageMetadata;
+  }> {
+    logger.info('ai.evaluating');
+    void systemPrompt;
+
+    /*
+     * Keep the parameters referenced so the mock
+     * remains compatible with the real provider contract.
+     */
+    void questions;
+    void answers;
+
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, 1000)
+    );
+
+    return {
+      data: {
+        learningPath:
+          evaluation.learningPath
+      },
+      audit: {
+        promptTokenCount: 10,
+        candidatesTokenCount: 30,
+        totalTokenCount: 40
+      }
     };
   }
 }

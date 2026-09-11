@@ -25,8 +25,13 @@ export const globalErrorHandler = (
   next: NextFunction
 ): void => {
   if (res.headersSent) {
-    (res.locals.logger as Logger | undefined ?? logger).error('http.error.internal', { requestId: req.requestId });
-    res.destroy();
+    (res.locals.logger as Logger | undefined ?? logger).error('http.error.internal', {
+      requestId: req.requestId,
+      route: logRoute(req),
+      method: req.method,
+      status: res.statusCode
+    });
+    next(err);
     return;
   }
 
