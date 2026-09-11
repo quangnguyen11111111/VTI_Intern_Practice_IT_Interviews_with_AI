@@ -4,10 +4,6 @@ import { IAiProvider, InterviewSetupPayload, GeneratedQuestion, AnswerPayload, E
 @injectable()
 export class MockAiProvider implements IAiProvider {
   async generateQuestions(setupData: InterviewSetupPayload): Promise<{ data: GeneratedQuestion[], audit: AiUsageMetadata }> {
-    console.log(`[MockAI] Generating questions with data:`, setupData);
-    // Simulate background work...
-    await new Promise<void>(resolve => setTimeout(resolve, 2000));
-    
     const data = [
       {
         order: 1,
@@ -43,17 +39,11 @@ export class MockAiProvider implements IAiProvider {
   }
 
   async evaluateAnswers(questions: any[], answers: AnswerPayload[]): Promise<{ data: EvaluationResult, audit: AiUsageMetadata }> {
-    console.log(`[MockAI] Evaluating answers...`);
-    await new Promise<void>(resolve => setTimeout(resolve, 2000));
-    
-    const evaluations = questions.map(q => {
+    const evaluations = questions.map((q, index) => {
       const questionId = q._id?.toString() || q.id;
       const ans = answers.find(a => a.questionId === questionId);
       
-      let score = Math.floor(Math.random() * 10) + 1; // Random score 1-10
-      if (ans?.candidateAnswer?.includes('[System]')) {
-         score = 0;
-      }
+      const score = ans?.candidateAnswer?.trim() ? Math.max(1, 8 - index) : 0;
 
       return {
         questionId,
@@ -69,11 +59,10 @@ export class MockAiProvider implements IAiProvider {
       evaluations,
       overallScore: 8,
       dimensions: [
-          { name: "Technical Depth", score: 8, reasoning: "Good understanding of core concepts." },
-          { name: "Problem Solving", score: 7, reasoning: "Approached the problem well but missed some edge cases." },
-          { name: "System Design & Best Practices", score: 7, reasoning: "Basic understanding of architecture." },
-          { name: "Communication", score: 9, reasoning: "Explained ideas very clearly." },
-          { name: "Practical Experience", score: 6, reasoning: "Lacked some hands-on experience." }
+          { name: "TECHNICAL_ACCURACY", score: 8, reasoning: "Good understanding of core concepts." },
+          { name: "PROBLEM_SOLVING", score: 7, reasoning: "Approached the problem well but missed some edge cases." },
+          { name: "COMMUNICATION", score: 9, reasoning: "Explained ideas very clearly." },
+          { name: "PRACTICAL_APPLICATION", score: 6, reasoning: "Needs more hands-on examples." }
         ],
         learningPath: [
           { 

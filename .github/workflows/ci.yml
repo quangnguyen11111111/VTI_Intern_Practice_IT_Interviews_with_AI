@@ -23,10 +23,23 @@ jobs:
           cache: 'npm'
 
       - name: Install Root Dependencies
-        run: npm ci || npm install
+        run: npm ci
 
       - name: Install Client Dependencies
-        run: npm ci --prefix client || npm install --prefix client
+        run: npm ci --prefix client
+
+      - name: Test Backend with Coverage
+        run: npm run test:coverage
+
+      - name: Test AIP-56 Concurrency Stability
+        shell: bash
+        run: |
+          for run in {1..10}; do
+            npx vitest run tests/ai-provider.contract.test.ts tests/interview-concurrency.integration.test.ts
+          done
+
+      - name: Test Client with Coverage
+        run: npm run test:coverage --prefix client
 
       - name: Lint Client
         run: npm run lint --prefix client

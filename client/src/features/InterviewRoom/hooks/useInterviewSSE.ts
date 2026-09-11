@@ -1,63 +1,119 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { authenticatedFetch } from '../../../auth/apiClient';
+import { interviewApi } from '../../../services/api/interviewApi';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+export interface InterviewStatusEvent {
+  sessionId: string;
+  status: string;
+  version: number;
+  updatedAt?: string;
+}
+
+export const parseStatusEvent = (block: string): InterviewStatusEvent | null => {
+  const data = block
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trimStart())
+    .join('\n');
+  if (!data) return null;
+  try {
+    const parsed = JSON.parse(data) as InterviewStatusEvent;
+    return typeof parsed.status === 'string' && Number.isInteger(parsed.version) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
 
 export const useInterviewSSE = (sessionId: string) => {
-  const [sseStatus, setSseStatus] = useState<string | null>(null);
+  const [statusEvent, setStatusEvent] = useState<InterviewStatusEvent | null>(null);
   const [error, setError] = useState<Error | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const retryCountRef = useRef(0);
-  const maxRetries = 3;
+  const latestVersionRef = useRef(-1);
 
   useEffect(() => {
     if (!sessionId) return;
+    const controller = new AbortController();
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let pollingTimer: ReturnType<typeof setInterval> | undefined;
+    let retries = 0;
 
-    const connectSSE = () => {
-      const url = `${API_URL}/interviews/${sessionId}/stream`;
-      
-      const source = new EventSource(url);
-      eventSourceRef.current = source;
-
-      source.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.status) {
-            setSseStatus(data.status);
-            // reset retry count on successful message
-            retryCountRef.current = 0;
-          }
-          if (data.error) {
-            setError(new Error(data.error));
-            source.close();
-          }
-        } catch (err) {
-          console.error('Failed to parse SSE message', err);
-        }
-      };
-
-      source.onerror = (err) => {
-        console.error('SSE Error:', err);
-        source.close();
-        
-        // Manual retry logic (EventSource does this automatically, but sometimes it fails completely or we want limited retries before falling back)
-        if (retryCountRef.current < maxRetries) {
-          retryCountRef.current += 1;
-          console.log(`Retrying SSE connection... Attempt ${retryCountRef.current}`);
-          setTimeout(connectSSE, 3000);
-        } else {
-          setError(new Error('SSE connection failed after maximum retries. Falling back...'));
-        }
-      };
+    const accept = (candidate: InterviewStatusEvent) => {
+      if (candidate.version <= latestVersionRef.current) return;
+      latestVersionRef.current = candidate.version;
+      setStatusEvent(candidate);
+      setError(null);
     };
 
-    connectSSE();
-
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+    const poll = async () => {
+      try {
+        const persisted = await interviewApi.fetchInterviewSession(sessionId);
+        accept({
+          sessionId,
+          status: persisted.status,
+          version: persisted.version,
+          updatedAt: persisted.updatedAt
+        });
+      } catch {
+        setError(new Error('Không thể đồng bộ trạng thái phỏng vấn'));
       }
+    };
+
+    const startPolling = () => {
+      if (pollingTimer) return;
+      void poll();
+      pollingTimer = setInterval(() => void poll(), 5_000);
+    };
+
+    const connect = async (): Promise<void> => {
+      try {
+        const response = await authenticatedFetch(`interviews/${sessionId}/stream`, {
+          headers: {
+            Accept: 'text/event-stream',
+            ...(latestVersionRef.current >= 0
+              ? { 'Last-Event-ID': String(latestVersionRef.current) }
+              : {})
+          },
+          signal: controller.signal
+        });
+        if (!response.ok || !response.body) throw new Error('Stream unavailable');
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (!controller.signal.aborted) {
+          const { done, value } = await reader.read();
+          buffer += decoder.decode(value, { stream: !done });
+          const blocks = buffer.split(/\r?\n\r?\n/);
+          buffer = blocks.pop() ?? '';
+          blocks.forEach((block) => {
+            const parsed = parseStatusEvent(block);
+            if (parsed) accept(parsed);
+          });
+          if (done) break;
+        }
+        if (!controller.signal.aborted) throw new Error('Stream disconnected');
+      } catch {
+        if (controller.signal.aborted) return;
+        if (retries < 3) {
+          const delay = 1_000 * (2 ** retries);
+          retries += 1;
+          retryTimer = setTimeout(() => void connect(), delay);
+        } else {
+          setError(new Error('Luồng trạng thái bị ngắt; đang chuyển sang polling'));
+          startPolling();
+        }
+      }
+    };
+
+    void connect();
+    return () => {
+      controller.abort();
+      if (retryTimer) clearTimeout(retryTimer);
+      if (pollingTimer) clearInterval(pollingTimer);
     };
   }, [sessionId]);
 
-  return { sseStatus, sseError: error };
+  return {
+    sseStatus: statusEvent?.status ?? null,
+    sseVersion: statusEvent?.version ?? null,
+    sseError: error
+  };
 };

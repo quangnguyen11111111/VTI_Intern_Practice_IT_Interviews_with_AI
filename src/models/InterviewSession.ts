@@ -5,6 +5,15 @@ import { InterviewSetupPayload } from '../domain/interview/types';
 export interface IInterviewSessionDocument extends Document {
   userId: string;
   status: InterviewStatus;
+  version: number;
+  rubricVersion: number;
+  submissionVersion: number;
+  activeOperationId?: mongoose.Types.ObjectId | null;
+  failedStage?: 'GENERATION' | 'EVALUATION' | null;
+  safeErrorCode?: string | null;
+  terminalAt?: Date | null;
+  contentPurgeAt?: Date | null;
+  recordPurgeAt?: Date | null;
   setupData: InterviewSetupPayload;
   overallScore: number | null;
   dimensions: { name: string; score: number; reasoning: string }[] | null;
@@ -34,6 +43,19 @@ const InterviewSessionSchema: Schema = new Schema(
       default: 'PENDING',
       required: true
     },
+    version: { type: Number, default: 0, min: 0, required: true },
+    rubricVersion: { type: Number, default: 2, enum: [1, 2], required: true },
+    submissionVersion: { type: Number, default: 0, min: 0, required: true },
+    activeOperationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'OperationRecord',
+      default: null
+    },
+    failedStage: { type: String, enum: ['GENERATION', 'EVALUATION', null], default: null },
+    safeErrorCode: { type: String, default: null },
+    terminalAt: { type: Date, default: null },
+    contentPurgeAt: { type: Date, default: null },
+    recordPurgeAt: { type: Date, default: null },
     setupData: {
       jobPosition: { type: String },
       level: { type: String },

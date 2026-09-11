@@ -8,6 +8,7 @@ export interface InterviewQuestionEntity {
   difficulty: string;
   content: LocalizedContent;
   candidateAnswer: string | null;
+  answerVersion?: number;
   feedback: LocalizedContent | null;
   score: number | null;
   createdAt: Date;
@@ -18,6 +19,11 @@ export interface InterviewEntity {
   id: string;
   userId?: string;
   status: InterviewStatus;
+  version: number;
+  rubricVersion: number;
+  submissionVersion: number;
+  activeOperationId?: string | null;
+  safeErrorCode?: string | null;
   setupData: InterviewSetupPayload;
   questions?: InterviewQuestionEntity[];
   dimensions?: { name: string; score: number; reasoning: string }[] | null;

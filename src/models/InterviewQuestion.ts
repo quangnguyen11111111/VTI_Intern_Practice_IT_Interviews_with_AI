@@ -9,6 +9,7 @@ export interface IInterviewQuestionDocument extends Document {
     vi: string;
   };
   candidateAnswer: string | null;
+  answerVersion: number;
   feedback: {
     en: string;
     vi: string;
@@ -41,6 +42,11 @@ const InterviewQuestionSchema: Schema = new Schema(
       type: String,
       default: null
     },
+    answerVersion: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
     feedback: {
       en: { type: String },
       vi: { type: String }
@@ -54,5 +60,7 @@ const InterviewQuestionSchema: Schema = new Schema(
     timestamps: true
   }
 );
+
+InterviewQuestionSchema.index({ sessionId: 1, order: 1 }, { unique: true });
 
 export const InterviewQuestionModel = mongoose.model<IInterviewQuestionDocument>('InterviewQuestion', InterviewQuestionSchema);

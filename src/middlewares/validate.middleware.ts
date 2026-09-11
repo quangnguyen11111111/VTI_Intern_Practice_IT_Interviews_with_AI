@@ -12,6 +12,7 @@ export const validate =
         body: req.body,
         query: req.query,
         params: req.params,
+        headers: req.headers,
       });
       
       // Gán lại dữ liệu đã được Zod parse/transform (vd: ép kiểu string thành number, trim string)

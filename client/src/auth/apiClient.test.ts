@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { login, logout, request } from './apiClient';
+import { authenticatedFetch, login, logout, request } from './apiClient';
 import { setAccessToken, setRefreshToken, getAccessToken, getRefreshToken } from './session';
 import { useAuthStore } from './authStore';
 
@@ -91,5 +91,19 @@ describe('api client auth boundaries', () => {
       fieldErrors: { email: 'Email không đúng định dạng' },
       status: 400,
     });
+  });
+
+  it('authenticates streaming fetches with a header and never places the token in the URL', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 200 }));
+
+    await authenticatedFetch('interviews/session-1/stream', {
+      headers: { Accept: 'text/event-stream', 'Last-Event-ID': '7' },
+    });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).not.toContain('old');
+    expect(String(url)).not.toContain('token=');
+    expect((init?.headers as Headers).get('Authorization')).toBe('Bearer old');
+    expect((init?.headers as Headers).get('Last-Event-ID')).toBe('7');
   });
 });

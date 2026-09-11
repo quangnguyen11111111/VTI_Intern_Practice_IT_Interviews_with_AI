@@ -1,4 +1,5 @@
 import multer from 'multer';
+import { AppError } from '../utils/AppError';
 
 // Use memory storage so we don't save files to disk
 const storage = multer.memoryStorage();
@@ -18,7 +19,7 @@ export const uploadMiddleware = multer({
     if (allowedMimeTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only PDF and DOCX files are allowed.'));
+      cb(new AppError('Invalid file type. Only PDF, DOC, and DOCX files are allowed.', 415, 'UNSUPPORTED_FILE_TYPE'));
     }
   },
 });

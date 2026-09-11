@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { InterviewSetupForm } from '../InterviewSetupForm';
 import { interviewApi } from '../../../services/api/interviewApi';
 
@@ -30,6 +31,15 @@ const mockTechnologies = [
   { _id: 't2', code: 'NODE', name: 'Node.js' },
 ];
 
+const renderForm = () => render(
+  <MemoryRouter>
+    <Routes>
+      <Route path="/" element={<InterviewSetupForm />} />
+      <Route path="/interview/:sessionId" element={<div>Interview session opened</div>} />
+    </Routes>
+  </MemoryRouter>
+);
+
 describe('InterviewSetupForm', () => {
   beforeEach(() => {
     cleanup();
@@ -44,7 +54,7 @@ describe('InterviewSetupForm', () => {
   });
 
   it('renders loading state initially and then displays the manual setup tab by default', async () => {
-    render(<InterviewSetupForm />);
+    renderForm();
     
     // Initially shows loading state
     expect(screen.getByText('Đang tải cấu hình hệ thống...')).toBeInTheDocument();
@@ -69,7 +79,7 @@ describe('InterviewSetupForm', () => {
 
   it('switches to JD Upload tab when clicking the tab button', async () => {
     const user = userEvent.setup();
-    render(<InterviewSetupForm />);
+    renderForm();
     
     await waitFor(() => {
       expect(screen.queryByText('Đang tải cấu hình hệ thống...')).not.toBeInTheDocument();
@@ -89,7 +99,7 @@ describe('InterviewSetupForm', () => {
 
   it('validates manual setup form fields', async () => {
     const user = userEvent.setup();
-    render(<InterviewSetupForm />);
+    renderForm();
     
     await waitFor(() => {
       expect(screen.queryByText('Đang tải cấu hình hệ thống...')).not.toBeInTheDocument();
@@ -114,7 +124,7 @@ describe('InterviewSetupForm', () => {
 
   it('handles JD Upload file selection and submission', async () => {
     const user = userEvent.setup();
-    render(<InterviewSetupForm />);
+    renderForm();
     
     await waitFor(() => {
       expect(screen.queryByText('Đang tải cấu hình hệ thống...')).not.toBeInTheDocument();
@@ -153,7 +163,7 @@ describe('InterviewSetupForm', () => {
     expect(formDataArg instanceof FormData).toBe(true);
     expect(formDataArg.get('jdFile')).toBe(file);
     
-    // Assert success message appears
-    expect(await screen.findByText(/Tải lên JD thành công/i)).toBeInTheDocument();
+    // Successful setup navigates to the newly-created interview session.
+    expect(await screen.findByText('Interview session opened')).toBeInTheDocument();
   });
 });

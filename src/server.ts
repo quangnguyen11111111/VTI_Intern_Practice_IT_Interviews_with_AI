@@ -11,6 +11,7 @@ import { IJobScheduler } from "./domain/jobs/IJobScheduler";
 import { GenerateQuestionJobHandler } from "./domain/jobs/handlers/GenerateQuestionJobHandler";
 import { EvaluateAnswersJobHandler } from "./domain/jobs/handlers/EvaluateAnswersJobHandler";
 import { AgendaJobScheduler } from "./infrastructure/jobs/AgendaJobScheduler";
+import { OutboxDispatcher } from "./infrastructure/jobs/OutboxDispatcher";
 
 const env = getEnv();
 
@@ -28,6 +29,8 @@ const startServer = async () => {
     
     // Start Queue
     await jobScheduler.start();
+    const outboxDispatcher = container.resolve(OutboxDispatcher);
+    await outboxDispatcher.start();
 
     // Start Server
     const server = app.listen(env.PORT, () => {
@@ -40,6 +43,7 @@ const startServer = async () => {
       server.close(() => {
         console.log('Closed out remaining connections');
       });
+      outboxDispatcher.stop();
       await jobScheduler.stop();
       process.exit(0);
     };

@@ -1,8 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { request } from '../../auth/apiClient';
-import { getAccessToken } from '../../auth/session';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+import { authenticatedFetch, request } from '../../auth/apiClient';
 
 export interface BaseEntity {
   _id: string;
@@ -14,7 +11,6 @@ export interface InterviewSetupPayload {
   jobPosition: string; // role ID
   level: string; // level ID
   techStacks: string[]; // array of technology IDs
-  userId?: string;
 }
 
 export interface InterviewSessionData {
@@ -26,6 +22,8 @@ export interface InterviewSessionData {
  
 const extractArrayData = (json: any, key: string): BaseEntity[] => {
   if (Array.isArray(json)) return json;
+  if (Array.isArray(json?.[key])) return json[key];
+  if (Array.isArray(json?.items)) return json.items;
   if (json?.data) {
     if (Array.isArray(json.data)) return json.data;
     if (json.data[key] && Array.isArray(json.data[key])) return json.data[key];
@@ -34,14 +32,22 @@ const extractArrayData = (json: any, key: string): BaseEntity[] => {
   return [];
 };
 
+const operationKey = (sessionId: string, action: 'generate' | 'submit'): string => {
+  const storageKey = `interview_${sessionId}_${action}_idempotency_key`;
+  const existing = sessionStorage.getItem(storageKey);
+  if (existing) return existing;
+  const created = crypto.randomUUID();
+  sessionStorage.setItem(storageKey, created);
+  return created;
+};
+
 export const interviewApi = {
   /**
    * Fetch all Roles (Job Positions)
    */
   fetchRoles: async (): Promise<BaseEntity[]> => {
     try {
-      const response = await fetch(`${API_URL}/roles?limit=1000`);
-      const json = await response.json();
+      const json = await request<any>('roles?limit=1000');
       return extractArrayData(json, 'roles');
     } catch (error) {
       console.error('Failed to fetch roles:', error);
@@ -54,8 +60,7 @@ export const interviewApi = {
    */
   fetchLevels: async (): Promise<BaseEntity[]> => {
     try {
-      const response = await fetch(`${API_URL}/levels?limit=1000`);
-      const json = await response.json();
+      const json = await request<any>('levels?limit=1000');
       return extractArrayData(json, 'levels');
     } catch (error) {
       console.error('Failed to fetch levels:', error);
@@ -68,11 +73,10 @@ export const interviewApi = {
    */
   fetchTechnologies: async (roleId?: string): Promise<BaseEntity[]> => {
     try {
-      const url = roleId 
-        ? `${API_URL}/technologies?limit=1000&roleId=${roleId}` 
-        : `${API_URL}/technologies?limit=1000`;
-      const response = await fetch(url);
-      const json = await response.json();
+      const path = roleId
+        ? `technologies?limit=1000&roleId=${encodeURIComponent(roleId)}`
+        : 'technologies?limit=1000';
+      const json = await request<any>(path);
       return extractArrayData(json, 'technologies');
     } catch (error) {
       console.error('Failed to fetch technologies:', error);
@@ -84,7 +88,6 @@ export const interviewApi = {
    * Submit interview setup configuration
    */
   setupInterview: async (payload: InterviewSetupPayload): Promise<InterviewSessionData> => {
-    console.log('Sending API Request with payload:', payload);
     return request<InterviewSessionData>('interviews', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -95,16 +98,8 @@ export const interviewApi = {
    * Upload JD file for interview setup
    */
   uploadJdInterview: async (payload: FormData): Promise<InterviewSessionData> => {
-    console.log('Sending JD Upload Request');
-    const accessToken = getAccessToken();
-    const headers = new Headers();
-    if (accessToken) {
-      headers.set('Authorization', `Bearer ${accessToken}`);
-    }
-    
-    const response = await fetch(`${API_URL}/interviews/generate-from-jd`, {
+    const response = await authenticatedFetch('interviews/generate-from-jd', {
       method: 'POST',
-      headers,
       body: payload,
     });
     
@@ -129,10 +124,10 @@ export const interviewApi = {
   /**
    * Save interview progress
    */
-  saveInterviewProgress: async (sessionId: string, answers: any[]): Promise<any> => {
+  saveInterviewProgress: async (sessionId: string, expectedVersion: number, answers: any[]): Promise<any> => {
     return request<any>(`interviews/${sessionId}/progress`, {
       method: 'POST',
-      body: JSON.stringify({ answers }),
+      body: JSON.stringify({ expectedVersion, answers }),
     });
   },
 
@@ -142,16 +137,18 @@ export const interviewApi = {
   generateQuestions: async (sessionId: string): Promise<any> => {
     return request<any>(`interviews/${sessionId}/generate`, {
       method: 'POST',
+      headers: { 'Idempotency-Key': operationKey(sessionId, 'generate') },
     });
   },
 
   /**
    * Submit interview answers
    */
-  submitInterview: async (sessionId: string, answers: any[]): Promise<any> => {
+  submitInterview: async (sessionId: string, expectedVersion: number, answers: any[]): Promise<any> => {
     return request<any>(`interviews/${sessionId}/submit`, {
       method: 'POST',
-      body: JSON.stringify({ answers }),
+      headers: { 'Idempotency-Key': operationKey(sessionId, 'submit') },
+      body: JSON.stringify({ expectedVersion, answers }),
     });
   },
 };

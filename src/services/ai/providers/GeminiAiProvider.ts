@@ -1,9 +1,7 @@
 import { injectable } from 'tsyringe';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { IAiProvider, InterviewSetupPayload, GeneratedQuestion, AnswerPayload, EvaluationResult, AiUsageMetadata } from '../../../domain/interview/types';
-
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 2000;
+import { validateEvaluationResult, validateGeneratedQuestions } from '../output-validation';
 
 @injectable()
 export class GeminiAiProvider implements IAiProvider {
@@ -16,20 +14,8 @@ export class GeminiAiProvider implements IAiProvider {
   }
 
   private async retryWithBackoff<T>(operation: () => Promise<T>): Promise<T> {
-    let attempt = 0;
-    while (attempt < MAX_RETRIES) {
-      try {
-        return await operation();
-      } catch (error: any) {
-        attempt++;
-        console.error(`[GeminiAI] Attempt ${attempt} failed:`, error.message);
-        if (attempt >= MAX_RETRIES) {
-          throw new Error(`[GeminiAI] Operation failed after ${MAX_RETRIES} attempts. Error: ${error.message}`);
-        }
-        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt));
-      }
-    }
-    throw new Error('Unreachable');
+    // Retry ownership belongs to the durable operation worker so attempts survive restarts.
+    return operation();
   }
 
   /**
@@ -85,7 +71,6 @@ export class GeminiAiProvider implements IAiProvider {
   }
 
   async generateQuestions(setupData: InterviewSetupPayload): Promise<{ data: GeneratedQuestion[], audit: AiUsageMetadata }> {
-    console.log(`[GeminiAI] Generating questions with data:`, setupData);
     const model = this.genAI.getGenerativeModel({
       model: this.modelName,
       generationConfig: {
@@ -201,11 +186,7 @@ Unique Session ID: ${Date.now()}-${Math.random().toString(36).substring(2, 10)}`
       const result = await model.generateContent(prompt);
       const text = result.response.text();
       const cleanText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
-      const parsed: GeneratedQuestion[] = JSON.parse(cleanText);
-
-      if (!Array.isArray(parsed) || parsed.length !== 5) {
-        throw new Error(`AI Validation Error: Expected exactly 5 questions, got ${parsed?.length || 0}`);
-      }
+      const parsed = validateGeneratedQuestions(JSON.parse(cleanText));
 
       const metadata = result.response.usageMetadata;
       const audit: AiUsageMetadata = {
@@ -214,13 +195,11 @@ Unique Session ID: ${Date.now()}-${Math.random().toString(36).substring(2, 10)}`
         totalTokenCount: metadata?.totalTokenCount || 0,
       };
 
-      console.log(`[GeminiAI] Generated questions from domains: ${selectedDomains.join(', ')}`);
       return { data: parsed, audit };
     });
   }
 
   async evaluateAnswers(questions: any[], answers: AnswerPayload[]): Promise<{ data: EvaluationResult, audit: AiUsageMetadata }> {
-    console.log(`[GeminiAI] Evaluating answers...`);
     const model = this.genAI.getGenerativeModel({
       model: this.modelName,
       generationConfig: {
@@ -280,7 +259,7 @@ Unique Session ID: ${Date.now()}-${Math.random().toString(36).substring(2, 10)}`
               }
             }
           },
-          required: ["evaluations", "overallScore", "learningPath"]
+          required: ["evaluations", "overallScore", "dimensions", "learningPath"]
         }
       }
     });
@@ -300,7 +279,7 @@ You will be given a set of questions and the candidate's answers.
 
 YOUR TASKS:
 1. Provide constructive, bilingual (en, vi) feedback for EACH question and score it from 0 to 10.
-2. Evaluate the candidate overall across exactly 5 standard dimensions: "Technical Depth", "Problem Solving", "System Design & Best Practices", "Communication", "Practical Experience". Give each a score (0-10) and brief reasoning.
+2. Evaluate the candidate overall across exactly 4 canonical dimensions: "TECHNICAL_ACCURACY", "PROBLEM_SOLVING", "COMMUNICATION", "PRACTICAL_APPLICATION". Give each a score (0-10) and brief reasoning.
 3. Provide an overall score (0-10).
 4. Provide a personalized learning path with topics and suggestions (both bilingual en/vi) based on the candidate's weaknesses. Priorities should be "High", "Medium", or "Low".
 
@@ -323,17 +302,16 @@ Task 1: Evaluate EACH answer on the 0-10 scale STRICTLY using the EVALUATION RUB
 Task 2: Provide an overallScore (integer 0-10) reflecting their overall interview performance.
 Task 3: Based on their overall performance and weaknesses, provide a structured learning path with topics, priority (High/Medium/Low), and actionable suggestions.
 
-Return a single JSON object containing "evaluations", "overallScore", and "learningPath".`;
+Return a single JSON object containing "evaluations", "overallScore", "dimensions", and "learningPath".`;
 
     return await this.retryWithBackoff(async () => {
       const result = await model.generateContent(prompt);
       const text = result.response.text();
       const cleanText = text.replace(/^```json/gi, '').replace(/```$/gi, '').trim();
-      const parsed: EvaluationResult = JSON.parse(cleanText);
-
-      if (!parsed.evaluations || !Array.isArray(parsed.evaluations) || parsed.evaluations.length !== answers.length) {
-        throw new Error(`AI Validation Error: Expected ${answers.length} evaluations, got ${parsed.evaluations?.length || 0}`);
-      }
+      const parsed = validateEvaluationResult(
+        JSON.parse(cleanText),
+        questions.map((question) => question._id?.toString() || question.id)
+      );
 
       const metadata = result.response.usageMetadata;
       const audit: AiUsageMetadata = {

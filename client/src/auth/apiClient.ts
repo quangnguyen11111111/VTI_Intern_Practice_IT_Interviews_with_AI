@@ -72,6 +72,24 @@ export const refreshSession = () => {
   return refreshPromise;
 };
 
+export const authenticatedFetch = async (
+  path: string,
+  init: RequestInit = {},
+  canRetry = true
+): Promise<Response> => {
+  const headers = new Headers(init.headers);
+  const accessToken = getAccessToken();
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+  const response = await fetch(endpoint(path), { ...init, headers });
+
+  if (response.status === 401 && canRetry) {
+    await refreshSession();
+    return authenticatedFetch(path, init, false);
+  }
+  if (response.status === 401 && !canRetry) invalidateSession();
+  return response;
+};
+
 export const request = async <T>(path: string, init: RequestInit = {}, canRetry = true): Promise<T> => {
   const normalizedPath = normalizePath(path);
   const method = (init.method ?? 'GET').toUpperCase();

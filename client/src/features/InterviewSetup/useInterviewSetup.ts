@@ -4,12 +4,10 @@ import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { interviewApi, type BaseEntity } from '../../services/api/interviewApi';
 import { SetupMode, type ManualSetupFormData, type JDUploadFormData, type UseInterviewSetupReturn } from './types';
-import { useAuthStore } from '../../auth/authStore';
 
 export const useInterviewSetup = (): UseInterviewSetupReturn => {
   const navigate = useNavigate();
   const [activeMode, setActiveMode] = useState<SetupMode>(SetupMode.MANUAL);
-  const { user } = useAuthStore();
 
   const manualForm = useForm<ManualSetupFormData>({
     defaultValues: {
@@ -96,8 +94,7 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
     setError(null);
 
     try {
-      const payload = { ...data, userId: user?.id };
-      const session = await interviewApi.setupInterview(payload);
+      const session = await interviewApi.setupInterview(data);
       
       const id = (session as any)._id || (session as any).id;
       if (id) {
@@ -126,9 +123,6 @@ export const useInterviewSetup = (): UseInterviewSetupReturn => {
       // Create FormData to upload file
       const formData = new FormData();
       formData.append('jdFile', data.jdFile[0]);
-      if (user?.id) {
-        formData.append('userId', user.id);
-      }
 
       const session = await interviewApi.uploadJdInterview(formData);
       

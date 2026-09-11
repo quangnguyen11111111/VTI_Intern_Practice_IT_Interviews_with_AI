@@ -27,10 +27,17 @@ export const InterviewRoom: React.FC = () => {
     handleAnswerChange,
     totalQuestions,
     answeredCount,
-    refetch
+    refetch,
+    updateVersion
   } = useInterviewSession(sessionId || '');
 
-  const { isSaving, saveError, forceSave } = useAutosave(sessionId || '', answers, 1500);
+  const { isSaving, saveError, forceSave } = useAutosave(
+    sessionId || '',
+    answers,
+    session?.version,
+    updateVersion,
+    1500
+  );
 
   // Enable F5 protection
   useBeforeUnload(true);
@@ -50,6 +57,14 @@ export const InterviewRoom: React.FC = () => {
   })();
 
   const submitRef = useRef<((isAutoSubmit?: boolean) => Promise<void>) | null>(null);
+  const submitInFlightRef = useRef<Promise<void> | null>(null);
+  const submissionSnapshotRef = useRef<{
+    expectedVersion: number;
+    answers: Array<
+      | { questionId: string; state: 'ANSWERED'; candidateAnswer: string }
+      | { questionId: string; state: 'SKIPPED' }
+    >;
+  } | null>(null);
   // Timer: 20 minutes (1200 seconds)
   const { formattedTime, progressRatio, stopTimer } = useInterviewTimer(1200, session?.createdAt || null, async () => {
     // Auto-submit when time is up
@@ -57,6 +72,7 @@ export const InterviewRoom: React.FC = () => {
   });
 
   const handleSubmit = useCallback(async (isAutoSubmit = false) => {
+    if (submitInFlightRef.current) return submitInFlightRef.current;
     if (!isAutoSubmit && session?.questions) {
       const unansweredIndex = session.questions.findIndex((_, idx) => !answeredIndices.has(idx));
       
@@ -67,18 +83,37 @@ export const InterviewRoom: React.FC = () => {
       }
     }
 
-    stopTimer();
-    try {
-      await forceSave();
-      
-      // Submit to backend (this will set state to EVALUATING and queue a job)
-      await interviewApi.submitInterview(sessionId || "", answers);
-      
-      // Let the page reload so useInterviewSession handles the EVALUATING polling state
-      refetch();
-    } catch {
-      alert("C� l?i x?y ra khi n?p b�i. Vui l�ng th? l?i.");
-    }
+    const run = async () => {
+      stopTimer();
+      try {
+        if (!submissionSnapshotRef.current) {
+          const expectedVersion = await forceSave();
+          const submittedAnswers = (session?.questions ?? []).map((question) => {
+            const questionId = question.id || question._id || '';
+            const candidateAnswer = answers.find((answer) => answer.questionId === questionId)
+              ?.candidateAnswer.trim();
+            return candidateAnswer
+              ? { questionId, state: 'ANSWERED', candidateAnswer }
+              : { questionId, state: 'SKIPPED' };
+          }) as NonNullable<typeof submissionSnapshotRef.current>['answers'];
+          submissionSnapshotRef.current = { expectedVersion, answers: submittedAnswers };
+        }
+        const snapshot = submissionSnapshotRef.current;
+        if (!snapshot) throw new Error('Submission snapshot is unavailable');
+        await interviewApi.submitInterview(
+          sessionId || '',
+          snapshot.expectedVersion,
+          snapshot.answers
+        );
+        refetch();
+      } catch {
+        alert("C� l?i x?y ra khi n?p b�i. Vui l�ng th? l?i.");
+      }
+    };
+    submitInFlightRef.current = run().finally(() => {
+      submitInFlightRef.current = null;
+    });
+    return submitInFlightRef.current;
   }, [session, answeredIndices, stopTimer, forceSave, sessionId, answers, refetch, setCurrentQuestionIndex]);
 
   useEffect(() => {
