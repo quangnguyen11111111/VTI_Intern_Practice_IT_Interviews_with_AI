@@ -1,4 +1,4 @@
-import { injectable } from 'tsyringe';
+import { inject, injectable } from 'tsyringe';
 
 import {
   GoogleGenerativeAI,
@@ -16,6 +16,8 @@ import {
   LearningPathResult
 } from '../../../domain/interview/types';
 import { PromptTemplate } from '../../../utils/PromptTemplate';
+import { AppEnv } from '../../../config/env';
+import { logger } from '../../../infrastructure/logging/logger';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
@@ -52,7 +54,7 @@ YOUR TASKS:
 Input Data:
 {{QAndA}}
 
-CRITICAL REQUIREMENT: First, detect the language the candidate used in their "candidateAnswer". 
+CRITICAL REQUIREMENT: First, detect the language the candidate used in their "candidateAnswer".
 - If the candidate answered primarily in English, write the "feedback.en" addressing them directly in English, and "feedback.vi" as a translation.
 - If the candidate answered primarily in Vietnamese, write the "feedback.vi" addressing them directly in Vietnamese, and "feedback.en" as a translation.
 
@@ -99,12 +101,8 @@ export class GeminiAiProvider
 
   private modelName = 'gemini-3.6-flash';
 
-  constructor() {
-    const apiKey =
-      process.env.GEMINI_API_KEY || '';
-
-    this.genAI =
-      new GoogleGenerativeAI(apiKey);
+  constructor(@inject('AppEnv') env: AppEnv) {
+    this.genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
   }
 
   private async retryWithBackoff<T>(
@@ -118,15 +116,10 @@ export class GeminiAiProvider
       } catch (error: any) {
         attempt++;
 
-        console.error(
-          `[GeminiAI] Attempt ${attempt} failed:`,
-          error.message
-        );
+        logger.error('ai.provider_failed', { attempt });
 
         if (attempt >= MAX_RETRIES) {
-          throw new Error(
-            `[GeminiAI] Operation failed after ${MAX_RETRIES} attempts. Error: ${error.message}`
-          );
+          throw new Error('AI_PROVIDER_UNAVAILABLE');
         }
 
         await new Promise<void>(
@@ -160,10 +153,7 @@ export class GeminiAiProvider
     data: GeneratedQuestion[];
     audit: AiUsageMetadata;
   }> {
-    console.log(
-      `[GeminiAI] Generating questions with data:`,
-      setupData
-    );
+    logger.info('ai.generating');
 
     const model =
       this.genAI.getGenerativeModel({
@@ -255,26 +245,26 @@ export class GeminiAiProvider
         allDomains,
         5
       );
-      
+
     // Calculate template variables
     const positionText = setupData.jobPosition ? `a **${setupData.jobPosition}** position` : 'a position';
     const levelText = setupData.level ? ` at the **${setupData.level}** level` : '';
     const techStacksText = setupData.techStacks && setupData.techStacks.length > 0
       ? `\nThe candidate's tech stacks are: **${setupData.techStacks.join(', ')}**.`
       : '';
-      
-    const jdContext = setupData.jdText 
+
+    const jdContext = setupData.jdText
       ? `Here is the Job Description (JD) for the role:\n---\n${setupData.jdText}\n---`
       : '';
-      
+
     const taskContext = setupData.jdText
       ? `, strictly tailored to the requirements, skills, and context found in the JD above`
       : ``;
-      
+
     const categoryDescription = setupData.jdText
       ? `the skill/domain from the JD`
       : `the domain name`;
-      
+
     let designRules = '';
     if (setupData.jdText) {
       designRules = `1. **JD Alignment**: Each question MUST target a specific skill, responsibility, or technology mentioned in the JD. The category should describe the specific skill from the JD being tested.`;
@@ -286,11 +276,11 @@ export class GeminiAiProvider
    - Q4: ${selectedDomains[3]}
    - Q5: ${selectedDomains[4]}`;
     }
-    
+
     // Level guidance map
     let levelGuidance = `LEVEL GUIDANCE (General / Unknown Level):\n- Difficulty distribution: 2 Easy + 2 Medium + 1 Hard.\n- Tone & Expectation: Assess core knowledge and some practical problem-solving.\n- Depth: Ensure foundational concepts are strong before moving to complex scenarios.\n- Make sure to keep the questions balanced.`;
     const normalizedLevel = (setupData.level || '').toLowerCase();
-    
+
     if (setupData.jdText) {
       levelGuidance = `LEVEL GUIDANCE (From JD):\n- Depth and difficulty: Base the technical depth and difficulty of questions entirely on the context and requirements stated in the Job Description.\n- Focus: Ask practical questions that evaluate the candidate's ability to perform the exact responsibilities mentioned.`;
     } else if (normalizedLevel.includes('intern') || normalizedLevel.includes('fresher')) {
@@ -304,7 +294,7 @@ export class GeminiAiProvider
     }
 
     const sessionId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-    
+
     // Inject variables into prompt template
     const templateContent = systemPrompt?.content || FALLBACK_GENERATION_PROMPT;
     const finalPrompt = PromptTemplate.injectVariables(templateContent, {
@@ -318,12 +308,6 @@ export class GeminiAiProvider
       categoryDescription,
       sessionId
     });
-
-    if (systemPrompt) {
-      console.log(
-        `[GeminiAI] Using generation prompt version ${systemPrompt.version}`
-      );
-    }
 
     return this.retryWithBackoff(
       async () => {
@@ -379,9 +363,7 @@ export class GeminiAiProvider
             0
         };
 
-        console.log(
-          `[GeminiAI] Generated questions from domains: ${selectedDomains.join(', ')}`
-        );
+        logger.info('ai.generated');
 
         return {
           data: parsed,
@@ -399,9 +381,7 @@ export class GeminiAiProvider
     data: EvaluationResult;
     audit: AiUsageMetadata;
   }> {
-    console.log(
-      `[GeminiAI] Evaluating answers...`
-    );
+    logger.info('ai.evaluating');
 
     const model =
       this.genAI.getGenerativeModel({
@@ -475,12 +455,12 @@ export class GeminiAiProvider
                 items: {
                   type: SchemaType.OBJECT,
                   properties: {
-                    topic: { 
+                    topic: {
                       type: SchemaType.OBJECT,
                       properties: { en: { type: SchemaType.STRING }, vi: { type: SchemaType.STRING } }
                     },
                     priority: { type: SchemaType.STRING },
-                    suggestion: { 
+                    suggestion: {
                       type: SchemaType.OBJECT,
                       properties: { en: { type: SchemaType.STRING }, vi: { type: SchemaType.STRING } }
                     }
@@ -504,18 +484,12 @@ export class GeminiAiProvider
         candidateAnswer: ans?.candidateAnswer
       };
     });
-    
+
     // Inject variables into prompt template
     const templateContent = systemPrompt?.content || FALLBACK_EVALUATION_PROMPT;
     const finalPrompt = PromptTemplate.injectVariables(templateContent, {
       QAndA
     });
-
-    if (systemPrompt) {
-      console.log(
-        `[GeminiAI] Using evaluation prompt version ${systemPrompt.version}`
-      );
-    }
 
     return this.retryWithBackoff(
       async () => {
@@ -592,9 +566,7 @@ export class GeminiAiProvider
     data: LearningPathResult;
     audit: AiUsageMetadata;
   }> {
-    console.log(
-      '[GeminiAI] Generating learning path...'
-    );
+    logger.info('ai.evaluating');
 
     const model =
       this.genAI.getGenerativeModel({
@@ -649,12 +621,6 @@ export class GeminiAiProvider
       answers,
       evaluation
     });
-
-    if (systemPrompt) {
-      console.log(
-        `[GeminiAI] Using learning-path prompt version ${systemPrompt.version}`
-      );
-    }
 
     return this.retryWithBackoff(
       async () => {

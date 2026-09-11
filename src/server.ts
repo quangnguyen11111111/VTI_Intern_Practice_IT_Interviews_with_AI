@@ -1,4 +1,4 @@
-import "dotenv/config"; // Load env vars immediately
+import { logger } from './infrastructure/logging/logger';
 import "reflect-metadata";
 import "./config/di";
 
@@ -17,7 +17,7 @@ const env = getEnv();
 const startServer = async () => {
   try {
     // MongoDB
-    await connectDatabase();
+    await connectDatabase(env);
 
     // Start Agenda Background Jobs
     const jobScheduler = container.resolve<AgendaJobScheduler>('IJobScheduler');
@@ -31,14 +31,14 @@ const startServer = async () => {
 
     // Start Server
     const server = app.listen(env.PORT, () => {
-      console.log(`Server running: http://localhost:${env.PORT}`);
+      logger.info('server.started');
     });
 
     // Graceful Shutdown
     const gracefulShutdown = async () => {
-      console.log('Received kill signal, shutting down gracefully');
+      logger.info('server.stopping');
       server.close(() => {
-        console.log('Closed out remaining connections');
+        logger.info('server.closed');
       });
       await jobScheduler.stop();
       process.exit(0);
@@ -48,7 +48,7 @@ const startServer = async () => {
     process.on('SIGINT', gracefulShutdown);
 
   } catch (error) {
-    console.error("Server startup failed:", error);
+    logger.error('server.startup_failed');
     process.exit(1);
   }
 };

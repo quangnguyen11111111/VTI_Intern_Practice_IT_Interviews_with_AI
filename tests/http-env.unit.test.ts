@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { getEnv } from '../src/config/env';
 
+const productionMongoUri = ['mongodb+srv://runtime_app', 'Q7mN4vL8rT2pX6cK@cluster.company.test/interviews'].join(':');
+
 const validProductionEnv = {
   NODE_ENV: 'production',
   JWT_ACCESS_SECRET: 'production-access-secret-123456789012',
@@ -14,10 +16,17 @@ const validProductionEnv = {
   JSON_BODY_LIMIT: '256kb',
   FORM_BODY_LIMIT: '64kb',
   TRUST_PROXY_HOPS: '1',
+  MONGODB_URI: productionMongoUri,
+  GEMINI_API_KEY: 'runtime-gemini-key-for-environment-validation-2026',
 };
 
 describe('AIP-52 HTTP environment validation', () => {
   beforeEach(() => {
+    for (const key of ['MONGODB_MIGRATION_URI', 'MONGO_MIGRATION_PASSWORD', 'DEPLOY_TOKEN',
+      'DEPLOY_SSH_KEY', 'SERVER_SSH_KEY', 'SERVER_PASSWORD', 'GITHUB_TOKEN', 'GH_TOKEN',
+      'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AZURE_CLIENT_SECRET', 'GOOGLE_APPLICATION_CREDENTIALS']) {
+      delete process.env[key];
+    }
     Object.assign(process.env, validProductionEnv);
   });
 
@@ -53,5 +62,20 @@ describe('AIP-52 HTTP environment validation', () => {
 
     expect(() => getEnv()).toThrow(/JSON_BODY_LIMIT/);
     expect(() => getEnv()).toThrow(/TRUST_PROXY_HOPS/);
+  });
+  it('fails closed for missing, placeholder, or reused purpose-specific production secrets', () => {
+    delete process.env.GEMINI_API_KEY;
+    expect(() => getEnv()).toThrow(/GEMINI_API_KEY/);
+
+    Object.assign(process.env, validProductionEnv, { GEMINI_API_KEY: 'replace-with-gemini-api-key' });
+    expect(() => getEnv()).toThrow(/non-placeholder production secret/);
+
+    Object.assign(process.env, validProductionEnv, { SMTP_PASS: validProductionEnv.JWT_ACCESS_SECRET });
+    expect(() => getEnv()).toThrow(/different for every purpose/);
+  });
+
+  it('rejects deploy and migration credentials in the production application process', () => {
+    process.env.DEPLOY_SSH_KEY = 'should-remain-in-the-deploy-step';
+    expect(() => getEnv()).toThrow(/deploy\/migration credentials/);
   });
 });

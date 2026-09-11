@@ -30,6 +30,7 @@ import Role from '../models/role.model';
 import Level from '../models/level.model';
 import Technology from '../models/technology.model';
 import { AppError } from '../utils/AppError';
+import { AppEnv } from '../config/env';
 
 import {
   IJobScheduler
@@ -72,7 +73,11 @@ export class InterviewService {
 
     @inject('ISystemPromptService')
     private readonly systemPromptService:
-      ISystemPromptService
+      ISystemPromptService,
+
+    @inject('AppEnv')
+    private readonly env:
+      AppEnv
   ) {}
 
   /**
@@ -391,6 +396,9 @@ export class InterviewService {
 
       systemPrompt,
 
+      useAsyncJobs:
+        this.env.NODE_ENV !== 'test',
+
       jobScheduler:
         this.jobScheduler
     });
@@ -446,6 +454,9 @@ export class InterviewService {
         evaluationPrompt,
 
       learningPathPrompt,
+
+      useAsyncJobs:
+        this.env.NODE_ENV !== 'test',
 
       jobScheduler:
         this.jobScheduler

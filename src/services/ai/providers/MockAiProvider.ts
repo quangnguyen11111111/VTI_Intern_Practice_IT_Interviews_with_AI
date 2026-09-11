@@ -1,5 +1,5 @@
 import { injectable } from 'tsyringe';
-
+import { logger } from '../../../infrastructure/logging/logger';
 import {
   IAiProvider,
   InterviewSetupPayload,
@@ -22,16 +22,9 @@ export class MockAiProvider
     data: GeneratedQuestion[];
     audit: AiUsageMetadata;
   }> {
-    console.log(
-      '[MockAI] Generating questions with data:',
-      setupData
-    );
-
-    if (systemPrompt) {
-      console.log(
-        `[MockAI] Using generation prompt version ${systemPrompt.version}`
-      );
-    }
+    logger.info('ai.generating');
+    void setupData;
+    void systemPrompt;
 
     await new Promise<void>((resolve) =>
       setTimeout(resolve, 2000)
@@ -95,12 +88,8 @@ export class MockAiProvider
     answers: AnswerPayload[],
     systemPrompt?: SystemPromptContext
   ): Promise<{ data: EvaluationResult, audit: AiUsageMetadata }> {
-    console.log(`[MockAI] Evaluating answers...`);
-    
-    if (systemPrompt) {
-      console.log(`[MockAI] Using evaluation prompt version ${systemPrompt.version}`);
-    }
-
+    logger.info('ai.evaluating');
+    void systemPrompt;
     await new Promise<void>(resolve => setTimeout(resolve, 2000));
     
     const evaluations = questions.map(q => {
@@ -165,15 +154,8 @@ export class MockAiProvider
     data: LearningPathResult;
     audit: AiUsageMetadata;
   }> {
-    console.log(
-      '[MockAI] Generating learning path...'
-    );
-
-    if (systemPrompt) {
-      console.log(
-        `[MockAI] Using learning-path prompt version ${systemPrompt.version}`
-      );
-    }
+    logger.info('ai.evaluating');
+    void systemPrompt;
 
     /*
      * Keep the parameters referenced so the mock

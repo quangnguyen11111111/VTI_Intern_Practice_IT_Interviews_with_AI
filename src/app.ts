@@ -4,7 +4,8 @@ import path from "path";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import morgan from "morgan";
+import { httpLogger } from "./middlewares/http-logger.middleware";
+import { logger, Logger } from "./infrastructure/logging/logger";
 
 import apiRoutes from "./routes";
 import { AppEnv, getEnv } from "./config/env";
@@ -15,9 +16,7 @@ import { requestContext } from "./middlewares/request-context.middleware";
 
 const developmentOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
 
-morgan.token("request-id", (req) => (req as typeof req & { requestId?: string }).requestId ?? "-");
-
-export const createApp = (env: AppEnv = getEnv()) => {
+export const createApp = (env: AppEnv = getEnv(), output: Logger = logger) => {
   const app = express();
   const allowedOrigins = new Set(
     env.CORS_ALLOWED_ORIGINS.length > 0 ? env.CORS_ALLOWED_ORIGINS : developmentOrigins
@@ -28,6 +27,7 @@ export const createApp = (env: AppEnv = getEnv()) => {
   app.disable("x-powered-by");
 
   app.use(requestContext);
+  app.use(httpLogger(output));
   app.use(
     helmet({
       strictTransportSecurity: env.NODE_ENV === "production" ? undefined : false
@@ -46,10 +46,6 @@ export const createApp = (env: AppEnv = getEnv()) => {
       }
     })
   );
-
-  if (env.NODE_ENV !== "test") {
-    app.use(morgan(":method :url :status :response-time ms request_id=:request-id"));
-  }
 
   app.use(enforceContentType);
   app.use(

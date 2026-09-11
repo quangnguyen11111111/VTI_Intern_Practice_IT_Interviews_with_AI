@@ -34,11 +34,13 @@ export interface IAdminUserService {
 
   lockUser(
     userId: string,
-    actorId: string
+    actorId: string,
+    requestId: string,
   ): Promise<IUser>;
 
   unlockUser(
     userId: string,
-    actorId: string
+    actorId: string,
+    requestId: string,
   ): Promise<IUser>;
 }

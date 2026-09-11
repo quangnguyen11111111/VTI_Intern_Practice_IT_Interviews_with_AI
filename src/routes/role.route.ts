@@ -9,14 +9,17 @@ import {
   taxonomyListSchema,
   taxonomyUpdateSchema,
 } from '../validators/taxonomy.validator';
+import { authenticate, requireAdmin } from '../middlewares/auth.middleware';
 
 const router = Router();
 const roleController = container.resolve(RoleController);
 
+router.use(authenticate);
+
 router.get('/', validate(taxonomyListSchema), roleController.getRoles);
 router.get('/:id', validate(taxonomyGetSchema), roleController.getRoleById);
-router.post('/', validate(taxonomyCreateSchema), roleController.createRole);
-router.put('/:id', validate(taxonomyUpdateSchema), roleController.updateRole);
-router.delete('/:id', validate(taxonomyDeleteSchema), roleController.deleteRole);
+router.post('/', requireAdmin, validate(taxonomyCreateSchema), roleController.createRole);
+router.put('/:id', requireAdmin, validate(taxonomyUpdateSchema), roleController.updateRole);
+router.delete('/:id', requireAdmin, validate(taxonomyDeleteSchema), roleController.deleteRole);
 
 export default router;

@@ -1,25 +1,9 @@
-import {
-  IInterviewState,
-  InterviewStatus
-} from '../IInterviewState';
-
-import {
-  InterviewContext
-} from '../InterviewContext';
-
-import {
-  GeneratingState
-} from './GeneratingState';
-
-import {
-  InvalidStateTransitionException
-} from '../exceptions/InvalidStateTransitionException';
-
-import {
-  GeneratePayload,
-  SubmitPayload,
-  SaveProgressPayload
-} from '../types';
+import { IInterviewState, InterviewStatus } from '../IInterviewState';
+import { InterviewContext } from '../InterviewContext';
+import { GeneratingState } from './GeneratingState';
+import { InvalidStateTransitionException } from '../exceptions/InvalidStateTransitionException';
+import { GeneratePayload, SubmitPayload, SaveProgressPayload } from '../types';
+import { logger } from '../../../infrastructure/logging/logger';
 
 export class PendingState
   implements IInterviewState
@@ -32,10 +16,10 @@ export class PendingState
     context: InterviewContext,
     payload: GeneratePayload
   ): Promise<void> {
-    console.log(
-      `[PendingState] Generating questions for interview: ${context.getInterviewId()}`
-    );
-
+    logger.info('interview.generating', {
+      resourceType: 'interview',
+      resourceId: context.getInterviewId()
+    });
     // Transition to Generating State
     await context.changeState(
       new GeneratingState()
@@ -58,7 +42,7 @@ export class PendingState
        * require Agenda to be started.
        */
       if (
-        process.env.NODE_ENV !== 'test' &&
+        payload.useAsyncJobs !== false &&
         payload &&
         payload.jobScheduler
       ) {
@@ -190,4 +174,3 @@ export class PendingState
     );
   }
 }
-

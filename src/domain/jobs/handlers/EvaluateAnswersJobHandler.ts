@@ -4,6 +4,7 @@ import { IAiProvider, AnswerPayload, SystemPromptContext } from '../../interview
 import { IInterviewRepository } from '../../../repositories/IInterviewRepository';
 import { InterviewContext } from '../../interview/InterviewContext';
 import { IEventPublisher } from '../../events/IEventPublisher';
+import { logger } from '../../../infrastructure/logging/logger';
 
 interface EvaluateAnswersData {
   interviewId: string;
@@ -50,7 +51,7 @@ export class EvaluateAnswersJobHandler
   }
 
   async handle(data: EvaluateAnswersData): Promise<void> {
-    console.log(`[Job] EVALUATE_ANSWERS running for interview: ${data.interviewId}`);
+    logger.info('job.started', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
 
     // Check state
     const session =
@@ -62,9 +63,7 @@ export class EvaluateAnswersJobHandler
       !session ||
       session.status !== 'EVALUATING'
     ) {
-      console.warn(
-        `[Job] Interview ${data.interviewId} is not in EVALUATING state. Aborting job.`
-      );
+      logger.warn('job.skipped', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
       return;
     }
 
@@ -231,14 +230,9 @@ export class EvaluateAnswersJobHandler
         new CompletedState()
       );
 
-      console.log(
-        `[Job] EVALUATE_ANSWERS completed for interview: ${data.interviewId}`
-      );
+      logger.info('job.completed', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
     } catch (error) {
-      console.error(
-        `[Job] EVALUATE_ANSWERS failed for interview: ${data.interviewId}`,
-        error
-      );
+      logger.error('job.failed', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
 
       const context =
         new InterviewContext(
