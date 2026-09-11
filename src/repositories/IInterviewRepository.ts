@@ -18,6 +18,7 @@ export interface InterviewEntity {
   id: string;
   userId?: string;
   status: InterviewStatus;
+  version: number;
   setupData: InterviewSetupPayload;
   questions?: InterviewQuestionEntity[];
   dimensions?: { name: string; score: number; reasoning: string }[] | null;
@@ -35,7 +36,12 @@ export interface InterviewEntity {
 export interface IInterviewRepository {
   create(data: InterviewSetupPayload, userId?: string): Promise<InterviewEntity>;
   findById(id: string): Promise<InterviewEntity | null>;
-  updateStatus(id: string, status: InterviewStatus): Promise<void>;
+  updateStatus(
+    id: string,
+    status: InterviewStatus,
+    expectedStatus?: InterviewStatus,
+    expectedVersion?: number
+  ): Promise<number | null>;
   update(id: string, data: Partial<InterviewEntity>): Promise<void>;
   updateTokenUsage(id: string, usage: import('../domain/interview/types').AiUsageMetadata): Promise<void>;
   

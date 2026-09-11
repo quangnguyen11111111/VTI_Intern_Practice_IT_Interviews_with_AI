@@ -70,7 +70,13 @@ export class EvaluateAnswersJobHandler implements IJobHandler<EvaluateAnswersDat
       await this.repository.updateTokenUsage(data.interviewId, audit);
       
       // Transition state
-      const context = new InterviewContext(data.interviewId, this.repository, undefined, this.eventPublisher);
+      const context = new InterviewContext(
+        data.interviewId,
+        this.repository,
+        InterviewContext.createStateFromStatus(session.status),
+        this.eventPublisher,
+        session.version
+      );
       const { CompletedState } = await import('../../interview/states/CompletedState');
       await context.changeState(new CompletedState());
       
@@ -78,7 +84,13 @@ export class EvaluateAnswersJobHandler implements IJobHandler<EvaluateAnswersDat
     } catch (error) {
       console.error(`[Job] EVALUATE_ANSWERS failed for interview: ${data.interviewId}`, error);
       
-      const context = new InterviewContext(data.interviewId, this.repository, undefined, this.eventPublisher);
+      const context = new InterviewContext(
+        data.interviewId,
+        this.repository,
+        InterviewContext.createStateFromStatus(session.status),
+        this.eventPublisher,
+        session.version
+      );
       const { FailedState } = await import('../../interview/states/FailedState');
       await context.changeState(new FailedState());
       

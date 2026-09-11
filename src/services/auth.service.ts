@@ -437,8 +437,14 @@ export const logoutUser = async (rawRefreshToken: string): Promise<void> => {
         sessionId: payload.sessionId,
       }).session(session);
 
-      if (!existingSession || existingSession.isRevoked) {
+      if (!existingSession) {
         throw new AppError('Phiên đăng nhập không tồn tại hoặc đã bị thu hồi', 401, 'AUTH_INVALID_REFRESH_TOKEN');
+      }
+
+      // Logout is idempotent for a refresh token that is validly bound to a
+      // known session. A repeated request must not reveal or mutate more state.
+      if (existingSession.isRevoked) {
+        return;
       }
 
       // Atomically thu hồi đúng phiên đăng nhập này
@@ -449,7 +455,7 @@ export const logoutUser = async (rawRefreshToken: string): Promise<void> => {
       );
 
       if (!updatedSession) {
-        throw new AppError('Phiên đăng nhập không tồn tại hoặc đã bị thu hồi', 401, 'AUTH_INVALID_REFRESH_TOKEN');
+        return;
       }
 
       await User.updateOne(

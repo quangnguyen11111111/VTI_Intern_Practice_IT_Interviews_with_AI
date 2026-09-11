@@ -3,6 +3,9 @@ export interface InterviewSetupPayload {
   level?: string;
   techStacks?: string[];
   jdText?: string;
+  language?: 'VI' | 'EN';
+  secondsPerQuestion?: number;
+  strategy?: 'STANDARD' | 'ADAPTIVE';
 }
 
 export interface LocalizedContent {

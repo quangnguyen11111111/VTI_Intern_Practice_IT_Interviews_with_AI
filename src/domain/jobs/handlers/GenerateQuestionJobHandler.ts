@@ -38,7 +38,13 @@ export class GenerateQuestionJobHandler implements IJobHandler<GenerateQuestionD
       await this.repository.updateTokenUsage(data.interviewId, audit);
 
       // Transition state
-      const context = new InterviewContext(data.interviewId, this.repository, undefined, this.eventPublisher);
+      const context = new InterviewContext(
+        data.interviewId,
+        this.repository,
+        InterviewContext.createStateFromStatus(session.status),
+        this.eventPublisher,
+        session.version
+      );
       const { InProgressState } = await import('../../interview/states/InProgressState');
       await context.changeState(new InProgressState());
       
@@ -47,7 +53,13 @@ export class GenerateQuestionJobHandler implements IJobHandler<GenerateQuestionD
       console.error(`[Job] GENERATE_QUESTIONS failed for interview: ${data.interviewId}`, error);
       
       // Transition to FAILED state
-      const context = new InterviewContext(data.interviewId, this.repository, undefined, this.eventPublisher);
+      const context = new InterviewContext(
+        data.interviewId,
+        this.repository,
+        InterviewContext.createStateFromStatus(session.status),
+        this.eventPublisher,
+        session.version
+      );
       const { FailedState } = await import('../../interview/states/FailedState');
       await context.changeState(new FailedState());
       

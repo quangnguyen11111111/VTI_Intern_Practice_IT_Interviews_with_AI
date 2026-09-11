@@ -28,8 +28,23 @@ export class MongoInterviewRepository implements IInterviewRepository {
     return entity;
   }
 
-  async updateStatus(id: string, status: InterviewStatus): Promise<void> {
-    await InterviewSessionModel.findByIdAndUpdate(id, { status });
+  async updateStatus(
+    id: string,
+    status: InterviewStatus,
+    expectedStatus?: InterviewStatus,
+    expectedVersion?: number
+  ): Promise<number | null> {
+    const filter: Record<string, unknown> = { _id: id };
+    if (expectedStatus !== undefined) filter.status = expectedStatus;
+    if (expectedVersion !== undefined) filter.version = expectedVersion;
+
+    const updated = await InterviewSessionModel.findOneAndUpdate(
+      filter,
+      { $set: { status }, $inc: { version: 1 } },
+      { returnDocument: 'after' }
+    ).lean();
+
+    return updated?.version ?? null;
   }
 
   async update(id: string, data: Partial<InterviewEntity>): Promise<void> {
@@ -74,6 +89,7 @@ export class MongoInterviewRepository implements IInterviewRepository {
       id: doc._id.toString(),
       userId: doc.userId,
       status: doc.status as InterviewStatus,
+      version: doc.version ?? 0,
       setupData: doc.setupData,
       overallScore: doc.overallScore,
       dimensions: doc.dimensions,

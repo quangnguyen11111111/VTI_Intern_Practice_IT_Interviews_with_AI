@@ -22,8 +22,23 @@ export class InterviewRepository implements IInterviewRepository {
     return this.mapSessionToEntity(session, questions);
   }
 
-  async updateStatus(id: string, status: InterviewStatus): Promise<void> {
-    await InterviewSessionModel.findByIdAndUpdate(id, { status });
+  async updateStatus(
+    id: string,
+    status: InterviewStatus,
+    expectedStatus?: InterviewStatus,
+    expectedVersion?: number
+  ): Promise<number | null> {
+    const filter: Record<string, unknown> = { _id: id };
+    if (expectedStatus !== undefined) filter.status = expectedStatus;
+    if (expectedVersion !== undefined) filter.version = expectedVersion;
+
+    const updated = await InterviewSessionModel.findOneAndUpdate(
+      filter,
+      { $set: { status }, $inc: { version: 1 } },
+      { returnDocument: 'after' }
+    ).lean();
+
+    return updated?.version ?? null;
   }
 
   async update(id: string, data: Partial<InterviewEntity>): Promise<void> {
@@ -65,6 +80,7 @@ export class InterviewRepository implements IInterviewRepository {
       id: sessionDoc._id.toString(),
       userId: sessionDoc.userId,
       status: sessionDoc.status,
+      version: sessionDoc.version ?? 0,
       setupData: sessionDoc.setupData,
       overallScore: sessionDoc.overallScore,
       dimensions: sessionDoc.dimensions,

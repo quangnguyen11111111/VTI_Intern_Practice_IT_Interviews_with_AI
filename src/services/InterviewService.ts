@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import Role from '../models/role.model';
 import Level from '../models/level.model';
 import Technology from '../models/technology.model';
+import { AppError } from '../utils/AppError';
 
 import { IJobScheduler } from '../domain/jobs/IJobScheduler';
 import { IEventPublisher } from '../domain/events/IEventPublisher';
@@ -22,9 +23,43 @@ export class InterviewService {
   /**
    * Khởi tạo phiên phỏng vấn mới (Trạng thái mặc định: PENDING)
    */
-  async createInterviewSession(setupData: InterviewSetupPayload, userId?: string) {
+  async createInterviewSession(setupData: InterviewSetupPayload, userId: string) {
+    await this.validateSetupTaxonomy(setupData);
     const session = await this.interviewRepo.create(setupData, userId);
     return session;
+  }
+
+  private async validateSetupTaxonomy(setupData: InterviewSetupPayload): Promise<void> {
+    if (setupData.strategy === 'ADAPTIVE') {
+      throw new AppError('Chiến lược ADAPTIVE chưa được bật', 409, 'FEATURE_DISABLED');
+    }
+
+    const [role, level] = await Promise.all([
+      Role.findOne({ _id: setupData.jobPosition, status: 'ACTIVE' }).lean(),
+      Level.findOne({ _id: setupData.level, status: 'ACTIVE' }).lean(),
+    ]);
+
+    if (!role) {
+      throw new AppError('Role không tồn tại hoặc không hoạt động', 400, 'SETUP_ROLE_INVALID');
+    }
+    if (!level) {
+      throw new AppError('Level không tồn tại hoặc không hoạt động', 400, 'SETUP_LEVEL_INVALID');
+    }
+
+    const technologyIds = setupData.techStacks ?? [];
+    const activeTechnologies = await Technology.countDocuments({
+      _id: { $in: technologyIds },
+      status: 'ACTIVE',
+      roles: role._id,
+    });
+
+    if (activeTechnologies !== technologyIds.length) {
+      throw new AppError(
+        'Technology không tồn tại, không hoạt động hoặc không thuộc Role đã chọn',
+        400,
+        'SETUP_TECHNOLOGY_INVALID'
+      );
+    }
   }
 
   /**
@@ -34,7 +69,7 @@ export class InterviewService {
     setupData: Omit<InterviewSetupPayload, 'jdText'>, 
     fileBuffer: Buffer, 
     mimeType: string, 
-    userId?: string
+    userId: string
   ) {
     const { FileParserFactory } = await import('../utils/parsers/FileParserFactory');
     const parser = FileParserFactory.getParser(mimeType);
@@ -57,7 +92,7 @@ export class InterviewService {
   async getInterviewSession(id: string) {
     const session = await this.interviewRepo.findById(id);
     if (!session) {
-      throw new Error('Interview session not found');
+      throw new AppError('Interview session not found', 404, 'INTERVIEW_NOT_FOUND');
     }
     return session;
   }
@@ -70,10 +105,16 @@ export class InterviewService {
     
     // Phục hồi State Machine từ Database state
     const currentState = InterviewContext.createStateFromStatus(sessionData.status);
-    const context = new InterviewContext(id, this.interviewRepo, currentState, this.eventPublisher);
+    const context = new InterviewContext(
+      id,
+      this.interviewRepo,
+      currentState,
+      this.eventPublisher,
+      sessionData.version
+    );
 
     if (!sessionData.setupData) {
-      throw new Error('Setup data is missing from session');
+      throw new AppError('Setup data is missing from session', 500, 'INTERVIEW_SETUP_MISSING');
     }
 
     const aiSetupData = { ...sessionData.setupData };
@@ -117,14 +158,15 @@ export class InterviewService {
   async submitAnswers(id: string, answers: AnswerPayload[]) {
     const sessionData = await this.getInterviewSession(id);
     
-    // Cập nhật câu trả lời vào DB trước
-    for (const ans of answers) {
-      await this.interviewRepo.updateQuestionAnswer(ans.questionId, ans.candidateAnswer);
-    }
-
     // Phục hồi State Machine
     const currentState = InterviewContext.createStateFromStatus(sessionData.status);
-    const context = new InterviewContext(id, this.interviewRepo, currentState, this.eventPublisher);
+    const context = new InterviewContext(
+      id,
+      this.interviewRepo,
+      currentState,
+      this.eventPublisher,
+      sessionData.version
+    );
 
     // Kích hoạt action nộp bài
     await context.submit({
@@ -144,7 +186,7 @@ export class InterviewService {
     
     // Phục hồi State Machine
     const currentState = InterviewContext.createStateFromStatus(sessionData.status);
-    const context = new InterviewContext(id, this.interviewRepo, currentState);
+    const context = new InterviewContext(id, this.interviewRepo, currentState, undefined, sessionData.version);
 
     // Kích hoạt action lưu tiến trình
     await context.saveProgress({
