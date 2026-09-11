@@ -160,14 +160,14 @@ describe('Password Recovery & Management UI Tests', () => {
 
       const newPasswordInput = screen.getByLabelText('Mật khẩu mới');
       const confirmationInput = screen.getByLabelText('Xác nhận mật khẩu mới');
-      await user.type(newPasswordInput, 'NewStrongPass123');
+      await user.type(newPasswordInput, 'test-password');
 
       expect(newPasswordInput).toHaveAttribute('type', 'password');
       expect(confirmationInput).toHaveAttribute('type', 'password');
 
       await user.click(screen.getByRole('button', { name: 'Hiện mật khẩu mới' }));
       expect(newPasswordInput).toHaveAttribute('type', 'text');
-      expect(newPasswordInput).toHaveValue('NewStrongPass123');
+      expect(newPasswordInput).toHaveValue('test-password');
       expect(confirmationInput).toHaveAttribute('type', 'password');
     });
 
@@ -180,8 +180,8 @@ describe('Password Recovery & Management UI Tests', () => {
 
       await user.type(screen.getByLabelText('Email'), 'test@example.com');
       await user.type(screen.getByLabelText('Mã xác thực (OTP)'), '123456');
-      await user.type(screen.getByLabelText('Mật khẩu mới'), 'NewStrongPass123');
-      await user.type(screen.getByLabelText('Xác nhận mật khẩu mới'), 'NewStrongPass123');
+      await user.type(screen.getByLabelText('Mật khẩu mới'), 'test-password');
+      await user.type(screen.getByLabelText('Xác nhận mật khẩu mới'), 'test-password');
       await user.click(screen.getByRole('button', { name: 'Đặt lại mật khẩu' }));
 
       expect(screen.getByRole('button', { name: 'Đang xử lý…' })).toBeDisabled();
@@ -202,8 +202,8 @@ describe('Password Recovery & Management UI Tests', () => {
 
       await user.type(screen.getByLabelText('Email'), 'test@example.com');
       await user.type(screen.getByLabelText('Mã xác thực (OTP)'), '999999');
-      await user.type(screen.getByLabelText('Mật khẩu mới'), 'NewStrongPass123');
-      await user.type(screen.getByLabelText('Xác nhận mật khẩu mới'), 'NewStrongPass123');
+      await user.type(screen.getByLabelText('Mật khẩu mới'), 'test-password');
+      await user.type(screen.getByLabelText('Xác nhận mật khẩu mới'), 'test-password');
       await user.click(screen.getByRole('button', { name: 'Đặt lại mật khẩu' }));
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Mã xác thực không hợp lệ hoặc đã hết hạn');
