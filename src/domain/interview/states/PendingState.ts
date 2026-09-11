@@ -3,6 +3,8 @@ import { InterviewContext } from '../InterviewContext';
 import { GeneratingState } from './GeneratingState';
 import { InvalidStateTransitionException } from '../exceptions/InvalidStateTransitionException';
 import { GeneratePayload, SubmitPayload, SaveProgressPayload } from '../types';
+import { generateSafely } from '../../../services/ai/prompt-security';
+import { resolveGenerationSetup } from '../../../services/ai/job-security';
 import { logger } from '../../../infrastructure/logging/logger';
 
 export class PendingState
@@ -26,68 +28,23 @@ export class PendingState
     );
 
     try {
-      /*
-       * main:
-       * Prefer background job execution when a scheduler
-       * is available.
-       *
-       * ADM-04:
-       * Pass the selected system prompt along with the job
-       * so the exact prompt/version can still be used by
-       * the async generation flow.
-       *
-       * Test environment:
-       * Keep the synchronous MockAiProvider flow so
-       * integration tests remain deterministic and do not
-       * require Agenda to be started.
-       */
       if (
         payload.useAsyncJobs !== false &&
-        payload &&
         payload.jobScheduler
       ) {
-        await payload.jobScheduler.enqueue(
-          'GENERATE_QUESTIONS',
-          {
-            interviewId:
-              context.getInterviewId(),
-
-            setupData:
-              payload.setupData,
-
-            systemPrompt:
-              payload.systemPrompt
-          }
-        );
+        await payload.jobScheduler.enqueue('GENERATE_QUESTIONS', {
+          interviewId: context.getInterviewId(),
+          ownerId: context.getRepository().getOwnerId(),
+        });
 
         return;
       }
 
-      /*
-       * Fallback synchronous generation.
-       */
-      if (
-        payload &&
-        payload.aiProvider
-      ) {
-        /*
-         * ADM-04:
-         * Managed prompt is required for generation.
-         */
-        if (!payload.systemPrompt) {
-          throw new Error(
-            'SYSTEM_PROMPT_NOT_AVAILABLE'
-          );
-        }
-
-        const {
-          data: generatedQuestions,
-          audit
-        } =
-          await payload.aiProvider.generateQuestions(
-            payload.setupData,
-            payload.systemPrompt
-          );
+      if (payload.aiProvider) {
+        const { data: generatedQuestions, audit } = await generateSafely(
+          payload.aiProvider,
+          await resolveGenerationSetup(payload.setupData),
+        );
 
         await context
           .getRepository()
@@ -103,33 +60,6 @@ export class PendingState
             audit
           );
 
-        /*
-         * Store the exact system prompt version
-         * used for this generation run.
-         */
-        await context
-          .getRepository()
-          .updatePromptVersion(
-            context.getInterviewId(),
-            'generation',
-            {
-              promptId:
-                payload.systemPrompt
-                  .promptId,
-
-              version:
-                payload.systemPrompt
-                  .version,
-
-              language:
-                payload.systemPrompt
-                  .language
-            }
-          );
-
-        /*
-         * Synchronous fallback succeeds immediately.
-         */
         const {
           InProgressState
         } = await import(
@@ -139,6 +69,8 @@ export class PendingState
         await context.changeState(
           new InProgressState()
         );
+      } else {
+        throw new Error('AI_PROVIDER_NOT_AVAILABLE');
       }
     } catch (error) {
       // If fail, transition to FailedState

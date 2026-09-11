@@ -44,11 +44,18 @@ export interface IInterviewSessionDocument
 
   createdAt: Date;
   updatedAt: Date;
+  terminalAt?: Date;
+  contentPurgeAt?: Date;
+  contentPurgedAt?: Date;
+  recordPurgeAt?: Date;
 }
 
 const InterviewSessionSchema = new Schema<IInterviewSessionDocument>(
   {
-    userId: { type: String, required: false },
+    userId: {
+      type: String,
+      required: false, // Legacy records remain readable; every repository create requires an authenticated owner.
+    },
     status: {
       type: String,
       enum: ['PENDING', 'GENERATING', 'IN_PROGRESS', 'EVALUATING', 'COMPLETED', 'FAILED'],
@@ -59,9 +66,16 @@ const InterviewSessionSchema = new Schema<IInterviewSessionDocument>(
       jobPosition: { type: String },
       level: { type: String },
       techStacks: [{ type: String }],
-      jdText: { type: String }
+      jdText: { type: String, maxlength: 10000 }
     },
-    overallScore: { type: Number, default: null },
+    terminalAt: Date,
+    contentPurgeAt: Date,
+    contentPurgedAt: Date,
+    recordPurgeAt: Date,
+    overallScore: {
+      type: Number,
+      default: null
+    },
     dimensions: [{
       name: { type: String },
       score: { type: Number },
@@ -106,14 +120,12 @@ const InterviewSessionSchema = new Schema<IInterviewSessionDocument>(
   }
 );
 
+InterviewSessionSchema.index({ status: 1, contentPurgeAt: 1, _id: 1 });
+InterviewSessionSchema.index({ status: 1, recordPurgeAt: 1, _id: 1 });
 InterviewSessionSchema.index({
   userId: 1,
   createdAt: -1,
   _id: -1
 });
 
-export const InterviewSessionModel =
-  mongoose.model<IInterviewSessionDocument>(
-    'InterviewSession',
-    InterviewSessionSchema
-  );
+export const InterviewSessionModel = mongoose.model<IInterviewSessionDocument>('InterviewSession', InterviewSessionSchema);

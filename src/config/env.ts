@@ -121,6 +121,8 @@ const envSchema = z
       .min(1, 'MONGODB_URI is required')
       .default('mongodb://127.0.0.1:27017/ai_interview_practice'),
     GEMINI_API_KEY: z.string().optional().default(''),
+    RETENTION_MUTATION_ENABLED: z.enum(['true', 'false']).default('false').transform(v => v === 'true'),
+    RETENTION_APPROVAL_ID: z.string().regex(/^(?:|POLICY-[A-Z0-9-]{3,60})$/).default(''),
     JWT_ACCESS_SECRET: z
       .string()
       .min(32, 'JWT_ACCESS_SECRET must be at least 32 characters long'),
@@ -329,6 +331,9 @@ const envSchema = z
       }),
   })
   .superRefine((data, ctx) => {
+    if (data.RETENTION_MUTATION_ENABLED && !data.RETENTION_APPROVAL_ID) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['RETENTION_APPROVAL_ID'], message: 'Approved Product/Legal policy reference required' });
+    }
     if (data.JWT_ACCESS_SECRET === data.JWT_REFRESH_SECRET) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -509,6 +514,8 @@ export interface AppEnv {
   PORT: number;
   MONGODB_URI: string;
   GEMINI_API_KEY: string;
+  RETENTION_MUTATION_ENABLED: boolean;
+  RETENTION_APPROVAL_ID: string;
   JWT_ACCESS_SECRET: string;
   JWT_REFRESH_SECRET: string;
   JWT_ACCESS_EXPIRES_IN: string;

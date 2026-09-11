@@ -1,4 +1,6 @@
 node_modules/
+.npm-cache-aip54/
+.npm-cache-aip54-client/
 dist/
 .env
 .env.*

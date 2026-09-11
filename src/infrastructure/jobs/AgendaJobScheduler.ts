@@ -5,6 +5,7 @@ import { IJobHandler } from '../../domain/jobs/IJobHandler';
 import { inject, singleton } from 'tsyringe';
 import { AppEnv } from '../../config/env';
 import { logger, logContext } from '../logging/logger';
+import { interviewJobData } from '../../services/ai/job-security';
 
 @singleton()
 export class AgendaJobScheduler implements IJobScheduler {
@@ -74,7 +75,8 @@ export class AgendaJobScheduler implements IJobScheduler {
       throw new Error(`Job handler for ${jobName} not registered`);
     }
     
-    const job = this.agenda.create(jobName, { ...data, requestId: logContext.getStore()?.requestId });
+    const safeData = interviewJobData({ ...data, requestId: logContext.getStore()?.requestId });
+    const job = this.agenda.create(jobName, safeData);
     await job.save();
     logger.info('job.queued', { jobName });
   }

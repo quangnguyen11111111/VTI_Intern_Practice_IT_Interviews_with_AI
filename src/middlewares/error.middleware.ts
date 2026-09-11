@@ -29,9 +29,9 @@ export const globalErrorHandler = (
       requestId: req.requestId,
       route: logRoute(req),
       method: req.method,
-      status: res.statusCode
+      status: res.statusCode,
     });
-    next(err);
+    res.destroy();
     return;
   }
 
@@ -142,7 +142,8 @@ export const globalErrorHandler = (
   }
 
   // Ở môi trường dev, in thêm stack trace dạng string để debug nếu có
-  if (appEnvironment === 'development' && typeof error?.stack === 'string') {
+  if (appEnvironment === 'development' && typeof error?.stack === 'string' &&
+      error?.code !== 'FILE_PARSE_FAILED' && !String(error?.code ?? '').startsWith('AI_')) {
     response.stack = error.stack;
   }
 

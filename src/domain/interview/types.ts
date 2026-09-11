@@ -88,7 +88,7 @@ export interface IAiProvider {
     audit: AiUsageMetadata;
   }>;
 
-  generateLearningPath(
+  generateLearningPath?(
     questions: any[],
     answers: AnswerPayload[],
     evaluation: EvaluationResult,

@@ -18,6 +18,8 @@ export class InterviewController {
    */
   streamStatus = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
+    // Resolve ownership before sending headers; Express 5 forwards rejected async handlers.
+    const ownedSession = await this.interviewService.getInterviewSession(id, req.user!._id.toString());
     
     // Set headers for SSE
     res.setHeader('Content-Type', 'text/event-stream');
@@ -27,7 +29,7 @@ export class InterviewController {
 
     // Send initial status immediately
     try {
-      const session = await this.interviewService.getInterviewSession(id);
+      const session = ownedSession;
       res.write(`data: ${JSON.stringify({ status: session.status })}\n\n`);
     } catch (err) {
       res.write(`data: ${JSON.stringify({ error: 'Session not found' })}\n\n`);
@@ -57,7 +59,8 @@ export class InterviewController {
    * POST /api/interviews
    */
   createSession = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const { jobPosition, level, techStacks, userId } = req.body;
+    const { jobPosition, level, techStacks } = req.body;
+    const userId = req.user!._id.toString();
     const setupData = { jobPosition, level, techStacks };
     const session = await this.interviewService.createInterviewSession(setupData, userId);
     res.status(201).json({ success: true, data: session });
@@ -71,17 +74,16 @@ export class InterviewController {
       throw new AppError('JD file is required', 400, 'JD_FILE_REQUIRED');
     }
 
-    const { jobPosition, level, techStacks, userId } = req.body;
+    const { jobPosition, level, techStacks } = req.body;
+    const userId = req.user!._id.toString();
     const setupData = { jobPosition, level, techStacks };
 
-    const session = await this.interviewService.createInterviewSessionFromJD(
-      setupData,
-      req.file.buffer,
-      req.file.mimetype,
-      userId
+    try {
+      const session = await this.interviewService.createInterviewSessionFromJD(
+        setupData, req.file.buffer, req.file.mimetype, userId
     );
-
     res.status(201).json({ success: true, data: session });
+  } finally { req.file.buffer.fill(0); req.file = undefined; }
   });
 
   /**
@@ -95,16 +97,9 @@ export class InterviewController {
     }
 
     const query = req.query as any;
-    const result =
-      await this.interviewService.getInterviewHistory(
-        userId,
-        query
-      );
+    const result = await this.interviewService.getInterviewHistory(userId, query);
 
-    res.status(200).json({
-      success: true,
-      data: result
-    });
+    res.status(200).json({ success: true, data: result });
   });
 
   /**
@@ -112,7 +107,7 @@ export class InterviewController {
    */
   getSession = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
-    const session = await this.interviewService.getInterviewSession(id);
+    const session = await this.interviewService.getInterviewSession(id, req.user!._id.toString());
     res.status(200).json({ success: true, data: session });
   });
 
@@ -121,7 +116,7 @@ export class InterviewController {
    */
   generateQuestions = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
-    const result = await this.interviewService.generateQuestions(id);
+    const result = await this.interviewService.generateQuestions(id, req.user!._id.toString());
     res.status(200).json({ success: true, data: result });
   });
 
@@ -131,7 +126,7 @@ export class InterviewController {
   submitAnswers = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
     const { answers } = req.body;
-    const result = await this.interviewService.submitAnswers(id, answers);
+    const result = await this.interviewService.submitAnswers(id, answers, req.user!._id.toString());
     res.status(200).json({ success: true, data: result });
   });
   /**
@@ -140,7 +135,7 @@ export class InterviewController {
   saveProgress = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
     const { answers } = req.body;
-    const result = await this.interviewService.saveProgress(id, answers);
+    const result = await this.interviewService.saveProgress(id, answers, req.user!._id.toString());
     res.status(200).json({ success: true, data: result });
   });
 }

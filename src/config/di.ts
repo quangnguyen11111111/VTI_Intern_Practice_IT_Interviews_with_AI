@@ -49,11 +49,11 @@ container.register('ITechnologyRepository', {
 });
 
 container.register('IInterviewRepository', {
-  useClass: MongoInterviewRepository
+  useFactory: () => new MongoInterviewRepository()
 });
 
 container.register('IInterviewHistoryRepository', {
-  useClass: MongoInterviewRepository
+  useFactory: () => new MongoInterviewRepository()
 });
 
 container.register('IApiRateLimitRepository', {
