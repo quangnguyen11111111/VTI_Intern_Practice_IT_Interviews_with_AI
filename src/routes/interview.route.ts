@@ -1,17 +1,22 @@
 import { Router } from 'express';
-import { authenticate, authorize, requireOwnership } from '../middlewares/auth.middleware';
+import {
+  authenticate,
+  authorize,
+  requireOwnership
+} from '../middlewares/auth.middleware';
 import { InterviewController } from '../controllers/InterviewController';
 import { container } from '../config/di';
 import { uploadMiddleware } from '../middlewares/upload.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import {
   interviewActionSchema,
+  interviewAnalyticsQuerySchema,
   interviewCreateSchema,
   interviewGetSchema,
   interviewHistoryQuerySchema,
   interviewJdCreateSchema,
   interviewProgressSchema,
-  interviewSubmitSchema,
+  interviewSubmitSchema
 } from '../validators/interview.validator';
 import { InterviewSessionModel } from '../models/InterviewSession';
 import { RateLimitMiddleware } from '../middlewares/rate-limit.middleware';
@@ -20,56 +25,90 @@ import { getEnv } from '../config/env';
 
 const router = Router();
 
-const interviewController = container.resolve(InterviewController);
+const interviewController =
+  container.resolve(InterviewController);
+
 const env = getEnv();
-const rateLimitMiddleware = container.resolve(RateLimitMiddleware);
 
-const requireInterviewOwner = requireOwnership(async (req) => {
-  const session = await InterviewSessionModel.findById(req.params.id)
-    .select('_id userId')
-    .lean();
-  if (!session) return null;
+const rateLimitMiddleware =
+  container.resolve(RateLimitMiddleware);
 
-  return {
-    ownerId: session.userId,
-    resource: session,
-  };
-}, {
-  resourceName: 'Phiên phỏng vấn',
-  notFoundMessage: 'Phiên phỏng vấn không tồn tại',
-  notFoundCode: 'INTERVIEW_NOT_FOUND',
-  attachKey: 'interviewSession',
-});
+const requireInterviewOwner = requireOwnership(
+  async (req) => {
+    const session =
+      await InterviewSessionModel.findById(req.params.id)
+        .select('_id userId')
+        .lean();
 
-const createInterviewRateLimit = rateLimitMiddleware.create({
-  keyPrefix: 'interview:create',
-  limit: env.RATE_LIMIT_CREATE_INTERVIEW_MAX,
-  windowMs: env.RATE_LIMIT_CREATE_INTERVIEW_WINDOW_MS,
-  keyGenerator: (req) => req.user ? req.user._id.toString() : req.ip || 'unknown',
-});
+    if (!session) {
+      return null;
+    }
 
-const aiRateLimit = rateLimitMiddleware.create({
-  keyPrefix: 'interview:ai',
-  limit: env.RATE_LIMIT_AI_MAX,
-  windowMs: env.RATE_LIMIT_AI_WINDOW_MS,
-  keyGenerator: (req) => req.user ? req.user._id.toString() : req.ip || 'unknown',
-});
+    return {
+      ownerId: session.userId,
+      resource: session
+    };
+  },
+  {
+    resourceName: 'Phiên phỏng vấn',
+    notFoundMessage:
+      'Phiên phỏng vấn không tồn tại',
+    notFoundCode: 'INTERVIEW_NOT_FOUND',
+    attachKey: 'interviewSession'
+  }
+);
 
-const submitRateLimit = rateLimitMiddleware.create({
-  keyPrefix: 'interview:submit',
-  limit: env.RATE_LIMIT_SUBMIT_MAX,
-  windowMs: env.RATE_LIMIT_SUBMIT_WINDOW_MS,
-  keyGenerator: (req) => req.user ? req.user._id.toString() : req.ip || 'unknown',
-});
+const createInterviewRateLimit =
+  rateLimitMiddleware.create({
+    keyPrefix: 'interview:create',
+    limit: env.RATE_LIMIT_CREATE_INTERVIEW_MAX,
+    windowMs:
+      env.RATE_LIMIT_CREATE_INTERVIEW_WINDOW_MS,
+    keyGenerator: (req) =>
+      req.user
+        ? req.user._id.toString()
+        : req.ip || 'unknown'
+  });
 
-const progressRateLimit = rateLimitMiddleware.create({
-  keyPrefix: 'interview:progress',
-  limit: env.RATE_LIMIT_PROGRESS_MAX,
-  windowMs: env.RATE_LIMIT_PROGRESS_WINDOW_MS,
-  keyGenerator: (req) => req.user ? req.user._id.toString() : req.ip || 'unknown',
-});
+const aiRateLimit =
+  rateLimitMiddleware.create({
+    keyPrefix: 'interview:ai',
+    limit: env.RATE_LIMIT_AI_MAX,
+    windowMs: env.RATE_LIMIT_AI_WINDOW_MS,
+    keyGenerator: (req) =>
+      req.user
+        ? req.user._id.toString()
+        : req.ip || 'unknown'
+  });
 
-const interviewQuotaMiddleware = container.resolve(InterviewQuotaMiddleware).create();
+const submitRateLimit =
+  rateLimitMiddleware.create({
+    keyPrefix: 'interview:submit',
+    limit: env.RATE_LIMIT_SUBMIT_MAX,
+    windowMs:
+      env.RATE_LIMIT_SUBMIT_WINDOW_MS,
+    keyGenerator: (req) =>
+      req.user
+        ? req.user._id.toString()
+        : req.ip || 'unknown'
+  });
+
+const progressRateLimit =
+  rateLimitMiddleware.create({
+    keyPrefix: 'interview:progress',
+    limit: env.RATE_LIMIT_PROGRESS_MAX,
+    windowMs:
+      env.RATE_LIMIT_PROGRESS_WINDOW_MS,
+    keyGenerator: (req) =>
+      req.user
+        ? req.user._id.toString()
+        : req.ip || 'unknown'
+  });
+
+const interviewQuotaMiddleware =
+  container
+    .resolve(InterviewQuotaMiddleware)
+    .create();
 
 router.post(
   '/',
@@ -77,7 +116,7 @@ router.post(
   authenticate,
   authorize('CANDIDATE', 'INTERVIEWER'),
   createInterviewRateLimit,
-  interviewController.createSession,
+  interviewController.createSession
 );
 
 router.post(
@@ -87,20 +126,44 @@ router.post(
   uploadMiddleware.single('jdFile'),
   validate(interviewJdCreateSchema),
   createInterviewRateLimit,
-  interviewController.createSessionFromJD,
+  interviewController.createSessionFromJD
 );
 
-// Must be declared before /:id.
+// ANA-01: Current-user interview analytics
+router.get(
+  '/analytics',
+  authenticate,
+  validate(interviewAnalyticsQuerySchema),
+  interviewController.getAnalytics
+);
+
+// HIS-01: Interview history
+// Must be declared before /:id
 router.get(
   '/history',
   validate(interviewHistoryQuerySchema),
   authenticate,
   authorize('CANDIDATE', 'INTERVIEWER'),
-  interviewController.getHistory,
+  interviewController.getHistory
 );
 
-router.get('/:id', validate(interviewGetSchema), authenticate, authorize('CANDIDATE', 'INTERVIEWER'), requireInterviewOwner, interviewController.getSession);
-router.get('/:id/stream', validate(interviewGetSchema), authenticate, authorize('CANDIDATE', 'INTERVIEWER'), requireInterviewOwner, interviewController.streamStatus);
+router.get(
+  '/:id',
+  validate(interviewGetSchema),
+  authenticate,
+  authorize('CANDIDATE', 'INTERVIEWER'),
+  requireInterviewOwner,
+  interviewController.getSession
+);
+
+router.get(
+  '/:id/stream',
+  validate(interviewGetSchema),
+  authenticate,
+  authorize('CANDIDATE', 'INTERVIEWER'),
+  requireInterviewOwner,
+  interviewController.streamStatus
+);
 
 router.post(
   '/:id/generate',
@@ -110,7 +173,7 @@ router.post(
   validate(interviewActionSchema),
   aiRateLimit,
   interviewQuotaMiddleware,
-  interviewController.generateQuestions,
+  interviewController.generateQuestions
 );
 
 router.post(
@@ -120,7 +183,7 @@ router.post(
   requireInterviewOwner,
   validate(interviewProgressSchema),
   progressRateLimit,
-  interviewController.saveProgress,
+  interviewController.saveProgress
 );
 
 router.post(
@@ -130,7 +193,7 @@ router.post(
   requireInterviewOwner,
   validate(interviewSubmitSchema),
   submitRateLimit,
-  interviewController.submitAnswers,
+  interviewController.submitAnswers
 );
 
 export default router;
