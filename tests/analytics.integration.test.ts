@@ -6,13 +6,24 @@ import {
   beforeEach,
   describe,
   expect,
-  it
+  it,
+  vi
 } from 'vitest';
 
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
 
+vi.hoisted(() => {
+  process.env.NODE_ENV = 'test';
+  process.env.JWT_ACCESS_SECRET =
+    'test_jwt_access_secret_key_at_least_32_characters_long_12345';
+  process.env.JWT_REFRESH_SECRET =
+    'test_jwt_refresh_secret_key_at_leAST_32_characters_long_67890';
+  process.env.JWT_ACCESS_EXPIRES_IN = '15m';
+  process.env.JWT_REFRESH_EXPIRES_IN = '7d';
+  process.env.BCRYPT_SALT_ROUNDS = '10';
+});
 import app from '../src/app';
 import User from '../src/models/user.model';
 import Role from '../src/models/role.model';
