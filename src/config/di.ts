@@ -1,4 +1,5 @@
 import { container } from 'tsyringe';
+import { getEnv } from './env';
 import { AgendaJobScheduler } from '../infrastructure/jobs/AgendaJobScheduler';
 import { GenerateQuestionJobHandler } from '../domain/jobs/handlers/GenerateQuestionJobHandler';
 
@@ -11,37 +12,69 @@ import { TechnologyRepository } from '../repositories/technology.repository';
 import { MongoInterviewRepository } from '../repositories/MongoInterviewRepository';
 import { UserRepository } from '../repositories/user.repository';
 import { AuditRepository } from '../repositories/audit.repository';
+import { SystemPromptRepository } from '../repositories/system-prompt.repository';
 import { AdminMetricsRepository } from '../repositories/admin-metrics.repository';
+import { ApiRateLimitRepository } from '../repositories/api-rate-limit.repository';
+import { InterviewQuotaRepository } from '../repositories/interview-quota.repository';
 
 // Services
 import { RoleService } from '../services/role.service';
 import { LevelService } from '../services/level.service';
 import { TechnologyService } from '../services/technology.service';
 import { InterviewService } from '../services/InterviewService';
+import { SystemPromptService } from '../services/system-prompt.service';
 import { AdminMetricsService } from '../services/admin-metrics.service';
+import { InterviewQuotaService } from '../services/interview-quota.service';
 
 // AI Providers
 import { MockAiProvider } from '../services/ai/providers/MockAiProvider';
 import { GeminiAiProvider } from '../services/ai/providers/GeminiAiProvider';
+
 import { AdminUserService } from '../services/admin-user.service';
 import { AuditService } from '../services/audit.service';
+
 import { EvaluateAnswersJobHandler } from '../domain/jobs/handlers/EvaluateAnswersJobHandler';
 import { InterviewOperationProcessor } from '../services/InterviewOperationProcessor';
 import { OutboxDispatcher } from '../infrastructure/jobs/OutboxDispatcher';
 
 // Register Repositories
-container.register('IRoleRepository', { useClass: RoleRepository });
-container.register('ILevelRepository', { useClass: LevelRepository });
-container.register('ITechnologyRepository', { useClass: TechnologyRepository });
-container.register('IInterviewRepository', { useClass: MongoInterviewRepository });
+container.register('IRoleRepository', {
+  useClass: RoleRepository
+});
 
+container.register('ILevelRepository', {
+  useClass: LevelRepository
+});
+
+container.register('ITechnologyRepository', {
+  useClass: TechnologyRepository
+});
+
+container.register('IInterviewRepository', {
+  useFactory: () => new MongoInterviewRepository()
+});
+
+container.register('IInterviewHistoryRepository', {
+  useFactory: () => new MongoInterviewRepository()
+});
+
+container.register('IApiRateLimitRepository', {
+  useClass: ApiRateLimitRepository
+});
+
+container.register('IInterviewQuotaRepository', {
+  useClass: InterviewQuotaRepository
+});
 
 // Register AI Provider based on .env
-if (process.env.NODE_ENV === 'test') {
+const env = getEnv();
+container.register('AppEnv', { useValue: env });
+if (env.NODE_ENV === 'test') {
   container.register('IAiProvider', { useClass: MockAiProvider });
 } else {
-
-  container.register('IAiProvider', { useClass: GeminiAiProvider });
+  container.register('IAiProvider', {
+    useClass: GeminiAiProvider
+  });
 }
 
 // Background Jobs
@@ -54,8 +87,10 @@ container.registerSingleton(GenerateQuestionJobHandler);
 container.registerSingleton(EvaluateAnswersJobHandler);
 
 // Event Bus
-container.registerSingleton('IEventPublisher', InterviewEventBus);
-
+container.registerSingleton(
+  'IEventPublisher',
+  InterviewEventBus
+);
 
 container.register('IUserRepository', {
   useClass: UserRepository
@@ -65,14 +100,26 @@ container.register('IAuditRepository', {
   useClass: AuditRepository
 });
 
+container.register('ISystemPromptRepository', {
+  useClass: SystemPromptRepository
+});
+
 container.register('IAdminMetricsRepository', {
   useClass: AdminMetricsRepository
 });
 
 // Register Services
-container.register('IRoleService', { useClass: RoleService });
-container.register('ILevelService', { useClass: LevelService });
-container.register('ITechnologyService', { useClass: TechnologyService });
+container.register('IRoleService', {
+  useClass: RoleService
+});
+
+container.register('ILevelService', {
+  useClass: LevelService
+});
+
+container.register('ITechnologyService', {
+  useClass: TechnologyService
+});
 
 container.register('IAdminUserService', {
   useClass: AdminUserService
@@ -82,8 +129,15 @@ container.register('IAuditService', {
   useClass: AuditService
 });
 
+container.register('ISystemPromptService', {
+  useClass: SystemPromptService
+});
+
 container.register('IAdminMetricsService', {
   useClass: AdminMetricsService
 });
 
+container.register('IInterviewQuotaService', {
+  useClass: InterviewQuotaService
+});
 export { container };

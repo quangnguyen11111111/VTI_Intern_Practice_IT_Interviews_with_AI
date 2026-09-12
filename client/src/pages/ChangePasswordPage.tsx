@@ -7,6 +7,7 @@ import { changePassword } from '../auth/apiClient';
 import { clearSession } from '../auth/session';
 import { authBridge } from '../auth/authStore';
 import { toApiError, type ApiError } from '../auth/types';
+import { PasswordInput } from '../features/auth/PasswordInput';
 
 export function ChangePasswordPage() {
   const navigate = useNavigate();
@@ -100,13 +101,14 @@ export function ChangePasswordPage() {
                   <label htmlFor="currentPassword" className="block text-sm font-semibold text-slate-700">
                     Mật khẩu hiện tại
                   </label>
-                  <input
+                  <PasswordInput
                     id="currentPassword"
-                    type="password"
+                    visibilityLabel="Mật khẩu hiện tại"
+                    wrapperClassName="mt-1.5"
                     autoComplete="current-password"
                     aria-invalid={Boolean(errors.currentPassword)}
                     aria-describedby={errors.currentPassword ? 'currentPassword-error' : undefined}
-                    className={`mt-1.5 w-full rounded-xl border px-4 py-3 text-slate-800 outline-none transition focus:ring-4 ${
+                    className={`w-full rounded-xl border px-4 py-3 text-slate-800 outline-none transition focus:ring-4 ${
                       errors.currentPassword
                         ? 'border-red-300 bg-red-50/40 focus:border-red-500 focus:ring-red-100'
                         : 'border-slate-200 bg-white focus:border-indigo-500 focus:ring-indigo-100'
@@ -124,13 +126,14 @@ export function ChangePasswordPage() {
                   <label htmlFor="newPassword" className="block text-sm font-semibold text-slate-700">
                     Mật khẩu mới
                   </label>
-                  <input
+                  <PasswordInput
                     id="newPassword"
-                    type="password"
+                    visibilityLabel="Mật khẩu mới"
+                    wrapperClassName="mt-1.5"
                     autoComplete="new-password"
                     aria-invalid={Boolean(errors.newPassword)}
                     aria-describedby={errors.newPassword ? 'newPassword-error' : undefined}
-                    className={`mt-1.5 w-full rounded-xl border px-4 py-3 text-slate-800 outline-none transition focus:ring-4 ${
+                    className={`w-full rounded-xl border px-4 py-3 text-slate-800 outline-none transition focus:ring-4 ${
                       errors.newPassword
                         ? 'border-red-300 bg-red-50/40 focus:border-red-500 focus:ring-red-100'
                         : 'border-slate-200 bg-white focus:border-indigo-500 focus:ring-indigo-100'
@@ -148,13 +151,14 @@ export function ChangePasswordPage() {
                   <label htmlFor="confirmPassword" className="block text-sm font-semibold text-slate-700">
                     Xác nhận mật khẩu mới
                   </label>
-                  <input
+                  <PasswordInput
                     id="confirmPassword"
-                    type="password"
+                    visibilityLabel="Xác nhận mật khẩu mới"
+                    wrapperClassName="mt-1.5"
                     autoComplete="new-password"
                     aria-invalid={Boolean(errors.confirmPassword)}
                     aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
-                    className={`mt-1.5 w-full rounded-xl border px-4 py-3 text-slate-800 outline-none transition focus:ring-4 ${
+                    className={`w-full rounded-xl border px-4 py-3 text-slate-800 outline-none transition focus:ring-4 ${
                       errors.confirmPassword
                         ? 'border-red-300 bg-red-50/40 focus:border-red-500 focus:ring-red-100'
                         : 'border-slate-200 bg-white focus:border-indigo-500 focus:ring-indigo-100'

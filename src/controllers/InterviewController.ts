@@ -1,6 +1,7 @@
 import { injectable, inject } from 'tsyringe';
 import { Request, Response } from 'express';
 import { InterviewWorkflowService } from '../services/InterviewWorkflowService';
+import { InterviewService } from '../services/InterviewService';
 import { IEventPublisher } from '../domain/events/IEventPublisher';
 import { AppError } from '../utils/AppError';
 import { catchAsync } from '../utils/catchAsync';
@@ -8,7 +9,8 @@ import { catchAsync } from '../utils/catchAsync';
 @injectable()
 export class InterviewController {
   constructor(
-    @inject(InterviewWorkflowService) private interviewService: InterviewWorkflowService,
+    @inject(InterviewWorkflowService) private readonly workflowService: InterviewWorkflowService,
+    @inject(InterviewService) private readonly interviewService: InterviewService,
     @inject('IEventPublisher') private eventPublisher?: IEventPublisher
   ) {}
 
@@ -19,7 +21,7 @@ export class InterviewController {
   streamStatus = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
     const actorId = req.user!._id.toString();
-
+    // Resolve ownership before sending headers; Express 5 forwards rejected async handlers.
     const current = await this.interviewService.getInterviewSession(id, actorId);
 
     // Set headers for SSE
@@ -68,9 +70,12 @@ export class InterviewController {
    * POST /api/interviews
    */
   createSession = catchAsync(async (req: Request, res: Response): Promise<void> => {
-    const { jobPosition, level, techStacks } = req.body;
-    const setupData = { jobPosition, level, techStacks };
-    const session = await this.interviewService.createInterviewSession(setupData, req.user!._id.toString());
+    const { jobPosition, level, techStacks, language, secondsPerQuestion, strategy } = req.body;
+    const setupData = { jobPosition, level, techStacks, language, secondsPerQuestion, strategy };
+    const session = await this.interviewService.createInterviewSession(
+      setupData,
+      req.user!._id.toString()
+    );
     res.status(201).json({ success: true, data: session });
   });
 
@@ -82,17 +87,37 @@ export class InterviewController {
       throw new AppError('JD file is required', 400, 'JD_FILE_REQUIRED');
     }
 
-    const { jobPosition, level, techStacks } = req.body;
-    const setupData = { jobPosition, level, techStacks };
+    const { jobPosition, level, techStacks, language, secondsPerQuestion, strategy } = req.body;
+    const setupData = { jobPosition, level, techStacks, language, secondsPerQuestion, strategy };
 
-    const session = await this.interviewService.createInterviewSessionFromJD(
-      setupData,
-      req.file.buffer,
-      req.file.mimetype,
-      req.user!._id.toString()
-    );
+    try {
+      const session = await this.interviewService.createInterviewSessionFromJD(
+        setupData,
+        req.file.buffer,
+        req.file.mimetype,
+        req.user!._id.toString(),
+      );
+      res.status(201).json({ success: true, data: session });
+    } finally {
+      req.file.buffer.fill(0);
+      req.file = undefined;
+    }
+  });
 
-    res.status(201).json({ success: true, data: session });
+  /**
+   * GET /api/interviews/history
+   */
+  getHistory = catchAsync(async (req: Request, res: Response): Promise<void> => {
+    const userId = req.user?._id?.toString();
+
+    if (!userId) {
+      throw new AppError('Yêu cầu xác thực', 401, 'AUTH_UNAUTHORIZED');
+    }
+
+    const query = req.query as any;
+    const result = await this.interviewService.getInterviewHistory(userId, query);
+
+    res.status(200).json({ success: true, data: result });
   });
 
   /**
@@ -109,11 +134,14 @@ export class InterviewController {
    */
   generateQuestions = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
-    const result = await this.interviewService.generateQuestions(
-      id,
-      req.user!._id.toString(),
-      req.get('Idempotency-Key')!
-    );
+    const userId = req.user!._id.toString();
+    const idempotencyKey = req.get('Idempotency-Key');
+    if (!idempotencyKey) {
+      const session = await this.interviewService.generateQuestions(id, userId);
+      res.status(200).json({ success: true, data: session });
+      return;
+    }
+    const result = await this.workflowService.generateQuestions(id, userId, idempotencyKey);
     res.status(202).json({ success: true, data: result });
   });
 
@@ -123,10 +151,17 @@ export class InterviewController {
   submitAnswers = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
     const { expectedVersion, answers } = req.body;
-    const result = await this.interviewService.submitAnswers(
+    const userId = req.user!._id.toString();
+    const idempotencyKey = req.get('Idempotency-Key');
+    if (!idempotencyKey || expectedVersion === undefined) {
+      const session = await this.interviewService.submitAnswers(id, answers, userId);
+      res.status(200).json({ success: true, data: session });
+      return;
+    }
+    const result = await this.workflowService.submitAnswers(
       id,
-      req.user!._id.toString(),
-      req.get('Idempotency-Key')!,
+      userId,
+      idempotencyKey,
       expectedVersion,
       answers
     );
@@ -138,9 +173,15 @@ export class InterviewController {
   saveProgress = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
     const { expectedVersion, answers } = req.body;
-    const result = await this.interviewService.saveProgress(
+    const userId = req.user!._id.toString();
+    if (expectedVersion === undefined) {
+      const result = await this.interviewService.saveProgress(id, answers, userId);
+      res.status(200).json({ success: true, data: result });
+      return;
+    }
+    const result = await this.workflowService.saveProgress(
       id,
-      req.user!._id.toString(),
+      userId,
       expectedVersion,
       answers
     );

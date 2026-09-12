@@ -101,21 +101,33 @@ describe('AIP-52 HTTP security controls', () => {
     expect(response.body.requestId).toMatch(uuidPattern);
   });
 
-  it('rejects unsupported upload types and files above 5MB', async () => {
-    const uploadBoundaryApp = express();
-    uploadBoundaryApp.use(requestContext);
-    uploadBoundaryApp.post('/upload', uploadMiddleware.single('jdFile'), (_req, res) => res.sendStatus(204));
-    uploadBoundaryApp.use(globalErrorHandler);
+  it('rejects an unauthenticated upload before allocating file-parser memory', async () => {
+    const app = createApp(getEnv());
+    const unsupported = await request(app)
+      .post('/api/v1/interviews/generate-from-jd')
+      .attach('jdFile', Buffer.from('plain text'), {
+        filename: 'job-description.txt',
+        contentType: 'text/plain',
+      })
+      .expect(401);
+    expect(unsupported.body).toMatchObject({ success: false, code: 'AUTH_UNAUTHORIZED' });
+  });
 
-    const unsupported = await request(uploadBoundaryApp)
-      .post('/upload')
+  it('rejects unsupported upload types and files above 5MB', async () => {
+    // Isolate Multer limits; the production authenticated pipeline is covered by SEC-03 integration tests.
+    const app = express(); app.use(requestContext);
+    app.post('/api/v1/interviews/generate-from-jd', uploadMiddleware.single('jdFile'), (_req,res) => res.sendStatus(204));
+    app.use(globalErrorHandler);
+
+    const unsupported = await request(app)
+      .post('/api/v1/interviews/generate-from-jd')
       .attach('jdFile', Buffer.from('plain text'), {
         filename: 'job-description.txt',
         contentType: 'text/plain',
       })
       .expect(415);
-    const oversized = await request(uploadBoundaryApp)
-      .post('/upload')
+    const oversized = await request(app)
+      .post('/api/v1/interviews/generate-from-jd')
       .attach('jdFile', Buffer.alloc(5 * 1024 * 1024 + 1), {
         filename: 'job-description.pdf',
         contentType: 'application/pdf',
@@ -124,14 +136,6 @@ describe('AIP-52 HTTP security controls', () => {
 
     expect(unsupported.body).toMatchObject({ success: false, code: 'UNSUPPORTED_FILE_TYPE' });
     expect(oversized.body).toMatchObject({ success: false, code: 'UPLOAD_TOO_LARGE' });
-
-    await request(createApp(getEnv()))
-      .post('/api/v1/interviews/generate-from-jd')
-      .attach('jdFile', Buffer.from('valid pdf bytes'), {
-        filename: 'job-description.pdf',
-        contentType: 'application/pdf',
-      })
-      .expect(401);
   });
 
   it('validates params, query, and body before controllers run', async () => {

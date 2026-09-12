@@ -23,6 +23,8 @@ import {
 import { AdminUsersPage } from './pages/AdminUsersPage';
 import { AdminMetricsPage } from './pages/AdminMetricsPage';
 import { ResultPage } from './pages/ResultPage';
+import { HistoryPage } from './pages/HistoryPage';
+import AdminSystemPromptsPage from './pages/AdminSystemPromptsPage';
 
 function App() {
   return (
@@ -94,6 +96,10 @@ function App() {
               path="/admin/metrics"
               element={<AdminMetricsPage />}
             />
+            <Route
+              path="/admin/system-prompts"
+              element={<AdminSystemPromptsPage />}
+            />
           </Route>
 
           <Route
@@ -109,6 +115,11 @@ function App() {
             <Route
               path="/setup"
               element={<InterviewSetupPage />}
+            />
+
+            <Route
+              path="/history"
+              element={<HistoryPage />}
             />
 
             <Route

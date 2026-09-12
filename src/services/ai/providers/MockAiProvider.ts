@@ -1,86 +1,69 @@
 import { injectable } from 'tsyringe';
-import { IAiProvider, InterviewSetupPayload, GeneratedQuestion, AnswerPayload, EvaluationResult, AiUsageMetadata } from '../../../domain/interview/types';
+import { IAiProvider, InterviewSetupPayload, AnswerPayload } from '../../../domain/interview/types';
+import { logger } from '../../../infrastructure/logging/logger';
+import {
+  DIMENSIONS,
+  EvaluationQuestion,
+  generationPrompt,
+  evaluationPrompt,
+  validateGeneration,
+  validateEvaluation,
+} from '../prompt-security';
 
 @injectable()
 export class MockAiProvider implements IAiProvider {
-  async generateQuestions(setupData: InterviewSetupPayload): Promise<{ data: GeneratedQuestion[], audit: AiUsageMetadata }> {
-    const data = [
-      {
-        order: 1,
-        difficulty: 'Easy',
-        content: { en: 'What is a variable?', vi: 'Biến là gì?' }
-      },
-      {
-        order: 2,
-        difficulty: 'Medium',
-        content: { en: 'Explain closure in JavaScript.', vi: 'Giải thích closure trong JavaScript.' }
-      },
-      {
-        order: 3,
-        difficulty: 'Medium',
-        content: { en: 'What is the difference between let and const?', vi: 'Sự khác biệt giữa let và const là gì?' }
-      },
-      {
-        order: 4,
-        difficulty: 'Hard',
-        content: { en: 'Explain the event loop.', vi: 'Giải thích event loop.' }
-      },
-      {
-        order: 5,
-        difficulty: 'Hard',
-        content: { en: 'How does prototypal inheritance work?', vi: 'Kế thừa nguyên mẫu (prototypal inheritance) hoạt động như thế nào?' }
-      }
+  async generateQuestions(setupData: InterviewSetupPayload) {
+    generationPrompt(setupData);
+    logger.info('ai.generating');
+    const content = [
+      { en: 'What is a variable?', vi: 'Biến là gì?' },
+      { en: 'Explain closure in JavaScript.', vi: 'Giải thích closure trong JavaScript.' },
+      { en: 'Compare let and const.', vi: 'So sánh let và const.' },
+      { en: 'Explain the event loop.', vi: 'Giải thích event loop.' },
+      { en: 'How does prototypal inheritance work?', vi: 'Kế thừa nguyên mẫu hoạt động như thế nào?' },
     ];
-
+    const data = validateGeneration(content.map((text, index) => ({
+      order: index + 1,
+      difficulty: ['Easy', 'Medium', 'Medium', 'Hard', 'Hard'][index],
+      category: 'Language fundamentals',
+      content: text,
+    })));
     return {
       data,
-      audit: { promptTokenCount: 10, candidatesTokenCount: 50, totalTokenCount: 60 }
+      audit: { promptTokenCount: 10, candidatesTokenCount: 50, totalTokenCount: 60 },
     };
   }
 
-  async evaluateAnswers(questions: any[], answers: AnswerPayload[]): Promise<{ data: EvaluationResult, audit: AiUsageMetadata }> {
-    const evaluations = questions.map((q, index) => {
-      const questionId = q._id?.toString() || q.id;
-      const ans = answers.find(a => a.questionId === questionId);
-      
-      const score = ans?.candidateAnswer?.trim() ? Math.max(1, 8 - index) : 0;
-
-      return {
-        questionId,
+  async evaluateAnswers(questions: EvaluationQuestion[], answers: AnswerPayload[]) {
+    const prompt = evaluationPrompt(questions, answers);
+    logger.info('ai.evaluating');
+    const data = validateEvaluation({
+      evaluations: prompt.questions.map((question) => ({
+        questionId: question.id,
+        score: 8,
         feedback: {
-          en: `Mock feedback for answer: ${ans?.candidateAnswer}. Score: ${score}/10.`,
-          vi: `Nhận xét giả lập cho câu trả lời: ${ans?.candidateAnswer}. Điểm: ${score}/10.`
+          en: 'Explain the technical tradeoffs in more detail.',
+          vi: 'Giải thích kỹ hơn về các đánh đổi kỹ thuật.',
         },
-        score
-      };
-    });
-
-    const data: EvaluationResult = {
-      evaluations,
+      })),
       overallScore: 8,
-      dimensions: [
-          { name: "TECHNICAL_ACCURACY", score: 8, reasoning: "Good understanding of core concepts." },
-          { name: "PROBLEM_SOLVING", score: 7, reasoning: "Approached the problem well but missed some edge cases." },
-          { name: "COMMUNICATION", score: 9, reasoning: "Explained ideas very clearly." },
-          { name: "PRACTICAL_APPLICATION", score: 6, reasoning: "Needs more hands-on examples." }
-        ],
-        learningPath: [
-          { 
-            topic: { en: "Advanced React Patterns", vi: "Các pattern React nâng cao" }, 
-            priority: "High", 
-            suggestion: { en: "Study HOCs and custom hooks.", vi: "Học HOCs và custom hooks." }
-          },
-          { 
-            topic: { en: "System Design Basics", vi: "Cơ bản về thiết kế hệ thống" }, 
-            priority: "Medium", 
-            suggestion: { en: "Read grokking the system design interview.", vi: "Đọc sách grokking the system design interview." }
-          }
-        ]
-    };
-
+      dimensions: DIMENSIONS.map((name) => ({
+        name,
+        score: 8,
+        reasoning: 'Demonstrates technical understanding.',
+      })),
+      learningPath: [{
+        topic: { en: 'Language fundamentals', vi: 'Kiến thức ngôn ngữ' },
+        priority: 'Medium',
+        suggestion: {
+          en: 'Practice with small examples.',
+          vi: 'Luyện tập với các ví dụ nhỏ.',
+        },
+      }],
+    }, prompt.questions, prompt.answers);
     return {
       data,
-      audit: { promptTokenCount: 20, candidatesTokenCount: 100, totalTokenCount: 120 }
+      audit: { promptTokenCount: 20, candidatesTokenCount: 100, totalTokenCount: 120 },
     };
   }
 }

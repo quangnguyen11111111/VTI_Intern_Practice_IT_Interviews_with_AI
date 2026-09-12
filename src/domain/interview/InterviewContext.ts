@@ -17,16 +17,19 @@ export class InterviewContext {
   private interviewId: string;
   private repository: IInterviewRepository;
   private eventPublisher?: IEventPublisher;
+  private version: number;
 
   constructor(
     interviewId: string, 
     repository: IInterviewRepository, 
     initialState?: IInterviewState,
-    eventPublisher?: IEventPublisher
+    eventPublisher?: IEventPublisher,
+    initialVersion = 0
   ) {
     this.interviewId = interviewId;
     this.repository = repository;
     this.eventPublisher = eventPublisher;
+    this.version = initialVersion;
     // Default state is PENDING if not provided
     this.state = initialState || new PendingState();
   }
@@ -43,19 +46,55 @@ export class InterviewContext {
     return this.repository;
   }
 
+  public getVersion(): number {
+    return this.version;
+  }
+
   /**
    * Chuyển đổi trạng thái và cập nhật xuống DB (có thể gọi hàm update trạng thái ở đây)
    */
   public async changeState(newState: IInterviewState): Promise<void> {
+    const currentStatus = this.state.getName();
+    const nextStatus = newState.getName();
+    const legalTransitions: Record<InterviewStatus, InterviewStatus[]> = {
+      PENDING: ['GENERATING'],
+      GENERATING: ['IN_PROGRESS', 'FAILED'],
+      IN_PROGRESS: ['EVALUATING', 'FAILED'],
+      EVALUATING: ['COMPLETED', 'FAILED'],
+      COMPLETED: [],
+      FAILED: ['GENERATING', 'EVALUATING'],
+    };
+
+    if (!legalTransitions[currentStatus].includes(nextStatus)) {
+      const { InvalidStateTransitionException } = await import('./exceptions/InvalidStateTransitionException');
+      throw new InvalidStateTransitionException(
+        `Cannot transition interview from ${currentStatus} to ${nextStatus}.`
+      );
+    }
+
+    const nextVersion = await this.repository.updateStatus(
+      this.interviewId,
+      nextStatus,
+      currentStatus,
+      this.version
+    );
+
+    if (nextVersion === null) {
+      const { InvalidStateTransitionException } = await import('./exceptions/InvalidStateTransitionException');
+      throw new InvalidStateTransitionException(
+        `Stale interview version ${this.version}; state changed concurrently.`
+      );
+    }
+
     this.state = newState;
-    // Update state to persistent storage
-    await this.repository.updateStatus(this.interviewId, this.state.getName());
+    this.version = nextVersion;
     
     // Publish state change event for SSE
     if (this.eventPublisher) {
       this.eventPublisher.publish('STATE_CHANGED', {
         interviewId: this.interviewId,
-        status: this.state.getName()
+        status: this.state.getName(),
+        version: this.version
       });
     }
   }

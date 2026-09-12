@@ -13,6 +13,7 @@ import { ProviderUsageAttemptModel } from '../models/ProviderUsageAttempt';
 import { UserQuotaLedgerModel } from '../models/UserQuotaLedger';
 import { classifyProviderError } from './ai/provider-errors';
 import { validateEvaluationResult, validateGeneratedQuestions } from './ai/output-validation';
+import { evaluateThroughBoundary, generateThroughBoundary } from './ai/prompt-security';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -114,7 +115,7 @@ export class InterviewOperationProcessor {
         const interview = await InterviewSessionModel.findById(operation.targetId).lean();
         if (!interview) throw new Error('Missing interview aggregate');
         await this.startUsageAttempt(operation._id, operation.attempts, now);
-        const providerResult = await this.aiProvider.generateQuestions(interview.setupData);
+        const providerResult = await generateThroughBoundary(this.aiProvider, interview.setupData);
         usage = providerResult.audit;
         await this.recordObservedUsage(operation._id, operation.attempts, usage);
         generated = validateGeneratedQuestions(providerResult.data);
@@ -129,7 +130,14 @@ export class InterviewOperationProcessor {
           questionId: answer.questionId.toString(),
           candidateAnswer: answer.state === 'ANSWERED' ? answer.candidateAnswer ?? '' : ''
         }));
-        const providerResult = await this.aiProvider.evaluateAnswers(questions, answers);
+        const providerResult = await evaluateThroughBoundary(
+          this.aiProvider,
+          questions.map((question) => ({
+            id: question._id.toString(),
+            content: question.content
+          })),
+          answers,
+        );
         usage = providerResult.audit;
         await this.recordObservedUsage(operation._id, operation.attempts, usage);
         evaluated = validateEvaluationResult(

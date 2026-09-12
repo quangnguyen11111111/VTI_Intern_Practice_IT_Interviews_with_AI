@@ -3,6 +3,9 @@ export interface InterviewSetupPayload {
   level?: string;
   techStacks?: string[];
   jdText?: string;
+  language?: 'VI' | 'EN';
+  secondsPerQuestion?: number;
+  strategy?: 'STANDARD' | 'ADAPTIVE';
 }
 
 export interface LocalizedContent {
@@ -40,15 +43,21 @@ export interface EvaluationDimension {
   reasoning: string;
 }
 
+export interface LearningPathItem {
+  topic: LocalizedContent;
+  priority: string;
+  suggestion: LocalizedContent;
+}
+
 export interface EvaluationResult {
   evaluations: EvaluatedAnswer[];
   overallScore: number;
   dimensions: EvaluationDimension[];
-  learningPath: { 
-    topic: LocalizedContent; 
-    priority: string; 
-    suggestion: LocalizedContent 
-  }[];
+  learningPath: LearningPathItem[];
+}
+
+export interface LearningPathResult {
+  learningPath: LearningPathItem[];
 }
 
 export interface AiUsageMetadata {
@@ -57,20 +66,65 @@ export interface AiUsageMetadata {
   totalTokenCount: number;
 }
 
+export interface SystemPromptContext {
+  content: string;
+  promptId: string;
+  version: number;
+  language: 'EN' | 'VI';
+}
+
 export interface IAiProvider {
-  generateQuestions(setupData: InterviewSetupPayload): Promise<{ data: GeneratedQuestion[], audit: AiUsageMetadata }>;
-  evaluateAnswers(questions: any[], answers: AnswerPayload[]): Promise<{ data: EvaluationResult, audit: AiUsageMetadata }>;
+  generateQuestions(
+    setupData: InterviewSetupPayload,
+    systemPrompt?: SystemPromptContext
+  ): Promise<{
+    data: GeneratedQuestion[];
+    audit: AiUsageMetadata;
+  }>;
+
+  evaluateAnswers(
+    questions: any[],
+    answers: AnswerPayload[],
+    systemPrompt?: SystemPromptContext
+  ): Promise<{
+    data: EvaluationResult;
+    audit: AiUsageMetadata;
+  }>;
+
+  generateLearningPath?(
+    questions: any[],
+    answers: AnswerPayload[],
+    evaluation: EvaluationResult,
+    systemPrompt?: SystemPromptContext
+  ): Promise<{
+    data: LearningPathResult;
+    audit: AiUsageMetadata;
+  }>;
 }
 
 export interface GeneratePayload {
   setupData: InterviewSetupPayload;
-  aiProvider?: IAiProvider; // Optional because we might inject it in service now
+
+  aiProvider?: IAiProvider;
+
+  systemPrompt?: SystemPromptContext;
+
+  useAsyncJobs?: boolean;
+
   jobScheduler?: import('../jobs/IJobScheduler').IJobScheduler;
 }
 
 export interface SubmitPayload {
   data: AnswerPayload[];
+
   aiProvider?: IAiProvider;
+
+  systemPrompt?: SystemPromptContext;
+
+  learningPathPrompt?: SystemPromptContext;
+
+  useAsyncJobs?: boolean;
+
   jobScheduler?: import('../jobs/IJobScheduler').IJobScheduler;
 }
 

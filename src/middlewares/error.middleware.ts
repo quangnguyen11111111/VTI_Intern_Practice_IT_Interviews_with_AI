@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { ZodError } from 'zod';
 import { ApiErrorDetail, ApiResponse } from '../types/response.type';
+import { logger, Logger, LogEvent } from '../infrastructure/logging/logger';
+import { logRoute } from './http-logger.middleware';
 
 const defaultCodeByStatus: Record<number, string> = {
   400: 'BAD_REQUEST',
@@ -23,7 +25,13 @@ export const globalErrorHandler = (
   next: NextFunction
 ): void => {
   if (res.headersSent) {
-    next(err);
+    (res.locals.logger as Logger | undefined ?? logger).error('http.error.internal', {
+      requestId: req.requestId,
+      route: logRoute(req),
+      method: req.method,
+      status: res.statusCode,
+    });
+    res.destroy();
     return;
   }
 
@@ -112,6 +120,14 @@ export const globalErrorHandler = (
   }
 
   code ??= defaultCodeByStatus[statusCode] ?? (statusCode >= 500 ? 'INTERNAL_SERVER_ERROR' : 'REQUEST_FAILED');
+  const errorEvent: LogEvent = statusCode >= 500 ? 'http.error.internal'
+    : statusCode === 401 ? 'http.error.authentication'
+    : statusCode === 403 ? 'http.error.authorization'
+    : statusCode === 409 ? 'http.error.conflict'
+    : statusCode === 400 ? 'http.error.validation' : 'http.error.request';
+  (res.locals.logger as Logger | undefined ?? logger).error(errorEvent, {
+    requestId: req.requestId, route: logRoute(req), method: req.method, status: statusCode,
+  });
 
   // Trả về phản hồi lỗi tuân theo chuẩn ApiResponse
   const response: ApiResponse = {
@@ -126,7 +142,8 @@ export const globalErrorHandler = (
   }
 
   // Ở môi trường dev, in thêm stack trace dạng string để debug nếu có
-  if (appEnvironment === 'development' && typeof error?.stack === 'string') {
+  if (appEnvironment === 'development' && typeof error?.stack === 'string' &&
+      error?.code !== 'FILE_PARSE_FAILED' && !String(error?.code ?? '').startsWith('AI_')) {
     response.stack = error.stack;
   }
 

@@ -36,8 +36,14 @@ export const useInterviewSSE = (sessionId: string) => {
     let pollingTimer: ReturnType<typeof setInterval> | undefined;
     let retries = 0;
 
+    latestVersionRef.current = -1;
+
     const accept = (candidate: InterviewStatusEvent) => {
-      if (candidate.version <= latestVersionRef.current) return;
+      if (
+        controller.signal.aborted ||
+        !Number.isInteger(candidate.version) ||
+        candidate.version <= latestVersionRef.current
+      ) return;
       latestVersionRef.current = candidate.version;
       setStatusEvent(candidate);
       setError(null);
@@ -49,7 +55,7 @@ export const useInterviewSSE = (sessionId: string) => {
         accept({
           sessionId,
           status: persisted.status,
-          version: persisted.version,
+          version: Number.isInteger(persisted.version) ? persisted.version : latestVersionRef.current + 1,
           updatedAt: persisted.updatedAt
         });
       } catch {
@@ -78,16 +84,21 @@ export const useInterviewSSE = (sessionId: string) => {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        while (!controller.signal.aborted) {
-          const { done, value } = await reader.read();
-          buffer += decoder.decode(value, { stream: !done });
-          const blocks = buffer.split(/\r?\n\r?\n/);
-          buffer = blocks.pop() ?? '';
-          blocks.forEach((block) => {
-            const parsed = parseStatusEvent(block);
-            if (parsed) accept(parsed);
-          });
-          if (done) break;
+        try {
+          while (!controller.signal.aborted) {
+            const { done, value } = await reader.read();
+            buffer += decoder.decode(value, { stream: !done });
+            const blocks = buffer.split(/\r?\n\r?\n/);
+            buffer = blocks.pop() ?? '';
+            blocks.forEach((block) => {
+              const parsed = parseStatusEvent(block);
+              if (parsed) accept(parsed);
+            });
+            if (done) break;
+          }
+        } finally {
+          await reader.cancel().catch(() => {});
+          reader.releaseLock();
         }
         if (!controller.signal.aborted) throw new Error('Stream disconnected');
       } catch {

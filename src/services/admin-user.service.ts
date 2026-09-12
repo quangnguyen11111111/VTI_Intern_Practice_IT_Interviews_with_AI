@@ -10,10 +10,9 @@ import {
 } from './interfaces/IAdminUserService';
 
 import { IUserRepository } from '../repositories/interfaces/IUserRepository';
-import {
-  IAuditService,
-  CreateAuditLogInput
-} from './interfaces/IAuditService';
+import { IAuditService } from './interfaces/IAuditService';
+import { runAuditedMutation } from './audited-mutation';
+import RefreshToken from '../models/refresh-token.model';
 
 @injectable()
 export class AdminUserService
@@ -117,203 +116,44 @@ export class AdminUserService
 
   async lockUser(
     userId: string,
-    actorId: string
+    actorId: string,
+    requestId: string,
   ): Promise<IUser> {
-    try {
-      const user =
-        await this.userRepository.findById(
-          userId
-        );
-
-      if (!user) {
-        await this.recordFailureAudit(
-          actorId,
-          userId,
-          'LOCK_USER'
-        );
-
-        throw new AppError(
-          'User không tồn tại',
-          404
-        );
-      }
-
-      if (userId === actorId) {
-        await this.recordFailureAudit(
-          actorId,
-          userId,
-          'LOCK_USER'
-        );
-
-        throw new AppError(
-          'Admin không thể tự khóa tài khoản',
-          400
-        );
-      }
-
-      // Idempotent
-      if (user.status === 'LOCKED') {
-        return user;
-      }
-
-      const updatedUser =
-        await this.userRepository.update(
-          userId,
-          {
-            status: 'LOCKED'
-          }
-        );
-
-      if (!updatedUser) {
-        await this.recordFailureAudit(
-          actorId,
-          userId,
-          'LOCK_USER'
-        );
-
-        throw new AppError(
-          'User không tồn tại',
-          404
-        );
-      }
-
-      await this.recordAudit({
-        actor: actorId,
-        target: userId,
-        action: 'LOCK_USER',
-        outcome: 'SUCCESS'
-      });
-
-      return updatedUser;
-    } catch (error) {
-      /*
-       * Các business errors đã được audit
-       * ở nơi phát sinh.
-       *
-       * Các lỗi ngoài dự kiến sẽ được audit
-       * là FAILURE trước khi trả lỗi ra ngoài.
-       */
-      if (
-        error instanceof AppError &&
-        (
-          error.message === 'User không tồn tại' ||
-          error.message ===
-            'Admin không thể tự khóa tài khoản'
-        )
-      ) {
-        throw error;
-      }
-
-      await this.recordFailureAudit(
-        actorId,
-        userId,
-        'LOCK_USER'
+    return runAuditedMutation(this.auditService, {
+      actorId, targetId: userId, resourceType: 'USER', action: 'LOCK_USER', requestId,
+    }, async session => {
+      if (userId === actorId) throw new AppError('Admin không thể tự khóa tài khoản', 400, 'AUTH_CANNOT_LOCK_SELF');
+      const user = await this.userRepository.findById(userId);
+      if (!user) throw new AppError('User không tồn tại', 404, 'AUTH_USER_NOT_FOUND');
+      if (user.status === 'LOCKED') return { value: user };
+      const value = await this.userRepository.update(userId, {
+        status: 'LOCKED',
+        $inc: { authVersion: 1, credentialVersion: 1 },
+      } as any, session);
+      if (!value) throw new AppError('User không tồn tại', 404, 'AUTH_USER_NOT_FOUND');
+      await RefreshToken.updateMany(
+        { userId: value._id, isRevoked: false },
+        { isRevoked: true, revokedAt: new Date() },
+        { session },
       );
-
-      throw error;
-    }
+      return { value };
+    });
   }
 
   async unlockUser(
     userId: string,
-    actorId: string
-  ): Promise<IUser> {
-    try {
-      const user =
-        await this.userRepository.findById(
-          userId
-        );
-
-      if (!user) {
-        await this.recordFailureAudit(
-          actorId,
-          userId,
-          'UNLOCK_USER'
-        );
-
-        throw new AppError(
-          'User không tồn tại',
-          404
-        );
-      }
-
-      // Idempotent
-      if (user.status === 'ACTIVE') {
-        return user;
-      }
-
-      const updatedUser =
-        await this.userRepository.update(
-          userId,
-          {
-            status: 'ACTIVE'
-          }
-        );
-
-      if (!updatedUser) {
-        await this.recordFailureAudit(
-          actorId,
-          userId,
-          'UNLOCK_USER'
-        );
-
-        throw new AppError(
-          'User không tồn tại',
-          404
-        );
-      }
-
-      await this.recordAudit({
-        actor: actorId,
-        target: userId,
-        action: 'UNLOCK_USER',
-        outcome: 'SUCCESS'
-      });
-
-      return updatedUser;
-    } catch (error) {
-      if (
-        error instanceof AppError &&
-        error.message === 'User không tồn tại'
-      ) {
-        throw error;
-      }
-
-      await this.recordFailureAudit(
-        actorId,
-        userId,
-        'UNLOCK_USER'
-      );
-
-      throw error;
-    }
-  }
-
-  private async recordAudit(
-    input: CreateAuditLogInput
-  ): Promise<void> {
-    try {
-      await this.auditService.createAuditLog(
-        input
-      );
-    } catch (auditError) {
-      console.error(
-        'Audit log failed:',
-        auditError
-      );
-    }
-  }
-
-  private async recordFailureAudit(
     actorId: string,
-    targetId: string,
-    action: 'LOCK_USER' | 'UNLOCK_USER'
-  ): Promise<void> {
-    await this.recordAudit({
-      actor: actorId,
-      target: targetId,
-      action,
-      outcome: 'FAILURE'
+    requestId: string,
+  ): Promise<IUser> {
+    return runAuditedMutation(this.auditService, {
+      actorId, targetId: userId, resourceType: 'USER', action: 'UNLOCK_USER', requestId,
+    }, async session => {
+      const user = await this.userRepository.findById(userId);
+      if (!user) throw new AppError('User không tồn tại', 404, 'AUTH_USER_NOT_FOUND');
+      if (user.status === 'ACTIVE') return { value: user };
+      const value = await this.userRepository.update(userId, { status: 'ACTIVE' }, session);
+      if (!value) throw new AppError('User không tồn tại', 404, 'AUTH_USER_NOT_FOUND');
+      return { value };
     });
   }
 }
