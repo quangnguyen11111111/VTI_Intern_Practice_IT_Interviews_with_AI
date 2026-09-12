@@ -22,6 +22,11 @@ export interface IInterviewSessionDocument
   userId: string;
   status: InterviewStatus;
   version: number;
+  rubricVersion: number;
+  submissionVersion: number;
+  activeOperationId?: mongoose.Types.ObjectId | null;
+  failedStage?: 'GENERATION' | 'EVALUATION' | null;
+  safeErrorCode?: string | null;
   setupData: InterviewSetupPayload;
 
   overallScore: number | null;
@@ -63,12 +68,19 @@ const InterviewSessionSchema = new Schema<IInterviewSessionDocument>(
       default: 'PENDING',
       required: true
     },
-    version: {
-      type: Number,
-      default: 0,
-      min: 0,
-      required: true,
+    version: { type: Number, default: 0, min: 0, required: true },
+    rubricVersion: { type: Number, default: 2, enum: [1, 2], required: true },
+    submissionVersion: { type: Number, default: 0, min: 0, required: true },
+    activeOperationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'OperationRecord',
+      default: null
     },
+    failedStage: { type: String, enum: ['GENERATION', 'EVALUATION', null], default: null },
+    safeErrorCode: { type: String, default: null },
+      terminalAt: { type: Date, default: null },
+      contentPurgeAt: { type: Date, default: null },
+      recordPurgeAt: { type: Date, default: null },
     setupData: {
       jobPosition: { type: String },
       level: { type: String },
@@ -78,10 +90,6 @@ const InterviewSessionSchema = new Schema<IInterviewSessionDocument>(
       secondsPerQuestion: { type: Number, min: 60, max: 600, default: 300 },
       strategy: { type: String, enum: ['STANDARD', 'ADAPTIVE'], default: 'STANDARD' }
     },
-    terminalAt: Date,
-    contentPurgeAt: Date,
-    contentPurgedAt: Date,
-    recordPurgeAt: Date,
     overallScore: {
       type: Number,
       default: null

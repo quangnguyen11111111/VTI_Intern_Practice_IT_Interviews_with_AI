@@ -12,7 +12,7 @@ export const useInterviewSession = (sessionId: string) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { sseStatus } = useInterviewSSE(sessionId);
+  const { sseStatus, sseVersion } = useInterviewSSE(sessionId);
 
   const fetchSession = useCallback(async () => {
     setIsLoading(true);
@@ -64,10 +64,10 @@ export const useInterviewSession = (sessionId: string) => {
       const savedAnswersStr = sessionStorage.getItem(`interview_${sessionId}_answers`);
       if (savedAnswersStr) {
         try {
-          const parsed = JSON.parse(savedAnswersStr) as AnswerState[];
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          const parsed = JSON.parse(savedAnswersStr) as { version?: number; answers?: AnswerState[] };
+          if (parsed.version === data.version && Array.isArray(parsed.answers) && parsed.answers.length > 0) {
             // Merge logic: session storage overwrites DB if it exists and has content
-            parsed.forEach(saved => {
+            parsed.answers.forEach(saved => {
               if (saved.questionId && saved.candidateAnswer) {
                 const existingIdx = initialAnswers.findIndex(a => a.questionId === saved.questionId);
                 if (existingIdx >= 0) {
@@ -99,14 +99,13 @@ export const useInterviewSession = (sessionId: string) => {
 
   // Handle SSE state changes
   useEffect(() => {
-    if (sseStatus && session && sseStatus !== session.status) {
-      console.log(`[SSE] Status changed from ${session.status} to ${sseStatus}. Refetching...`);
+    if (sseStatus && sseVersion !== null && session && sseVersion > session.version) {
       if (sseStatus === 'IN_PROGRESS' || sseStatus === 'COMPLETED' || sseStatus === 'FAILED') {
         // Avoid calling setState synchronously within an effect body
         setTimeout(() => fetchSession(), 0);
       }
     }
-  }, [sseStatus, session, fetchSession]);
+  }, [sseStatus, sseVersion, session, fetchSession]);
 
   const currentQuestion = session?.questions?.[currentQuestionIndex];
   
@@ -140,6 +139,10 @@ export const useInterviewSession = (sessionId: string) => {
     window.location.reload();
   }, []);
 
+  const updateVersion = useCallback((version: number) => {
+    setSession((current) => current && version > current.version ? { ...current, version } : current);
+  }, []);
+
   return {
     session,
     isLoading,
@@ -153,7 +156,8 @@ export const useInterviewSession = (sessionId: string) => {
     handleAnswerChange,
     totalQuestions,
     answeredCount,
-    refetch
+    refetch,
+    updateVersion
   };
 };
 

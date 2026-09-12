@@ -15,6 +15,8 @@ export default defineConfig({
       include: [
         'src/auth/**/*.{ts,tsx}',
         'src/features/auth/**/*.{ts,tsx}',
+        'src/features/InterviewRoom/hooks/useInterviewSSE.ts',
+        'src/services/api/interviewApi.ts',
         'src/pages/LoginPage.tsx',
         'src/pages/RegisterPage.tsx',
         'src/pages/ProfilePage.tsx',

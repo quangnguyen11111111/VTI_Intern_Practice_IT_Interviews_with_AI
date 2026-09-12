@@ -1,5 +1,6 @@
 import { IJobHandler } from '../IJobHandler';
 import { inject, injectable } from 'tsyringe';
+import { InterviewOperationProcessor } from '../../../services/InterviewOperationProcessor';
 import { IAiProvider } from '../../interview/types';
 import { IInterviewRepository } from '../../../repositories/IInterviewRepository';
 import { InterviewContext } from '../../interview/InterviewContext';
@@ -8,11 +9,9 @@ import { logger } from '../../../infrastructure/logging/logger';
 import { generateSafely } from '../../../services/ai/prompt-security';
 import { interviewJobData, resolveGenerationSetup } from '../../../services/ai/job-security';
 
-interface GenerateQuestionData {
-  interviewId: string;
-  ownerId: string;
-  requestId?: string;
-}
+type GenerateQuestionData =
+  | { operationId: string }
+  | { interviewId: string; ownerId: string; requestId?: string };
 
 @injectable()
 export class GenerateQuestionJobHandler
@@ -22,65 +21,81 @@ export class GenerateQuestionJobHandler
     'GENERATE_QUESTIONS';
 
   constructor(
-    @inject('IAiProvider')
-    private readonly aiProvider:
-      IAiProvider,
-
+    @inject(InterviewOperationProcessor)
+    private readonly processorOrProvider: InterviewOperationProcessor | IAiProvider,
     @inject('IInterviewRepository')
-    private readonly repository:
-      IInterviewRepository,
-
+    private readonly repository?: IInterviewRepository,
     @inject('IEventPublisher')
-    private readonly eventPublisher?:
-      IEventPublisher
+    private readonly eventPublisher?: IEventPublisher,
   ) {}
 
   async handle(data: GenerateQuestionData): Promise<void> {
-    data = interviewJobData(data);
-    const repository = this.repository.forOwner(data.ownerId);
-    logger.info('job.started', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
+    if ('operationId' in data) {
+      await (this.processorOrProvider as InterviewOperationProcessor).process(
+        data.operationId,
+        'GENERATE_QUESTIONS',
+      );
+      return;
+    }
 
-    // Check if interview is still in GENERATING state (sanity check)
-    const session = await repository.findById(data.interviewId);
+    const provider = this.processorOrProvider as IAiProvider;
+    if (!this.repository) throw new Error('Interview repository is not configured');
+    const normalized = interviewJobData(data);
+    const repository = this.repository.forOwner(normalized.ownerId);
+    logger.info('job.started', {
+      jobName: this.name,
+      resourceType: 'interview',
+      resourceId: normalized.interviewId,
+    });
+
+    const session = await repository.findById(normalized.interviewId);
     if (!session || session.status !== 'GENERATING') {
-      logger.warn('job.skipped', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
+      logger.warn('job.skipped', {
+        jobName: this.name,
+        resourceType: 'interview',
+        resourceId: normalized.interviewId,
+      });
       return;
     }
 
     try {
-      const { data: generatedQuestions, audit } = await generateSafely(this.aiProvider, await resolveGenerationSetup(session.setupData));
-      
-      // Update DB
-      await repository.createQuestions(data.interviewId, generatedQuestions);
-      await repository.updateTokenUsage(data.interviewId, audit);
+      const { data: generatedQuestions, audit } = await generateSafely(
+        provider,
+        await resolveGenerationSetup(session.setupData),
+      );
+      await repository.createQuestions(normalized.interviewId, generatedQuestions);
+      await repository.updateTokenUsage(normalized.interviewId, audit);
 
-      // Transition state
       const context = new InterviewContext(
-        data.interviewId,
+        normalized.interviewId,
         repository,
         InterviewContext.createStateFromStatus(session.status),
         this.eventPublisher,
-        session.version
+        session.version,
       );
       const { InProgressState } = await import('../../interview/states/InProgressState');
       await context.changeState(new InProgressState());
-      
-      logger.info('job.completed', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
+      logger.info('job.completed', {
+        jobName: this.name,
+        resourceType: 'interview',
+        resourceId: normalized.interviewId,
+      });
     } catch (error) {
-      logger.error('job.failed', { jobName: this.name, resourceType: 'interview', resourceId: data.interviewId });
-      
-      // Transition to FAILED state
+      logger.error('job.failed', {
+        jobName: this.name,
+        resourceType: 'interview',
+        resourceId: normalized.interviewId,
+      });
       const context = new InterviewContext(
-        data.interviewId,
+        normalized.interviewId,
         repository,
         InterviewContext.createStateFromStatus(session.status),
         this.eventPublisher,
-        session.version
+        session.version,
       );
       const { FailedState } = await import('../../interview/states/FailedState');
       await context.changeState(new FailedState());
-      
-      throw error; // Let agenda know it failed
+      throw error;
     }
   }
 }

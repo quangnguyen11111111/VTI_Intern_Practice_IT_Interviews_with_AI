@@ -9,6 +9,7 @@ export interface IInterviewQuestionDocument extends Document {
     vi: string;
   };
   candidateAnswer: string | null;
+  answerVersion: number;
   feedback: {
     en: string;
     vi: string;
@@ -41,6 +42,11 @@ const InterviewQuestionSchema: Schema = new Schema(
     candidateAnswer: {
       type: String,
       default: null
+    },
+    answerVersion: {
+      type: Number,
+      default: 0,
+      min: 0
     },
     feedback: {
       en: { type: String },

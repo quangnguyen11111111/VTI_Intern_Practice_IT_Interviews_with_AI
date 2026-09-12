@@ -4,15 +4,16 @@ import { InterviewController } from '../controllers/InterviewController';
 import { container } from '../config/di';
 import { uploadMiddleware } from '../middlewares/upload.middleware';
 import { validate } from '../middlewares/validate.middleware';
-import { InterviewSessionModel } from '../models/InterviewSession';
 import {
   interviewActionSchema,
-  interviewAnswersSchema,
   interviewCreateSchema,
   interviewGetSchema,
   interviewHistoryQuerySchema,
   interviewJdCreateSchema,
+  interviewProgressSchema,
+  interviewSubmitSchema,
 } from '../validators/interview.validator';
+import { InterviewSessionModel } from '../models/InterviewSession';
 import { RateLimitMiddleware } from '../middlewares/rate-limit.middleware';
 import { InterviewQuotaMiddleware } from '../middlewares/interview-quota.middleware';
 import { getEnv } from '../config/env';
@@ -27,7 +28,6 @@ const requireInterviewOwner = requireOwnership(async (req) => {
   const session = await InterviewSessionModel.findById(req.params.id)
     .select('_id userId')
     .lean();
-
   if (!session) return null;
 
   return {
@@ -104,10 +104,10 @@ router.get('/:id/stream', validate(interviewGetSchema), authenticate, authorize(
 
 router.post(
   '/:id/generate',
-  validate(interviewActionSchema),
   authenticate,
   authorize('CANDIDATE', 'INTERVIEWER'),
   requireInterviewOwner,
+  validate(interviewActionSchema),
   aiRateLimit,
   interviewQuotaMiddleware,
   interviewController.generateQuestions,
@@ -115,20 +115,20 @@ router.post(
 
 router.post(
   '/:id/progress',
-  validate(interviewAnswersSchema),
   authenticate,
   authorize('CANDIDATE', 'INTERVIEWER'),
   requireInterviewOwner,
+  validate(interviewProgressSchema),
   progressRateLimit,
   interviewController.saveProgress,
 );
 
 router.post(
   '/:id/submit',
-  validate(interviewAnswersSchema),
   authenticate,
   authorize('CANDIDATE', 'INTERVIEWER'),
   requireInterviewOwner,
+  validate(interviewSubmitSchema),
   submitRateLimit,
   interviewController.submitAnswers,
 );

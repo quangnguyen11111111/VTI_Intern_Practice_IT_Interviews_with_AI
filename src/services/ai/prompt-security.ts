@@ -116,14 +116,27 @@ export function validateUsage(value: unknown) {
   if (!result.success) throw outputError();
   return { ...result.data, totalTokenCount: result.data.promptTokenCount + result.data.candidatesTokenCount };
 }
+// Keep provider invocation behind this boundary so every caller receives the same
+// prompt sanitization and delimiter guarantees before an injected provider runs.
+export async function generateThroughBoundary(provider: IAiProvider, setup: InterviewSetupPayload) {
+  const prompt = generationPrompt(setup);
+  return provider.generateQuestions(prompt.data);
+}
+export async function evaluateThroughBoundary(
+  provider: IAiProvider,
+  questions: EvaluationQuestion[],
+  answers: AnswerPayload[],
+) {
+  const prompt = evaluationPrompt(questions, answers);
+  return provider.evaluateAnswers(prompt.questions, prompt.answers);
+}
 // All service/state/job call sites use these functions, including injected/mock providers.
 export async function generateSafely(provider: IAiProvider, setup: InterviewSetupPayload) {
-  const prompt = generationPrompt(setup);
-  const result = await provider.generateQuestions(prompt.data);
+  const result = await generateThroughBoundary(provider, setup);
   return { data: validateGeneration(result.data), audit: validateUsage(result.audit) };
 }
 export async function evaluateSafely(provider: IAiProvider, questions: EvaluationQuestion[], answers: AnswerPayload[]) {
   const prompt = evaluationPrompt(questions, answers);
-  const result = await provider.evaluateAnswers(prompt.questions, prompt.answers);
+  const result = await evaluateThroughBoundary(provider, questions, answers);
   return { data: validateEvaluation(result.data, prompt.questions, prompt.answers), audit: validateUsage(result.audit) };
 }

@@ -1,5 +1,6 @@
 import { injectable, inject } from 'tsyringe';
 import { Request, Response } from 'express';
+import { InterviewWorkflowService } from '../services/InterviewWorkflowService';
 import { InterviewService } from '../services/InterviewService';
 import { IEventPublisher } from '../domain/events/IEventPublisher';
 import { AppError } from '../utils/AppError';
@@ -8,7 +9,8 @@ import { catchAsync } from '../utils/catchAsync';
 @injectable()
 export class InterviewController {
   constructor(
-    @inject(InterviewService) private interviewService: InterviewService,
+    @inject(InterviewWorkflowService) private readonly workflowService: InterviewWorkflowService,
+    @inject(InterviewService) private readonly interviewService: InterviewService,
     @inject('IEventPublisher') private eventPublisher?: IEventPublisher
   ) {}
 
@@ -18,36 +20,45 @@ export class InterviewController {
    */
   streamStatus = async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
+    const actorId = req.user!._id.toString();
     // Resolve ownership before sending headers; Express 5 forwards rejected async handlers.
-    const ownedSession = await this.interviewService.getInterviewSession(id, req.user!._id.toString());
-    
+    const current = await this.interviewService.getInterviewSession(id, actorId);
+
     // Set headers for SSE
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders(); // flush the headers to establish SSE connection
 
-    // Send initial status immediately
-    try {
-      const session = ownedSession;
-      res.write(`data: ${JSON.stringify({ status: session.status })}\n\n`);
-    } catch (err) {
-      res.write(`data: ${JSON.stringify({ error: 'Session not found' })}\n\n`);
+    const writeStatus = (status: string, version: number, updatedAt?: Date) => {
+      res.write(`event: session.status\nid: ${version}\ndata: ${JSON.stringify({
+        sessionId: id,
+        status,
+        version,
+        updatedAt
+      })}\n\n`);
+    };
+    writeStatus(current.status, current.version, current.updatedAt);
+    if (current.status === 'COMPLETED' || current.status === 'FAILED') {
       res.end();
       return;
     }
 
     const listener = (payload: any) => {
       if (payload.interviewId === id) {
-        res.write(`data: ${JSON.stringify({ status: payload.status })}\n\n`);
+        writeStatus(payload.status, payload.version, payload.updatedAt);
+        if (payload.status === 'COMPLETED' || payload.status === 'FAILED') res.end();
       }
     };
+
+    const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 20_000);
 
     if (this.eventPublisher) {
       this.eventPublisher.subscribe('STATE_CHANGED', listener);
     }
 
     req.on('close', () => {
+      clearInterval(heartbeat);
       if (this.eventPublisher) {
         this.eventPublisher.unsubscribe('STATE_CHANGED', listener);
       }
@@ -123,8 +134,15 @@ export class InterviewController {
    */
   generateQuestions = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
-    const result = await this.interviewService.generateQuestions(id, req.user!._id.toString());
-    res.status(200).json({ success: true, data: result });
+    const userId = req.user!._id.toString();
+    const idempotencyKey = req.get('Idempotency-Key');
+    if (!idempotencyKey) {
+      const session = await this.interviewService.generateQuestions(id, userId);
+      res.status(200).json({ success: true, data: session });
+      return;
+    }
+    const result = await this.workflowService.generateQuestions(id, userId, idempotencyKey);
+    res.status(202).json({ success: true, data: result });
   });
 
   /**
@@ -132,17 +150,41 @@ export class InterviewController {
    */
   submitAnswers = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
-    const { answers } = req.body;
-    const result = await this.interviewService.submitAnswers(id, answers, req.user!._id.toString());
-    res.status(200).json({ success: true, data: result });
+    const { expectedVersion, answers } = req.body;
+    const userId = req.user!._id.toString();
+    const idempotencyKey = req.get('Idempotency-Key');
+    if (!idempotencyKey || expectedVersion === undefined) {
+      const session = await this.interviewService.submitAnswers(id, answers, userId);
+      res.status(200).json({ success: true, data: session });
+      return;
+    }
+    const result = await this.workflowService.submitAnswers(
+      id,
+      userId,
+      idempotencyKey,
+      expectedVersion,
+      answers
+    );
+    res.status(202).json({ success: true, data: result });
   });
   /**
    * POST /api/interviews/:id/progress
    */
   saveProgress = catchAsync(async (req: Request, res: Response): Promise<void> => {
     const id = req.params.id as string;
-    const { answers } = req.body;
-    const result = await this.interviewService.saveProgress(id, answers, req.user!._id.toString());
+    const { expectedVersion, answers } = req.body;
+    const userId = req.user!._id.toString();
+    if (expectedVersion === undefined) {
+      const result = await this.interviewService.saveProgress(id, answers, userId);
+      res.status(200).json({ success: true, data: result });
+      return;
+    }
+    const result = await this.workflowService.saveProgress(
+      id,
+      userId,
+      expectedVersion,
+      answers
+    );
     res.status(200).json({ success: true, data: result });
   });
 }

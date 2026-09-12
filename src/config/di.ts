@@ -34,6 +34,8 @@ import { AdminUserService } from '../services/admin-user.service';
 import { AuditService } from '../services/audit.service';
 
 import { EvaluateAnswersJobHandler } from '../domain/jobs/handlers/EvaluateAnswersJobHandler';
+import { InterviewOperationProcessor } from '../services/InterviewOperationProcessor';
+import { OutboxDispatcher } from '../infrastructure/jobs/OutboxDispatcher';
 
 // Register Repositories
 container.register('IRoleRepository', {
@@ -76,18 +78,13 @@ if (env.NODE_ENV === 'test') {
 }
 
 // Background Jobs
-container.registerSingleton(
-  'IJobScheduler',
-  AgendaJobScheduler
-);
-
-container.registerSingleton(
-  GenerateQuestionJobHandler
-);
-
-container.registerSingleton(
-  EvaluateAnswersJobHandler
-);
+container.register('OperationProcessorOptions', { useValue: {} });
+container.register('OutboxDispatcherOptions', { useValue: {} });
+container.registerSingleton('IJobScheduler', AgendaJobScheduler);
+container.registerSingleton(InterviewOperationProcessor);
+container.registerSingleton(OutboxDispatcher);
+container.registerSingleton(GenerateQuestionJobHandler);
+container.registerSingleton(EvaluateAnswersJobHandler);
 
 // Event Bus
 container.registerSingleton(
@@ -143,5 +140,4 @@ container.register('IAdminMetricsService', {
 container.register('IInterviewQuotaService', {
   useClass: InterviewQuotaService
 });
-
 export { container };

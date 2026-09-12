@@ -1,5 +1,6 @@
 import { IJobHandler } from '../IJobHandler';
 import { inject, injectable } from 'tsyringe';
+import { InterviewOperationProcessor } from '../../../services/InterviewOperationProcessor';
 import { IAiProvider } from '../../interview/types';
 import { IInterviewRepository } from '../../../repositories/IInterviewRepository';
 import { InterviewContext } from '../../interview/InterviewContext';
@@ -8,23 +9,34 @@ import { logger } from '../../../infrastructure/logging/logger';
 import { evaluateSafely } from '../../../services/ai/prompt-security';
 import { interviewJobData } from '../../../services/ai/job-security';
 
-interface EvaluateAnswersData {
-  interviewId: string;
-  ownerId: string;
-  requestId?: string;
-}
+type EvaluateAnswersData =
+  | { operationId: string }
+  | { interviewId: string; ownerId: string; requestId?: string };
 
 @injectable()
 export class EvaluateAnswersJobHandler implements IJobHandler<EvaluateAnswersData> {
   public readonly name = 'EVALUATE_ANSWERS';
 
   constructor(
-    @inject('IAiProvider') private readonly aiProvider: IAiProvider,
-    @inject('IInterviewRepository') private readonly repository: IInterviewRepository,
-    @inject('IEventPublisher') private readonly eventPublisher?: IEventPublisher,
+    @inject(InterviewOperationProcessor)
+    private readonly processorOrProvider: InterviewOperationProcessor | IAiProvider,
+    @inject('IInterviewRepository')
+    private readonly repository?: IInterviewRepository,
+    @inject('IEventPublisher')
+    private readonly eventPublisher?: IEventPublisher,
   ) {}
 
   async handle(input: EvaluateAnswersData): Promise<void> {
+    if ('operationId' in input) {
+      await (this.processorOrProvider as InterviewOperationProcessor).process(
+        input.operationId,
+        'SUBMIT_ANSWERS',
+      );
+      return;
+    }
+
+    const provider = this.processorOrProvider as IAiProvider;
+    if (!this.repository) throw new Error('Interview repository is not configured');
     const data = interviewJobData(input);
     const repository = this.repository.forOwner(data.ownerId);
     logger.info('job.started', {
@@ -42,9 +54,7 @@ export class EvaluateAnswersJobHandler implements IJobHandler<EvaluateAnswersDat
       });
       return;
     }
-    if (!session.questions) {
-      throw new Error('Cannot find questions for this session.');
-    }
+    if (!session.questions) throw new Error('Cannot find questions for this session.');
 
     try {
       const answers = session.questions.map((question) => ({
@@ -52,7 +62,7 @@ export class EvaluateAnswersJobHandler implements IJobHandler<EvaluateAnswersDat
         candidateAnswer: question.candidateAnswer ?? '',
       }));
       const { data: evaluationResult, audit } = await evaluateSafely(
-        this.aiProvider,
+        provider,
         session.questions,
         answers,
       );

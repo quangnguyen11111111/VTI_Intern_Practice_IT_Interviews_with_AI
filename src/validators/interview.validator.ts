@@ -58,25 +58,64 @@ const answersSchema = z
 
 const answersBodySchema = z.object({ answers: answersSchema }).strict();
 
-export const interviewCreateSchema = z.object({
-  body: setupBodySchema,
-  query: emptyQuerySchema,
-});
+const idempotencyKeySchema = z
+  .string()
+  .min(16, 'Idempotency-Key phải có ít nhất 16 ký tự')
+  .max(128, 'Idempotency-Key không được vượt quá 128 ký tự')
+  .regex(/^[\x21-\x7E]+$/, 'Idempotency-Key chỉ được chứa ký tự ASCII hiển thị');
 
-export const interviewJdCreateSchema = z.object({
-  body: jdSetupBodySchema,
-  query: emptyQuerySchema,
-});
+const idempotencyHeadersSchema = z.object({
+  'idempotency-key': idempotencyKeySchema,
+}).passthrough();
 
-export const interviewGetSchema = z.object({
-  params: idParamsSchema,
-  query: resourceQuerySchema,
-});
+const progressBodySchema = z.object({
+  expectedVersion: z.number().int().nonnegative(),
+  answers: answersSchema,
+}).strict();
 
+const submitAnswerSchema = z.discriminatedUnion('state', [
+  z.object({
+    questionId: objectIdSchema,
+    state: z.literal('ANSWERED'),
+    candidateAnswer: z.string().trim().min(1).max(5000),
+  }).strict(),
+  z.object({
+    questionId: objectIdSchema,
+    state: z.literal('SKIPPED'),
+  }).strict(),
+]);
+
+const submitBodySchema = z.object({
+  expectedVersion: z.number().int().nonnegative(),
+  answers: z.array(submitAnswerSchema)
+    .length(5, 'Phải nộp snapshot đúng 5 câu hỏi')
+    .refine(
+      (answers) => new Set(answers.map((answer) => answer.questionId)).size === answers.length,
+      'Mỗi câu hỏi chỉ được xuất hiện một lần'
+    ),
+}).strict();
+
+export const interviewCreateSchema = z.object({ body: setupBodySchema, query: emptyQuerySchema });
+export const interviewJdCreateSchema = z.object({ body: jdSetupBodySchema, query: emptyQuerySchema });
+export const interviewGetSchema = z.object({ params: idParamsSchema, query: resourceQuerySchema });
 export const interviewActionSchema = z.object({
+  body: z.object({}).strict().optional().default({}),
+  params: idParamsSchema,
+  query: emptyQuerySchema,
+  headers: idempotencyHeadersSchema.partial(),
+});
+export const interviewProgressSchema = z.object({
+  body: z.union([progressBodySchema, answersBodySchema]),
   params: idParamsSchema,
   query: emptyQuerySchema,
 });
+export const interviewSubmitSchema = z.object({
+  body: z.union([submitBodySchema, answersBodySchema]),
+  params: idParamsSchema,
+  query: emptyQuerySchema,
+  headers: idempotencyHeadersSchema.partial(),
+});
+
 export const interviewAnswersSchema = z.object({
   body: answersBodySchema,
   params: idParamsSchema,

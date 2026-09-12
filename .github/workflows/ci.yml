@@ -60,6 +60,13 @@ jobs:
       - name: Test Backend with Coverage
         run: npm run test:coverage
 
+      - name: Test AIP-56 Concurrency Stability
+        shell: bash
+        run: |
+          for run in {1..10}; do
+            npx vitest run tests/ai-provider.contract.test.ts tests/interview-concurrency.integration.test.ts
+          done
+
       - name: Test Client with Coverage
         run: npm run test:coverage --prefix client
 

@@ -24,6 +24,7 @@ export interface InterviewSession {
   id?: string;
   _id?: string;
   status: string;
+  version: number;
   createdAt?: string | Date;
   setupData: {
     jobPosition?: string;

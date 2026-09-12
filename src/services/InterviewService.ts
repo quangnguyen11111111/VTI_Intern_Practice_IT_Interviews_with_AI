@@ -78,7 +78,6 @@ export class InterviewService {
     if (setupData.strategy === 'ADAPTIVE') {
       throw new AppError('Chiến lược ADAPTIVE chưa được bật', 409, 'FEATURE_DISABLED');
     }
-
     const [role, level] = await Promise.all([
       Role.findOne({ _id: setupData.jobPosition, status: 'ACTIVE' }).lean(),
       Level.findOne({ _id: setupData.level, status: 'ACTIVE' }).lean(),

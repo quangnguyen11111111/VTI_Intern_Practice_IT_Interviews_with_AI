@@ -1,8 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { request } from '../../auth/apiClient';
-import { getAccessToken } from '../../auth/session';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+import { authenticatedFetch, request } from '../../auth/apiClient';
 
 export interface BaseEntity {
   _id: string;
@@ -69,13 +66,23 @@ export interface InterviewSessionData {
  
 const extractArrayData = (json: any, key: string): BaseEntity[] => {
   if (Array.isArray(json)) return json;
-  if (json?.[key] && Array.isArray(json[key])) return json[key];
+  if (Array.isArray(json?.[key])) return json[key];
+  if (Array.isArray(json?.items)) return json.items;
   if (json?.data) {
     if (Array.isArray(json.data)) return json.data;
     if (json.data[key] && Array.isArray(json.data[key])) return json.data[key];
     if (json.data.items && Array.isArray(json.data.items)) return json.data.items;
   }
   return [];
+};
+
+const operationKey = (sessionId: string, action: 'generate' | 'submit'): string => {
+  const storageKey = `interview_${sessionId}_${action}_idempotency_key`;
+  const existing = sessionStorage.getItem(storageKey);
+  if (existing) return existing;
+  const created = crypto.randomUUID();
+  sessionStorage.setItem(storageKey, created);
+  return created;
 };
 
 export const interviewApi = {
@@ -110,10 +117,10 @@ export const interviewApi = {
    */
   fetchTechnologies: async (roleId?: string): Promise<BaseEntity[]> => {
     try {
-      const relativeUrl = roleId
-        ? `technologies?limit=1000&roleId=${roleId}`
+      const path = roleId
+        ? `technologies?limit=1000&roleId=${encodeURIComponent(roleId)}`
         : 'technologies?limit=1000';
-      const json = await request<any>(relativeUrl);
+      const json = await request<any>(path);
       return extractArrayData(json, 'technologies');
     } catch (error) {
       console.error('Failed to fetch technologies:', error);
@@ -135,15 +142,8 @@ export const interviewApi = {
    * Upload JD file for interview setup
    */
   uploadJdInterview: async (payload: FormData): Promise<InterviewSessionData> => {
-    const accessToken = getAccessToken();
-    const headers = new Headers();
-    if (accessToken) {
-      headers.set('Authorization', `Bearer ${accessToken}`);
-    }
-    
-    const response = await fetch(`${API_URL}/interviews/generate-from-jd`, {
+    const response = await authenticatedFetch('interviews/generate-from-jd', {
       method: 'POST',
-      headers,
       body: payload,
     });
     
@@ -189,10 +189,10 @@ export const interviewApi = {
   /**
    * Save interview progress
    */
-  saveInterviewProgress: async (sessionId: string, answers: any[]): Promise<any> => {
+  saveInterviewProgress: async (sessionId: string, expectedVersion: number, answers: any[]): Promise<any> => {
     return request<any>(`interviews/${sessionId}/progress`, {
       method: 'POST',
-      body: JSON.stringify({ answers }),
+      body: JSON.stringify({ expectedVersion, answers }),
     });
   },
 
@@ -202,16 +202,18 @@ export const interviewApi = {
   generateQuestions: async (sessionId: string): Promise<any> => {
     return request<any>(`interviews/${sessionId}/generate`, {
       method: 'POST',
+      headers: { 'Idempotency-Key': operationKey(sessionId, 'generate') },
     });
   },
 
   /**
    * Submit interview answers
    */
-  submitInterview: async (sessionId: string, answers: any[]): Promise<any> => {
+  submitInterview: async (sessionId: string, expectedVersion: number, answers: any[]): Promise<any> => {
     return request<any>(`interviews/${sessionId}/submit`, {
       method: 'POST',
-      body: JSON.stringify({ answers }),
+      headers: { 'Idempotency-Key': operationKey(sessionId, 'submit') },
+      body: JSON.stringify({ expectedVersion, answers }),
     });
   },
 };
