@@ -1,18 +1,26 @@
 import { useState } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { AuthForm } from '../features/auth/AuthForm';
+import { GoogleSignInButton } from '../features/auth/GoogleSignInButton';
 import { loginSchema, type LoginInput } from '../auth/schemas';
 import { login } from '../auth/apiClient';
 import { setAccessToken, setRefreshToken } from '../auth/session';
 import { useAuthStore } from '../auth/authStore';
 import { roleLanding } from '../auth/routePolicy';
-import { toApiError, type ApiError } from '../auth/types';
+import { toApiError, type ApiError, type AuthResponse } from '../auth/types';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [error, setError] = useState<ApiError | null>(null);
   const returnPath = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
+
+  const handleAuthSuccess = (result: AuthResponse) => {
+    setAccessToken(result.tokens.accessToken);
+    setRefreshToken(result.tokens.refreshToken);
+    useAuthStore.getState().setUser(result.user);
+    navigate(returnPath ?? roleLanding(result.user.role), { replace: true });
+  };
 
   return (
     <div className="relative flex min-h-screen items-center overflow-hidden bg-slate-50 px-4 py-8 selection:bg-indigo-500 selection:text-white sm:px-6 sm:py-12">
@@ -56,10 +64,7 @@ export function LoginPage() {
               setError(null);
               try {
                 const result = await login(values);
-                setAccessToken(result.tokens.accessToken);
-                setRefreshToken(result.tokens.refreshToken);
-                useAuthStore.getState().setUser(result.user);
-                navigate(returnPath ?? roleLanding(result.user.role), { replace: true });
+                handleAuthSuccess(result);
               } catch (requestError) {
                 const apiError = toApiError(requestError);
                 setError(apiError);
@@ -76,6 +81,21 @@ export function LoginPage() {
               Quên mật khẩu?
             </Link>
           </div>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center" aria-hidden="true">
+              <div className="w-full border-t border-slate-200" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white/80 px-3 font-semibold text-slate-400">hoặc</span>
+            </div>
+          </div>
+
+          <GoogleSignInButton
+            mode="signin"
+            onSuccess={handleAuthSuccess}
+            onError={(err) => setError(err)}
+          />
 
           <p className="mt-6 border-t border-slate-100 pt-6 text-center text-sm font-medium text-slate-500">
             Chưa có tài khoản?{' '}

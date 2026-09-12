@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { authenticatedFetch, login, logout, request } from './apiClient';
+import { authenticatedFetch, googleLogin, login, logout, request } from './apiClient';
 import { setAccessToken, setRefreshToken, getAccessToken, getRefreshToken } from './session';
 import { useAuthStore } from './authStore';
 
@@ -46,22 +46,37 @@ describe('api client auth boundaries', () => {
     expect(useAuthStore.getState().user).toBeNull();
   });
 
-  it('never refreshes register, login, refresh, or logout requests', async () => {
+  it('never refreshes register, login, google, refresh, or logout requests', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => unauthorized());
-    for (const path of ['auth/register', 'auth/login', 'auth/refresh', 'auth/logout']) {
+    for (const path of ['auth/register', 'auth/login', 'auth/google', 'auth/refresh', 'auth/logout']) {
       await expect(request(path, { method: 'POST' })).rejects.toBeTruthy();
     }
 
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(fetchMock.mock.calls.map(([url]) => new URL(String(url), 'http://test.local').pathname)).toEqual([
       '/api/v1/auth/register',
       '/api/v1/auth/login',
+      '/api/v1/auth/google',
       '/api/v1/auth/refresh',
       '/api/v1/auth/logout',
     ]);
     for (const [, init] of fetchMock.mock.calls) {
       expect((init?.headers as Headers).has('Authorization')).toBe(false);
     }
+  });
+
+  it('posts credential to /auth/google without sending bearer token', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      ok({ user, tokens: { accessToken: 'ga', refreshToken: 'gr' } })
+    );
+
+    const result = await googleLogin({ credential: 'google-id-token' });
+    expect(result.tokens.accessToken).toBe('ga');
+
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(String(url)).toContain('/api/v1/auth/google');
+    expect(JSON.parse((init?.body as string) ?? '{}')).toEqual({ credential: 'google-id-token' });
+    expect((init?.headers as Headers).has('Authorization')).toBe(false);
   });
 
   it('clears local auth state even when backend logout fails', async () => {

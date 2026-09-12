@@ -5,7 +5,8 @@ export type UserLevel = 'FRESHER' | 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD' | 'M
 // 1. Interface (Khai báo kiểu dữ liệu chuẩn)
 export interface IUser extends Document {
   email: string;
-  passwordHash: string;
+  passwordHash?: string;
+  googleSubject?: string;
   fullName: string;
   role: 'CANDIDATE' | 'INTERVIEWER' | 'ADMIN';
   status: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
@@ -32,8 +33,17 @@ const userSchema = new Schema<IUser>(
     },
     passwordHash: {
       type: String,
-      required: true,
+      required: false,
       select: false,
+    },
+    googleSubject: {
+      type: String,
+      required: false,
+      select: false,
+      trim: true,
+      maxlength: 255,
+      unique: true,
+      sparse: true,
     },
     fullName: {
       type: String,
@@ -99,6 +109,7 @@ const userSchema = new Schema<IUser>(
         delete ret._id;
         delete ret.__v;
         delete ret.passwordHash;
+        delete ret.googleSubject;
         delete ret.authVersion;
         delete ret.credentialVersion;
         return ret;
@@ -110,6 +121,7 @@ const userSchema = new Schema<IUser>(
         delete ret._id;
         delete ret.__v;
         delete ret.passwordHash;
+        delete ret.googleSubject;
         delete ret.authVersion;
         delete ret.credentialVersion;
         return ret;

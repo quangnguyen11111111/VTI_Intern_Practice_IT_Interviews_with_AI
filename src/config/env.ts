@@ -152,6 +152,7 @@ const envSchema = z
       .string()
       .min(32, 'PASSWORD_RESET_SECRET must be at least 32 characters long')
       .default('default_password_reset_secret_key_at_least_32_characters_long_12345'),
+    GOOGLE_CLIENT_ID: z.string().trim().optional().default(''),
     SMTP_HOST: z.string().trim().min(1, 'SMTP_HOST cannot be empty').optional().default('localhost'),
     SMTP_PORT: z
       .string()
@@ -522,6 +523,7 @@ export interface AppEnv {
   JWT_REFRESH_EXPIRES_IN: string;
   BCRYPT_SALT_ROUNDS: number;
   PASSWORD_RESET_SECRET: string;
+  GOOGLE_CLIENT_ID: string;
   SMTP_HOST: string;
   SMTP_PORT: number;
   SMTP_SECURE: boolean;

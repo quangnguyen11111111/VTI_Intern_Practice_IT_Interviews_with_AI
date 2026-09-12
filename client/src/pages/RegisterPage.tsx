@@ -1,16 +1,24 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthForm } from '../features/auth/AuthForm';
+import { GoogleSignInButton } from '../features/auth/GoogleSignInButton';
 import { registerSchema, type RegisterInput } from '../auth/schemas';
 import { register } from '../auth/apiClient';
 import { setAccessToken, setRefreshToken } from '../auth/session';
 import { useAuthStore } from '../auth/authStore';
 import { roleLanding } from '../auth/routePolicy';
-import { toApiError, type ApiError } from '../auth/types';
+import { toApiError, type ApiError, type AuthResponse } from '../auth/types';
 
 export function RegisterPage() {
   const navigate = useNavigate();
   const [error, setError] = useState<ApiError | null>(null);
+
+  const handleAuthSuccess = (result: AuthResponse) => {
+    setAccessToken(result.tokens.accessToken);
+    setRefreshToken(result.tokens.refreshToken);
+    useAuthStore.getState().setUser(result.user);
+    navigate(roleLanding(result.user.role), { replace: true });
+  };
 
   return (
     <div className="relative flex min-h-screen items-center overflow-hidden bg-slate-50 px-4 py-8 selection:bg-indigo-500 selection:text-white sm:px-6 sm:py-12">
@@ -60,16 +68,28 @@ export function RegisterPage() {
                   password: values.password,
                   fullName: values.fullName,
                 });
-                setAccessToken(result.tokens.accessToken);
-                setRefreshToken(result.tokens.refreshToken);
-                useAuthStore.getState().setUser(result.user);
-                navigate(roleLanding(result.user.role), { replace: true });
+                handleAuthSuccess(result);
               } catch (requestError) {
                 const apiError = toApiError(requestError);
                 setError(apiError);
                 throw apiError;
               }
             }}
+          />
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center" aria-hidden="true">
+              <div className="w-full border-t border-slate-200" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white/80 px-3 font-semibold text-slate-400">hoặc</span>
+            </div>
+          </div>
+
+          <GoogleSignInButton
+            mode="signup"
+            onSuccess={handleAuthSuccess}
+            onError={(err) => setError(err)}
           />
 
           <p className="mt-6 border-t border-slate-100 pt-6 text-center text-sm font-medium text-slate-500">

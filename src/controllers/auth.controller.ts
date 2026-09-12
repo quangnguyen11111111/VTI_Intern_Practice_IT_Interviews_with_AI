@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import {
   registerUser,
   loginUser,
+  loginWithGoogle,
   refreshAuthTokens,
   logoutUser,
   lockUser,
@@ -32,6 +33,18 @@ export const loginHandler = async (req: Request, res: Response): Promise<void> =
   const response: ApiResponse<AuthResponseData> = {
     success: true,
     message: 'Đăng nhập thành công',
+    data: result,
+  };
+
+  res.status(200).json(response);
+};
+
+export const googleAuthHandler = async (req: Request, res: Response): Promise<void> => {
+  const result = await loginWithGoogle(req.body.credential);
+
+  const response: ApiResponse<AuthResponseData> = {
+    success: true,
+    message: 'Đăng nhập Google thành công',
     data: result,
   };
 
