@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   registerHandler,
   loginHandler,
+  googleAuthHandler,
   refreshTokenHandler,
   logoutHandler,
   lockUserHandler,
@@ -13,6 +14,7 @@ import { validate } from '../middlewares/validate.middleware';
 import {
   registerSchema,
   loginSchema,
+  googleAuthSchema,
   refreshTokenSchema,
   logoutSchema,
   lockUserSchema,
@@ -45,6 +47,7 @@ const registerRateLimit = rateLimitMiddleware.create({
 
 router.post('/register', registerRateLimit, validate(registerSchema), catchAsync(registerHandler));
 router.post('/login', loginRateLimit, validate(loginSchema), catchAsync(loginHandler));
+router.post('/google', loginRateLimit, validate(googleAuthSchema), catchAsync(googleAuthHandler));
 
 router.post('/refresh', validate(refreshTokenSchema), catchAsync(refreshTokenHandler));
 router.post('/logout', validate(logoutSchema), catchAsync(logoutHandler));

@@ -17,12 +17,13 @@ describe('OpenAPI Auth & Profile Contract Tests', () => {
     expect(doc.info.version).toBeDefined();
   });
 
-  it('2. Contains all 11 required auth and profile routes and methods', () => {
+  it('2. Contains all 12 required auth and profile routes and methods', () => {
     const doc = JSON.parse(fs.readFileSync(openApiFilePath, 'utf8'));
 
     const requiredEndpoints: Array<{ path: string; method: string }> = [
       { path: '/api/v1/auth/register', method: 'post' },
       { path: '/api/v1/auth/login', method: 'post' },
+      { path: '/api/v1/auth/google', method: 'post' },
       { path: '/api/v1/auth/refresh', method: 'post' },
       { path: '/api/v1/auth/logout', method: 'post' },
       { path: '/api/v1/auth/users/{id}/lock', method: 'patch' },
@@ -70,6 +71,7 @@ describe('OpenAPI Auth & Profile Contract Tests', () => {
     const publicEndpoints = [
       { path: '/api/v1/auth/register', method: 'post' },
       { path: '/api/v1/auth/login', method: 'post' },
+      { path: '/api/v1/auth/google', method: 'post' },
       { path: '/api/v1/auth/refresh', method: 'post' },
       { path: '/api/v1/auth/logout', method: 'post' },
       { path: '/api/v1/auth/password/forgot', method: 'post' },
@@ -94,6 +96,14 @@ describe('OpenAPI Auth & Profile Contract Tests', () => {
     expect(doc.paths['/api/v1/auth/login'].post.responses['200']).toBeDefined();
     expect(doc.paths['/api/v1/auth/login'].post.responses['401']).toBeDefined();
     expect(doc.paths['/api/v1/auth/login'].post.responses['403']).toBeDefined();
+
+    // Google
+    expect(doc.paths['/api/v1/auth/google'].post.responses['200']).toBeDefined();
+    expect(doc.paths['/api/v1/auth/google'].post.responses['400']).toBeDefined();
+    expect(doc.paths['/api/v1/auth/google'].post.responses['401']).toBeDefined();
+    expect(doc.paths['/api/v1/auth/google'].post.responses['403']).toBeDefined();
+    expect(doc.paths['/api/v1/auth/google'].post.responses['409']).toBeDefined();
+    expect(doc.paths['/api/v1/auth/google'].post.responses['503']).toBeDefined();
 
     // Password forgot
     expect(doc.paths['/api/v1/auth/password/forgot'].post.responses['202']).toBeDefined();
@@ -135,6 +145,7 @@ describe('OpenAPI Auth & Profile Contract Tests', () => {
       'ValidationErrorDetail',
       'RegisterInput',
       'LoginInput',
+      'GoogleLoginInput',
       'RefreshTokenInput',
       'LogoutInput',
       'ChangePasswordInput',
@@ -158,6 +169,7 @@ describe('OpenAPI Auth & Profile Contract Tests', () => {
     expect(doc.components.schemas.SafeUser.additionalProperties).toBe(false);
     expect(doc.components.schemas.RegisterInput.additionalProperties).toBe(false);
     expect(doc.components.schemas.LoginInput.additionalProperties).toBe(false);
+    expect(doc.components.schemas.GoogleLoginInput.additionalProperties).toBe(false);
     expect(doc.components.schemas.ChangePasswordInput.additionalProperties).toBe(false);
     expect(doc.components.schemas.ForgotPasswordInput.additionalProperties).toBe(false);
     expect(doc.components.schemas.ResetPasswordInput.additionalProperties).toBe(false);

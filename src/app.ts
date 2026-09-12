@@ -30,7 +30,18 @@ export const createApp = (env: AppEnv = getEnv(), output: Logger = logger) => {
   app.use(httpLogger(output));
   app.use(
     helmet({
-      strictTransportSecurity: env.NODE_ENV === "production" ? undefined : false
+      strictTransportSecurity: env.NODE_ENV === "production" ? undefined : false,
+      crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "https://accounts.google.com/gsi/client"],
+          frameSrc: ["'self'", "https://accounts.google.com/gsi/"],
+          connectSrc: ["'self'", "https://accounts.google.com/gsi/"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com/gsi/style"],
+          imgSrc: ["'self'", "data:", "https://*.googleusercontent.com", "https://lh3.googleusercontent.com"],
+        },
+      },
     })
   );
 

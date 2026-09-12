@@ -133,3 +133,17 @@ export const lockUserSchema = z.object({
     })
     .strict(),
 });
+
+export const googleAuthSchema = z.object({
+  body: z
+    .object({
+      credential: z
+        .string({
+          message: 'Credential phải là chuỗi ký tự',
+        })
+        .trim()
+        .min(1, 'Credential không được để trống')
+        .max(8192, 'Credential không được vượt quá 8192 ký tự'),
+    })
+    .strict(),
+});

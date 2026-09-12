@@ -9,6 +9,7 @@ const endpoint = (path: string) => `${apiRoot}/${normalizePath(path)}`;
 const AUTH_ENDPOINTS = new Set([
   'auth/register',
   'auth/login',
+  'auth/google',
   'auth/refresh',
   'auth/logout',
   'auth/password/forgot',
@@ -117,6 +118,9 @@ export const request = async <T>(path: string, init: RequestInit = {}, canRetry 
 
 export const login = (body: unknown) =>
   request<AuthResponse>('auth/login', { method: 'POST', body: JSON.stringify(body) });
+
+export const googleLogin = (body: { credential: string }) =>
+  request<AuthResponse>('auth/google', { method: 'POST', body: JSON.stringify(body) });
 
 export const register = (body: unknown) =>
   request<AuthResponse>('auth/register', { method: 'POST', body: JSON.stringify(body) });

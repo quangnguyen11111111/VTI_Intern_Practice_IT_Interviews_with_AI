@@ -20,6 +20,7 @@ import { IAuditService } from './interfaces/IAuditService';
 import { runAuditedMutation } from './audited-mutation';
 import { AuditService } from './audit.service';
 import { AuditRepository } from '../repositories/audit.repository';
+import { verifyGoogleIdToken } from './google-identity.service';
 
 // Precomputed dummy bcrypt hash (cost 12) for constant-time comparison when email is not found
 const DUMMY_HASH = '$2a$12$K1r6fQ9Z2yD0kX4J8nC1Ou9z9qK8jH7gF5d4s3a2P1o0I9u8Y7t6e';
@@ -49,6 +50,7 @@ export const formatSafeUser = (user: IUser): SafeUser => {
     fullName: user.fullName,
     role: user.role,
     status: user.status,
+    avatarUrl: user.avatarUrl ?? null,
     createdAt: user.createdAt,
   };
 };
@@ -151,6 +153,16 @@ export const loginUser = async (data: {
 
   if (!user) {
     // Chạy dummy compare để giảm khác biệt timing khi email không tồn tại
+    try {
+      await bcrypt.compare(data.password, DUMMY_HASH);
+    } catch {
+      // Bỏ qua lỗi dummy hash nếu có
+    }
+    throw new AppError('Email hoặc mật khẩu không chính xác', 401, 'AUTH_INVALID_CREDENTIALS');
+  }
+
+  if (!user.passwordHash) {
+    // Google-only accounts must not expose their authentication method.
     try {
       await bcrypt.compare(data.password, DUMMY_HASH);
     } catch {
@@ -565,6 +577,15 @@ export const changePassword = async (
     throw new AppError('Tài khoản không hoạt động', 401, 'AUTH_UNAUTHORIZED');
   }
 
+  if (!user.passwordHash) {
+    try {
+      await bcrypt.compare(currentPassword, DUMMY_HASH);
+    } catch {
+      // Bỏ qua lỗi dummy hash nếu có
+    }
+    throw new AppError('Mật khẩu hiện tại không chính xác', 400, 'AUTH_INVALID_CURRENT_PASSWORD');
+  }
+
   const isCurrentPasswordCorrect = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!isCurrentPasswordCorrect) {
     throw new AppError('Mật khẩu hiện tại không chính xác', 400, 'AUTH_INVALID_CURRENT_PASSWORD');
@@ -908,4 +929,197 @@ export const resetPassword = async (
   } finally {
     await session.endSession();
   }
+};
+
+export const loginWithGoogle = async (credential: string): Promise<AuthResponseData> => {
+  const googleIdentity = await verifyGoogleIdToken(credential);
+  const { sub, email, emailVerified, name, picture, hd } = googleIdentity;
+  const normalizedEmail = email.trim().toLowerCase();
+  const maxRetries = 3;
+
+  for (let attempt = 0; attempt < maxRetries; attempt += 1) {
+    const session = await mongoose.startSession();
+    try {
+      let responseData: AuthResponseData | null = null;
+
+      await session.withTransaction(async () => {
+        let user = await User.findOne({ googleSubject: sub })
+          .select('+passwordHash +googleSubject')
+          .session(session);
+        let isNewUser = false;
+        let needsLink = false;
+
+        if (user) {
+          if (user.status === 'LOCKED') {
+            throw new AppError('Tài khoản đã bị khóa', 403, 'AUTH_ACCOUNT_LOCKED');
+          }
+          if (user.status !== 'ACTIVE') {
+            throw new AppError('Tài khoản không hoạt động', 401, 'AUTH_UNAUTHORIZED');
+          }
+        } else {
+          const userByEmail = await User.findOne({ email: normalizedEmail })
+            .select('+passwordHash +googleSubject')
+            .session(session);
+
+          if (userByEmail) {
+            if (userByEmail.googleSubject && userByEmail.googleSubject !== sub) {
+              throw new AppError(
+                'Tài khoản đã được liên kết với một tài khoản Google khác',
+                409,
+                'AUTH_GOOGLE_SUBJECT_CONFLICT'
+              );
+            }
+
+            const isGmail =
+              normalizedEmail.endsWith('@gmail.com') || normalizedEmail.endsWith('@googlemail.com');
+            const emailDomain = normalizedEmail.slice(normalizedEmail.lastIndexOf('@') + 1);
+            const hasAuthoritativeWorkspaceEmail =
+              emailVerified && Boolean(hd && hd.trim().toLowerCase() === emailDomain);
+            if (!isGmail && !hasAuthoritativeWorkspaceEmail) {
+              throw new AppError(
+                'Email này cần được liên kết thủ công trước khi đăng nhập',
+                409,
+                'AUTH_GOOGLE_ACCOUNT_LINK_REQUIRED'
+              );
+            }
+
+            if (userByEmail.status === 'LOCKED') {
+              throw new AppError('Tài khoản đã bị khóa', 403, 'AUTH_ACCOUNT_LOCKED');
+            }
+            if (userByEmail.status !== 'ACTIVE') {
+              throw new AppError('Tài khoản không hoạt động', 401, 'AUTH_UNAUTHORIZED');
+            }
+
+            user = userByEmail;
+            needsLink = true;
+          } else {
+            isNewUser = true;
+          }
+        }
+
+        let freshUser: IUser | null = null;
+
+        if (isNewUser) {
+          let displayName = name?.trim() || normalizedEmail.split('@')[0].trim();
+          if (displayName.length < 2) displayName = `${displayName}_user`;
+          if (displayName.length > 100) displayName = displayName.substring(0, 100);
+
+          const createdUsers = await User.create(
+            [
+              {
+                email: normalizedEmail,
+                googleSubject: sub,
+                fullName: displayName,
+                avatarUrl: picture ?? null,
+                role: 'CANDIDATE',
+                status: 'ACTIVE',
+                authVersion: 0,
+                credentialVersion: 0,
+              },
+            ],
+            { session }
+          );
+          freshUser = createdUsers[0];
+        } else if (needsLink && user) {
+          // Only claim an unlinked account. This prevents a racing request from
+          // replacing an already established Google subject.
+          freshUser = await User.findOneAndUpdate(
+            {
+              _id: user._id,
+              status: 'ACTIVE',
+              $or: [{ googleSubject: { $exists: false } }, { googleSubject: null }],
+            },
+            { $set: { googleSubject: sub }, $inc: { authVersion: 1 } },
+            { session, returnDocument: 'after' }
+          );
+
+          if (!freshUser) {
+            const latestUser = await User.findById(user._id)
+              .select('+passwordHash +googleSubject')
+              .session(session);
+            if (!latestUser) {
+              throw new AppError('Người dùng không tồn tại', 401, 'AUTH_UNAUTHORIZED');
+            }
+            if (latestUser.status === 'LOCKED') {
+              throw new AppError('Tài khoản đã bị khóa', 403, 'AUTH_ACCOUNT_LOCKED');
+            }
+            if (latestUser.status !== 'ACTIVE') {
+              throw new AppError('Tài khoản không hoạt động', 401, 'AUTH_UNAUTHORIZED');
+            }
+            if (latestUser.googleSubject !== sub) {
+              throw new AppError(
+                'Tài khoản đã được liên kết với một tài khoản Google khác',
+                409,
+                'AUTH_GOOGLE_SUBJECT_CONFLICT'
+              );
+            }
+            freshUser = await User.findOneAndUpdate(
+              { _id: latestUser._id, status: 'ACTIVE', googleSubject: sub },
+              { $inc: { authVersion: 1 } },
+              { session, returnDocument: 'after' }
+            );
+          }
+        } else if (user) {
+          freshUser = await User.findOneAndUpdate(
+            { _id: user._id, status: 'ACTIVE', googleSubject: sub },
+            { $inc: { authVersion: 1 } },
+            { session, returnDocument: 'after' }
+          );
+        }
+
+        if (!freshUser) {
+          const latestUser = user
+            ? await User.findById(user._id).session(session)
+            : null;
+          if (latestUser?.status === 'LOCKED') {
+            throw new AppError('Tài khoản đã bị khóa', 403, 'AUTH_ACCOUNT_LOCKED');
+          }
+          throw new AppError('Tài khoản không hoạt động', 401, 'AUTH_UNAUTHORIZED');
+        }
+
+        const safeUser = formatSafeUser(freshUser);
+        const tokenData = generateAuthTokens(
+          safeUser.id,
+          safeUser.role,
+          undefined,
+          undefined,
+          freshUser.credentialVersion ?? 0
+        );
+        const expiresAt = getRefreshTokenExpiry(tokenData.refreshToken);
+
+        await RefreshToken.create(
+          [
+            {
+              userId: freshUser._id,
+              sessionId: tokenData.sessionId,
+              tokenHash: hashToken(tokenData.refreshToken),
+              jti: tokenData.jti,
+              isRevoked: false,
+              expiresAt,
+            },
+          ],
+          { session }
+        );
+
+        responseData = {
+          user: safeUser,
+          tokens: {
+            accessToken: tokenData.accessToken,
+            refreshToken: tokenData.refreshToken,
+          },
+        };
+      });
+
+      if (responseData) return responseData;
+    } catch (error: any) {
+      if (error?.code === 11000 && attempt < maxRetries - 1) {
+        continue;
+      }
+      throw error;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  throw new AppError('Đăng nhập Google thất bại', 500, 'INTERNAL_SERVER_ERROR');
 };

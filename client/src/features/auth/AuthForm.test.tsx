@@ -7,7 +7,7 @@ import { useAuthStore } from '../../auth/authStore';
 import { LoginPage } from '../../pages/LoginPage';
 import { RegisterPage } from '../../pages/RegisterPage';
 
-vi.mock('../../auth/apiClient', () => ({ login: vi.fn(), register: vi.fn() }));
+vi.mock('../../auth/apiClient', () => ({ login: vi.fn(), register: vi.fn(), googleLogin: vi.fn() }));
 
 const candidate = {
   id: '1', email: 'candidate@example.com', fullName: 'Candidate', role: 'CANDIDATE' as const,
@@ -42,6 +42,7 @@ describe('auth pages', () => {
 
     expect(screen.getByLabelText('Email')).toHaveAttribute('autocomplete', 'email');
     expect(screen.getByLabelText('Mật khẩu')).toHaveAttribute('autocomplete', 'current-password');
+    expect(screen.getByRole('button', { name: /đăng nhập bằng google/i })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Đăng nhập' }));
 
     expect(await screen.findByText('Email không đúng định dạng')).toBeInTheDocument();
@@ -103,6 +104,8 @@ describe('auth pages', () => {
       fieldErrors: { email: 'Email đã được sử dụng' },
     });
     renderPage('/register');
+
+    expect(screen.getByRole('button', { name: /đăng ký bằng google/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Đăng ký' }));
     expect(await screen.findByText('Họ và tên phải có ít nhất 2 ký tự')).toBeInTheDocument();
