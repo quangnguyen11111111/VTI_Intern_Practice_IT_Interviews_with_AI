@@ -301,6 +301,289 @@ describe('Google Authentication Integration Tests', () => {
     expect(res.body.code).toBe('AUTH_UNAUTHORIZED');
   });
 
+  it('9.1. Chặn auto-link Gmail khi tài khoản local bị LOCKED hoặc INACTIVE', async () => {
+    await User.create([
+      {
+        email: 'locked-local@gmail.com',
+        fullName: 'Locked Local',
+        role: 'CANDIDATE',
+        status: 'LOCKED',
+        authVersion: 0,
+        credentialVersion: 0,
+      },
+      {
+        email: 'inactive-local@gmail.com',
+        fullName: 'Inactive Local',
+        role: 'CANDIDATE',
+        status: 'INACTIVE',
+        authVersion: 0,
+        credentialVersion: 0,
+      },
+    ]);
+
+    vi.spyOn(googleIdentityService, 'verifyGoogleIdToken')
+      .mockResolvedValueOnce({
+        sub: 'google-sub-local-locked',
+        email: 'locked-local@gmail.com',
+        emailVerified: true,
+      })
+      .mockResolvedValueOnce({
+        sub: 'google-sub-local-inactive',
+        email: 'inactive-local@gmail.com',
+        emailVerified: true,
+      });
+
+    const locked = await request(app)
+      .post('/api/v1/auth/google')
+      .send({ credential: 'valid.google.token' });
+    const inactive = await request(app)
+      .post('/api/v1/auth/google')
+      .send({ credential: 'valid.google.token' });
+
+    expect(locked.status).toBe(403);
+    expect(locked.body.code).toBe('AUTH_ACCOUNT_LOCKED');
+    expect(inactive.status).toBe(401);
+    expect(inactive.body.code).toBe('AUTH_UNAUTHORIZED');
+  });
+
+  it('9.2. Chọn tên hiển thị an toàn khi Google thiếu tên, tên quá ngắn hoặc quá dài', async () => {
+    vi.spyOn(googleIdentityService, 'verifyGoogleIdToken')
+      .mockResolvedValueOnce({
+        sub: 'google-sub-short-name',
+        email: 'short-name@gmail.com',
+        emailVerified: true,
+        name: 'A',
+      })
+      .mockResolvedValueOnce({
+        sub: 'google-sub-fallback-name',
+        email: 'fallback-name@gmail.com',
+        emailVerified: true,
+      })
+      .mockResolvedValueOnce({
+        sub: 'google-sub-long-name',
+        email: 'long-name@gmail.com',
+        emailVerified: true,
+        name: 'L'.repeat(120),
+      });
+
+    const shortName = await request(app)
+      .post('/api/v1/auth/google')
+      .send({ credential: 'valid.google.token' });
+    const fallbackName = await request(app)
+      .post('/api/v1/auth/google')
+      .send({ credential: 'valid.google.token' });
+    const longName = await request(app)
+      .post('/api/v1/auth/google')
+      .send({ credential: 'valid.google.token' });
+
+    expect(shortName.status).toBe(200);
+    expect(shortName.body.data.user.fullName).toBe('A_user');
+    expect(fallbackName.status).toBe(200);
+    expect(fallbackName.body.data.user.fullName).toBe('fallback-name');
+    expect(longName.status).toBe(200);
+    expect(longName.body.data.user.fullName).toHaveLength(100);
+  });
+
+  it('9.3. Hai request đồng thời auto-link cùng một tài khoản local mà không ghi đè subject', async () => {
+    const localUser = await User.create({
+      email: 'link-race@gmail.com',
+      fullName: 'Link Race User',
+      role: 'CANDIDATE',
+      status: 'ACTIVE',
+      authVersion: 0,
+      credentialVersion: 0,
+    });
+
+    vi.spyOn(googleIdentityService, 'verifyGoogleIdToken').mockResolvedValue({
+      sub: 'google-sub-link-race',
+      email: 'link-race@gmail.com',
+      emailVerified: true,
+    });
+
+    const [first, second] = await Promise.all([
+      request(app).post('/api/v1/auth/google').send({ credential: 'valid.google.token' }),
+      request(app).post('/api/v1/auth/google').send({ credential: 'valid.google.token' }),
+    ]);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(first.body.data.user.id).toBe(localUser._id.toString());
+    expect(second.body.data.user.id).toBe(localUser._id.toString());
+    expect(await User.countDocuments({ email: 'link-race@gmail.com' })).toBe(1);
+    expect((await User.findById(localUser._id).select('+googleSubject'))?.googleSubject).toBe(
+      'google-sub-link-race',
+    );
+  });
+
+  it('9.3a. Dùng nhánh fallback khi atomic claim mất race nhưng subject đã được request khác gán', async () => {
+    const localUser = await User.create({
+      email: 'link-fallback@gmail.com',
+      fullName: 'Link Fallback User',
+      role: 'CANDIDATE',
+      status: 'ACTIVE',
+      authVersion: 0,
+      credentialVersion: 0,
+    });
+    const googleSubject = 'google-sub-link-fallback';
+
+    vi.spyOn(googleIdentityService, 'verifyGoogleIdToken').mockResolvedValueOnce({
+      sub: googleSubject,
+      email: 'link-fallback@gmail.com',
+      emailVerified: true,
+    });
+
+    // Mô phỏng request khác vừa claim subject giữa hai lần đọc trong transaction.
+    vi.spyOn(User, 'findOneAndUpdate')
+      .mockImplementationOnce(() => Promise.resolve(null) as never)
+      .mockImplementationOnce(() => Promise.resolve(localUser) as never);
+    vi.spyOn(User, 'findById').mockImplementationOnce(
+      () =>
+        ({
+          select: () => ({
+            session: async () => {
+              localUser.googleSubject = googleSubject;
+              return localUser;
+            },
+          }),
+        }) as never,
+    );
+
+    const res = await request(app)
+      .post('/api/v1/auth/google')
+      .send({ credential: 'valid.google.token' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.user.id).toBe(localUser._id.toString());
+  });
+
+  it('9.3b. Fallback fail-closed khi user biến mất, bị khóa, inactive hoặc đổi subject', async () => {
+    const cases = [
+      {
+        email: 'fallback-missing@gmail.com',
+        subject: 'google-sub-fallback-missing',
+        expectedStatus: 401,
+        expectedCode: 'AUTH_UNAUTHORIZED',
+      },
+      {
+        email: 'fallback-locked@gmail.com',
+        subject: 'google-sub-fallback-locked',
+        expectedStatus: 403,
+        expectedCode: 'AUTH_ACCOUNT_LOCKED',
+      },
+      {
+        email: 'fallback-inactive@gmail.com',
+        subject: 'google-sub-fallback-inactive',
+        expectedStatus: 401,
+        expectedCode: 'AUTH_UNAUTHORIZED',
+      },
+      {
+        email: 'fallback-conflict@gmail.com',
+        subject: 'google-sub-fallback-conflict',
+        expectedStatus: 409,
+        expectedCode: 'AUTH_GOOGLE_SUBJECT_CONFLICT',
+      },
+    ];
+    const localUsers = await User.create(
+      cases.map(({ email }) => ({
+        email,
+        fullName: 'Fallback User',
+        role: 'CANDIDATE' as const,
+        status: 'ACTIVE' as const,
+        authVersion: 0,
+        credentialVersion: 0,
+      })),
+    );
+
+    vi.spyOn(googleIdentityService, 'verifyGoogleIdToken').mockImplementation(async (credential) => {
+      const index = Number(credential.replace('fallback-', ''));
+      const current = cases[index];
+      return {
+        sub: current.subject,
+        email: current.email,
+        emailVerified: true,
+      };
+    });
+
+    const findOneAndUpdateSpy = vi.spyOn(User, 'findOneAndUpdate');
+    const findByIdSpy = vi.spyOn(User, 'findById');
+    const queryReturning = (value: unknown) =>
+      ({
+        session: async () => value,
+        select: () => ({ session: async () => value }),
+      }) as never;
+
+    cases.forEach(() => {
+      findOneAndUpdateSpy.mockImplementationOnce(() => Promise.resolve(null) as never);
+    });
+    findByIdSpy
+      .mockImplementationOnce(() => queryReturning(null))
+      .mockImplementationOnce(() => queryReturning({ ...localUsers[1].toObject(), status: 'LOCKED' }))
+      .mockImplementationOnce(() => queryReturning({ ...localUsers[2].toObject(), status: 'INACTIVE' }))
+      .mockImplementationOnce(() =>
+        queryReturning({
+          ...localUsers[3].toObject(),
+          status: 'ACTIVE',
+          googleSubject: 'another-google-subject',
+        }),
+      );
+
+    for (const [index, current] of cases.entries()) {
+      const res = await request(app)
+        .post('/api/v1/auth/google')
+        .send({ credential: `fallback-${index}` });
+
+      expect(res.status).toBe(current.expectedStatus);
+      expect(res.body.code).toBe(current.expectedCode);
+    }
+  });
+
+  it('9.4. Retry transaction khi User.create gặp duplicate key tạm thời', async () => {
+    vi.spyOn(googleIdentityService, 'verifyGoogleIdToken').mockResolvedValueOnce({
+      sub: 'google-sub-retry',
+      email: 'retry@gmail.com',
+      emailVerified: true,
+    });
+
+    vi.spyOn(User, 'create').mockImplementationOnce(() => {
+      const error = Object.assign(new Error('duplicate key'), { code: 11000 });
+      return Promise.reject(error) as never;
+    });
+
+    const res = await request(app)
+      .post('/api/v1/auth/google')
+      .send({ credential: 'valid.google.token' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.user.email).toBe('retry@gmail.com');
+    expect(await User.countDocuments({ email: 'retry@gmail.com' })).toBe(1);
+  });
+
+  it('9.5. Tài khoản Google legacy thiếu credentialVersion vẫn nhận token version 0', async () => {
+    const existing = await User.create({
+      email: 'legacy-google@gmail.com',
+      fullName: 'Legacy Google User',
+      googleSubject: 'google-sub-legacy',
+      role: 'CANDIDATE',
+      status: 'ACTIVE',
+      authVersion: 0,
+      credentialVersion: 0,
+    });
+    await User.updateOne({ _id: existing._id }, { $unset: { credentialVersion: 1 } });
+
+    vi.spyOn(googleIdentityService, 'verifyGoogleIdToken').mockResolvedValueOnce({
+      sub: 'google-sub-legacy',
+      email: 'legacy-google@gmail.com',
+      emailVerified: true,
+    });
+
+    const res = await request(app)
+      .post('/api/v1/auth/google')
+      .send({ credential: 'valid.google.token' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.tokens.accessToken).toBeDefined();
+  });
+
   it('10. Refresh token được lưu dưới dạng hash và dùng được với /auth/refresh', async () => {
     vi.spyOn(googleIdentityService, 'verifyGoogleIdToken').mockResolvedValueOnce({
       sub: 'google-sub-session',
