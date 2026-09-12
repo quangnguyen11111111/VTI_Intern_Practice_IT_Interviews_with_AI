@@ -1,12 +1,12 @@
 import type { BaseEntity } from '../../services/api/interviewApi';
-import type { AnalyticsFilters } from './types';
+import type { AnalyticsFilters as AnalyticsFiltersType  } from './types';
 
 interface Props {
-  filters: AnalyticsFilters;
+  filters: AnalyticsFiltersType;
   roles: BaseEntity[];
   levels: BaseEntity[];
   technologies: BaseEntity[];
-  onChange: (next: Partial<AnalyticsFilters>) => void;
+  onChange: (next: Partial<AnalyticsFiltersType>) => void;
 }
 
 export const AnalyticsFilters = ({

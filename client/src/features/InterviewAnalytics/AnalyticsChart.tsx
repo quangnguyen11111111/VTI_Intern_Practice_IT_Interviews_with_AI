@@ -81,12 +81,9 @@ export const AnalyticsChart = ({ series }: Props) => {
             />
 
             <Tooltip
-              formatter={(
-                value: number | null,
-                name: string
-              ) => [
-                value == null ? '—' : `${value} / 10`,
-                labels[name] ?? name
+              formatter={(value, name) => [
+                typeof value === 'number' ? `${value} / 10` : '—',
+                labels[String(name)] ?? String(name)
               ]}
             />
 
