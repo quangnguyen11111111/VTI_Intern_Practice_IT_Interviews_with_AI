@@ -18,4 +18,3 @@ export interface AnalyticsCatalogs {
 }
 
 export type { InterviewAnalyticsResult };
-

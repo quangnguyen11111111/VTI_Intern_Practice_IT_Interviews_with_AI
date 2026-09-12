@@ -162,4 +162,3 @@ export const AnalyticsChart = ({ series }: Props) => {
     </div>
   );
 };
-

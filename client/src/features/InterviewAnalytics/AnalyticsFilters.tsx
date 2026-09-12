@@ -101,4 +101,3 @@ export const AnalyticsFilters = ({
     </label>
   </div>
 );
-
