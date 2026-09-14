@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-const utf8Max72 = (value: string) => new TextEncoder().encode(value).length <= 72;
+const utf8Max72 = (value: string) =>
+  new TextEncoder().encode(value).length <= 72;
 
 export const emailSchema = z
   .string()
@@ -117,12 +118,28 @@ const httpUrlSchema = z
 const optionalProfileUrl = z.union([z.literal(''), httpUrlSchema]);
 
 export const profileSchema = z.object({
-  fullName: z.string().trim().min(2, 'Họ và tên phải có ít nhất 2 ký tự').max(100, 'Họ và tên không được vượt quá 100 ký tự'),
+  fullName: z
+    .string()
+    .trim()
+    .min(2, 'Họ và tên phải có ít nhất 2 ký tự')
+    .max(100, 'Họ và tên không được vượt quá 100 ký tự'),
+
   avatarUrl: optionalProfileUrl,
+
   currentLevel: z.union([z.literal(''), z.enum(PROFILE_LEVELS)]),
+
   githubUrl: optionalProfileUrl,
+
   linkedinUrl: optionalProfileUrl,
-  bio: z.string().trim().max(500, 'Giới thiệu không được vượt quá 500 ký tự').optional().or(z.literal('')),
+
+  bio: z
+    .string()
+    .trim()
+    .max(500, 'Giới thiệu không được vượt quá 500 ký tự')
+    .optional()
+    .or(z.literal('')),
+
+  leaderboardOptIn: z.boolean(),
 });
 
 export type ProfileFormData = z.infer<typeof profileSchema>;

@@ -16,10 +16,29 @@ export type AuditAction =
   | 'DELETE_TECHNOLOGY'
   | 'CREATE_PROMPT_DRAFT'
   | 'PUBLISH_PROMPT'
-  | 'ROLLBACK_PROMPT';
+  | 'ROLLBACK_PROMPT'
+  | 'PAYMENT_CHECKOUT_CREATED'
+  | 'PAYMENT_CHECKOUT_FAILED'
+  | 'PAYMENT_RECONCILED'
+  | 'PAYMENT_STATE_CHANGED'
+  | 'PAYMENT_WEBHOOK_PROCESSED'
+  | 'ENTITLEMENT_CHANGED';
 
-export type AuditResourceType = 'USER' | 'ROLE' | 'LEVEL' | 'TECHNOLOGY';
-export type AuditTargetType = 'USER' | 'SYSTEM_PROMPT';
+export type AuditResourceType =
+  | 'USER'
+  | 'ROLE'
+  | 'LEVEL'
+  | 'TECHNOLOGY'
+  | 'PAYMENT_ATTEMPT'
+  | 'PAYMENT_EVENT'
+  | 'ENTITLEMENT';
+
+export type AuditTargetType =
+  | 'USER'
+  | 'SYSTEM_PROMPT'
+  | 'PAYMENT_ATTEMPT'
+  | 'PAYMENT_EVENT'
+  | 'ENTITLEMENT';
 
 export interface IAuditLog extends Document {
   actor: mongoose.Types.ObjectId;
@@ -49,14 +68,28 @@ const auditLogSchema = new Schema<IAuditLog>(
     },
     targetType: {
       type: String,
-      enum: ['USER', 'SYSTEM_PROMPT'],
+      enum: [
+        'USER',
+        'SYSTEM_PROMPT',
+        'PAYMENT_ATTEMPT',
+        'PAYMENT_EVENT',
+        'ENTITLEMENT',
+      ],
       default: 'USER',
       required: true,
       immutable: true,
     },
     resourceType: {
       type: String,
-      enum: ['USER', 'ROLE', 'LEVEL', 'TECHNOLOGY'],
+      enum: [
+        'USER',
+        'ROLE',
+        'LEVEL',
+        'TECHNOLOGY',
+        'PAYMENT_ATTEMPT',
+        'PAYMENT_EVENT',
+        'ENTITLEMENT',
+      ],
       required: false,
       immutable: true,
     },
@@ -77,6 +110,12 @@ const auditLogSchema = new Schema<IAuditLog>(
         'CREATE_PROMPT_DRAFT',
         'PUBLISH_PROMPT',
         'ROLLBACK_PROMPT',
+        'PAYMENT_CHECKOUT_CREATED',
+        'PAYMENT_CHECKOUT_FAILED',
+        'PAYMENT_RECONCILED',
+        'PAYMENT_STATE_CHANGED',
+        'PAYMENT_WEBHOOK_PROCESSED',
+        'ENTITLEMENT_CHANGED',
       ],
       required: true,
       immutable: true,
@@ -91,7 +130,8 @@ const auditLogSchema = new Schema<IAuditLog>(
       type: String,
       required: true,
       immutable: true,
-      match: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      match:
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     },
     reason: {
       type: String,

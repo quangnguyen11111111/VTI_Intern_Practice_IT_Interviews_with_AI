@@ -1,6 +1,14 @@
 export type Role = 'CANDIDATE' | 'INTERVIEWER' | 'ADMIN';
+
 export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'LOCKED';
-export type UserLevel = 'FRESHER' | 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD' | 'MANAGER';
+
+export type UserLevel =
+  | 'FRESHER'
+  | 'JUNIOR'
+  | 'MIDDLE'
+  | 'SENIOR'
+  | 'LEAD'
+  | 'MANAGER';
 
 export interface User {
   id: string;
@@ -13,6 +21,7 @@ export interface User {
   githubUrl?: string | null;
   linkedinUrl?: string | null;
   bio?: string | null;
+  leaderboardOptIn?: boolean;
   createdAt: string;
   updatedAt?: string;
 }

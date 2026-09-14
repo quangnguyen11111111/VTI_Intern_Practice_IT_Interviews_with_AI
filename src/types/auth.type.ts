@@ -5,10 +5,18 @@ export interface SafeUser {
   role: 'CANDIDATE' | 'INTERVIEWER' | 'ADMIN';
   status: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
   avatarUrl?: string | null;
-  currentLevel?: 'FRESHER' | 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD' | 'MANAGER' | null;
+  currentLevel?:
+    | 'FRESHER'
+    | 'JUNIOR'
+    | 'MIDDLE'
+    | 'SENIOR'
+    | 'LEAD'
+    | 'MANAGER'
+    | null;
   githubUrl?: string | null;
   linkedinUrl?: string | null;
   bio?: string | null;
+  leaderboardOptIn?: boolean;
   createdAt: Date | string;
   updatedAt?: Date | string;
 }

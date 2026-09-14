@@ -1,6 +1,12 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export type UserLevel = 'FRESHER' | 'JUNIOR' | 'MIDDLE' | 'SENIOR' | 'LEAD' | 'MANAGER';
+export type UserLevel =
+  | 'FRESHER'
+  | 'JUNIOR'
+  | 'MIDDLE'
+  | 'SENIOR'
+  | 'LEAD'
+  | 'MANAGER';
 
 // 1. Interface (Khai báo kiểu dữ liệu chuẩn)
 export interface IUser extends Document {
@@ -17,6 +23,7 @@ export interface IUser extends Document {
   githubUrl?: string | null;
   linkedinUrl?: string | null;
   bio?: string | null;
+  leaderboardOptIn: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -99,6 +106,10 @@ const userSchema = new Schema<IUser>(
       trim: true,
       maxlength: 500,
       default: null,
+    },
+    leaderboardOptIn: {
+      type: Boolean,
+      default: false,
     },
   },
   {

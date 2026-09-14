@@ -19,18 +19,24 @@ const developmentOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
 export const createApp = (env: AppEnv = getEnv(), output: Logger = logger) => {
   const app = express();
   const allowedOrigins = new Set(
-    env.CORS_ALLOWED_ORIGINS.length > 0 ? env.CORS_ALLOWED_ORIGINS : developmentOrigins
+    env.CORS_ALLOWED_ORIGINS.length > 0
+      ? env.CORS_ALLOWED_ORIGINS
+      : developmentOrigins,
   );
 
   app.set("env", env.NODE_ENV);
-  app.set("trust proxy", env.TRUST_PROXY_HOPS > 0 ? env.TRUST_PROXY_HOPS : false);
+  app.set(
+    "trust proxy",
+    env.TRUST_PROXY_HOPS > 0 ? env.TRUST_PROXY_HOPS : false,
+  );
   app.disable("x-powered-by");
 
   app.use(requestContext);
   app.use(httpLogger(output));
   app.use(
     helmet({
-      strictTransportSecurity: env.NODE_ENV === "production" ? undefined : false,
+      strictTransportSecurity:
+        env.NODE_ENV === "production" ? undefined : false,
       crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
       contentSecurityPolicy: {
         directives: {
@@ -38,11 +44,20 @@ export const createApp = (env: AppEnv = getEnv(), output: Logger = logger) => {
           scriptSrc: ["'self'", "https://accounts.google.com/gsi/client"],
           frameSrc: ["'self'", "https://accounts.google.com/gsi/"],
           connectSrc: ["'self'", "https://accounts.google.com/gsi/"],
-          styleSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com/gsi/style"],
-          imgSrc: ["'self'", "data:", "https://*.googleusercontent.com", "https://lh3.googleusercontent.com"],
+          styleSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            "https://accounts.google.com/gsi/style",
+          ],
+          imgSrc: [
+            "'self'",
+            "data:",
+            "https://*.googleusercontent.com",
+            "https://lh3.googleusercontent.com",
+          ],
         },
       },
-    })
+    }),
   );
 
   app.use(
@@ -53,31 +68,41 @@ export const createApp = (env: AppEnv = getEnv(), output: Logger = logger) => {
           return;
         }
 
-        callback(new AppError("Origin không được phép truy cập", 403, "CORS_ORIGIN_DENIED"));
-      }
-    })
+        callback(
+          new AppError(
+            "Origin không được phép truy cập",
+            403,
+            "CORS_ORIGIN_DENIED",
+          ),
+        );
+      },
+    }),
   );
 
   app.use(enforceContentType);
   app.use(
     express.json({
       limit: env.JSON_BODY_LIMIT,
-      type: ["application/json", "application/*+json"]
-    })
+      type: ["application/json", "application/*+json"],
+      verify: (req, _res, buf) => {
+        (req as express.Request & { rawBody?: string }).rawBody =
+          buf.toString("utf8");
+      },
+    }),
   );
 
   app.use(
     express.urlencoded({
       extended: true,
-      limit: env.FORM_BODY_LIMIT
-    })
+      limit: env.FORM_BODY_LIMIT,
+    }),
   );
 
   // Health check endpoint
   app.get("/health", (req, res) => {
     res.json({
       success: true,
-      message: "IT Interview AI API is running"
+      message: "IT Interview AI API is running",
     });
   });
 
@@ -86,7 +111,13 @@ export const createApp = (env: AppEnv = getEnv(), output: Logger = logger) => {
 
   // Catch-all cho API 404
   app.use("/api", (req, res, next) => {
-    next(new AppError(`Không tìm thấy API route: ${req.originalUrl}`, 404, "NOT_FOUND"));
+    next(
+      new AppError(
+        `Không tìm thấy API route: ${req.originalUrl}`,
+        404,
+        "NOT_FOUND",
+      ),
+    );
   });
 
   // React Client static files & SPA fallback

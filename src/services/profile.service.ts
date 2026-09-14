@@ -14,15 +14,22 @@ const toSafeProfile = (user: IUser): SafeUser => ({
   githubUrl: user.githubUrl ?? null,
   linkedinUrl: user.linkedinUrl ?? null,
   bio: user.bio ?? null,
+  leaderboardOptIn: user.leaderboardOptIn ?? false,
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,
 });
 
 export const getCurrentProfile = async (userId: string): Promise<SafeUser> => {
   const user = await User.findOne({ _id: userId, status: 'ACTIVE' });
+
   if (!user) {
-    throw new AppError('Người dùng không tồn tại hoặc không hoạt động', 401, 'AUTH_UNAUTHORIZED');
+    throw new AppError(
+      'Người dùng không tồn tại hoặc không hoạt động',
+      401,
+      'AUTH_UNAUTHORIZED'
+    );
   }
+
   return toSafeProfile(user);
 };
 
@@ -37,7 +44,12 @@ export const updateCurrentProfile = async (
   );
 
   if (!updatedUser) {
-    throw new AppError('Người dùng không tồn tại hoặc không hoạt động', 401, 'AUTH_UNAUTHORIZED');
+    throw new AppError(
+      'Người dùng không tồn tại hoặc không hoạt động',
+      401,
+      'AUTH_UNAUTHORIZED'
+    );
   }
+
   return toSafeProfile(updatedUser);
 };

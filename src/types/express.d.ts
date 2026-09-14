@@ -1,5 +1,5 @@
-import { IUser } from '../models/user.model';
-import { JwtTokenPayload } from './auth.type';
+import { IUser } from "../models/user.model";
+import { JwtTokenPayload } from "./auth.type";
 
 declare global {
   namespace Express {
@@ -8,6 +8,7 @@ declare global {
       user?: IUser;
       tokenPayload?: JwtTokenPayload;
       resource?: unknown;
+      rawBody?: string;
     }
   }
 }

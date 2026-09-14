@@ -5,10 +5,12 @@ import { seedRoles } from './role.seed';
 import { seedLevels } from './level.seed';
 import { seedTechnologies } from './technology.seed';
 import { seedSystemPrompts } from './system-prompt.seed';
+import { seedPlans } from './plan.seed';
 
 dotenv.config();
 
-const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/it-interview-ai';
+const MONGO_URI =
+  process.env.MONGODB_URI || 'mongodb://localhost:27017/it-interview-ai';
 
 const runSeeder = async () => {
   try {
@@ -23,6 +25,7 @@ const runSeeder = async () => {
     await seedRoles();
     await seedTechnologies(); // Chạy sau role để lấy ID của role
     await seedSystemPrompts();
+    await seedPlans();
     console.log('====================================');
 
     console.log(' Đã hoàn tất toàn bộ quá trình Seed!');

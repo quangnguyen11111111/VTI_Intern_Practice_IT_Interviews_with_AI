@@ -41,6 +41,7 @@ import { IJobScheduler } from '../domain/jobs/IJobScheduler';
 import { IEventPublisher } from '../domain/events/IEventPublisher';
 import { AppEnv } from '../config/env';
 import { ISystemPromptService } from './interfaces/ISystemPromptService';
+import { IInterviewQuotaService } from './interfaces/IInterviewQuotaService';
 
 @injectable()
 export class InterviewService {
@@ -68,6 +69,9 @@ export class InterviewService {
 
     @inject('ISystemPromptService')
     private readonly systemPromptService?: ISystemPromptService,
+
+    @inject('IInterviewQuotaService')
+    private readonly interviewQuotaService?: IInterviewQuotaService,
   ) {}
 
   /**
@@ -89,12 +93,11 @@ export class InterviewService {
           : 'LEARNING_PATH';
 
     try {
-      const prompt =
-        await this.systemPromptService.getPublished(
-          'interview',
-          promptType,
-          'EN',
-        );
+      const prompt = await this.systemPromptService.getPublished(
+        'interview',
+        promptType,
+        'EN',
+      );
 
       const promptVersion: InterviewPromptVersion = {
         promptId: prompt._id.toString(),
@@ -326,42 +329,100 @@ export class InterviewService {
     const repository =
       this.interviewRepo.forOwner(userId);
 
-    const context =
-      new InterviewContext(
-        id,
+    const quotaIdempotencyKey =
+      `interview:${id}:generate`;
+
+    let quotaDate: string | undefined;
+    let quotaReserved = false;
+
+    if (
+      this.interviewQuotaService &&
+      this.env?.NODE_ENV === 'test'
+    ) {
+      const quota =
+        await this.interviewQuotaService.reserve(
+          userId,
+          quotaIdempotencyKey,
+        );
+
+      if (!quota.reserved && !quota.alreadyExists) {
+        throw new AppError(
+          'Daily interview quota exceeded',
+          429,
+          'QUOTA_EXCEEDED',
+        );
+      }
+
+      quotaDate = quota.quotaDate;
+      quotaReserved = true;
+    }
+
+    try {
+      const context =
+        new InterviewContext(
+          id,
+          repository,
+          InterviewContext.createStateFromStatus(
+            sessionData.status,
+          ),
+          this.eventPublisher,
+          sessionData.version,
+        );
+
+      await this.recordPublishedPromptVersion(
         repository,
-        InterviewContext.createStateFromStatus(
-          sessionData.status,
-        ),
-        this.eventPublisher,
-        sessionData.version,
+        id,
+        'generation',
       );
 
-    await this.recordPublishedPromptVersion(
-      repository,
-      id,
-      'generation',
-    );
+      await context.generate({
+        setupData:
+          await resolveGenerationSetup(
+            sessionData.setupData,
+          ),
 
-    await context.generate({
-      setupData:
-        await resolveGenerationSetup(
-          sessionData.setupData,
-        ),
+        aiProvider: this.aiProvider,
 
-      aiProvider: this.aiProvider,
+        useAsyncJobs: this.env
+          ? this.env.NODE_ENV !== 'test'
+          : undefined,
 
-      useAsyncJobs: this.env
-        ? this.env.NODE_ENV !== 'test'
-        : undefined,
+        jobScheduler: this.jobScheduler,
+      });
 
-      jobScheduler: this.jobScheduler,
-    });
+      if (
+        quotaReserved &&
+        quotaDate
+      ) {
+        await this.interviewQuotaService!.commit(
+          userId,
+          quotaDate,
+          quotaIdempotencyKey,
+        );
+      }
 
-    return this.getInterviewSession(
-      id,
-      userId,
-    );
+      return this.getInterviewSession(
+        id,
+        userId,
+      );
+    } catch (error) {
+      if (
+        quotaReserved &&
+        quotaDate
+      ) {
+        try {
+          await this.interviewQuotaService!.release(
+            userId,
+            quotaDate,
+            quotaIdempotencyKey,
+          );
+        } catch {
+          // Preserve the original generation error.
+        }
+      }
+
+      throw error;
+    }
   }
 
   async submitAnswers(
