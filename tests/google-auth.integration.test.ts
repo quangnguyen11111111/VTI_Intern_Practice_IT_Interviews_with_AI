@@ -27,6 +27,7 @@ beforeAll(async () => {
   mongoReplSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   const uri = mongoReplSet.getUri();
   await mongoose.connect(uri);
+  await User.syncIndexes();
 });
 
 afterAll(async () => {

@@ -99,7 +99,7 @@ const evaluationSchema = z.object({
   overallScore: score,
   dimensions: z.array(z.object({ name: z.enum(DIMENSIONS), score, reasoning: safeText(2000) }).strict()).length(4)
     .refine(d => new Set(d.map(v => v.name)).size === 4),
-  learningPath: z.array(z.object({ topic: localized(200), priority: z.enum(['High', 'Medium', 'Low']), suggestion: localized(2000) }).strict()).max(10),
+  learningPath: z.array(z.object({ topic: localized(200), priority: z.enum(['High', 'Medium', 'Low']), suggestion: localized(2000) }).strict()).max(10).optional().default([]),
 }).strict();
 export function parseProviderJson(value: string): unknown {
   if (typeof value !== 'string' || value.length > INPUT_LIMITS.output) {

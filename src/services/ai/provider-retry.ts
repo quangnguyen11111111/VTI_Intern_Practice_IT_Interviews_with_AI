@@ -1,6 +1,6 @@
 import { AppError } from '../../utils/AppError';
 
-export const RETRY_LIMITS = Object.freeze({ attempts: 3, totalMs: 45000, attemptMs: 15000, baseMs: 250 });
+export const RETRY_LIMITS = Object.freeze({ attempts: 3, totalMs: 90000, attemptMs: 30000, baseMs: 250 });
 const unavailable = () => new AppError('AI provider unavailable', 503, 'AI_PROVIDER_UNAVAILABLE');
 export async function providerRetry<T>(operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const deadline = Date.now() + RETRY_LIMITS.totalMs;
