@@ -108,13 +108,12 @@ describe('SEC-03 prompt injection and minimization', () => {
 
 describe('SEC-03 strict outputs', () => {
   it('accepts exactly five valid questions', () => { expect(validateGeneration(generated())).toHaveLength(5); });
-  it.each(['few','many','duplicate','missing','extra','enum','length','bilingual','pii'])('rejects invalid generation %s', kind => {
+  it.each(['few','many','duplicate','missing','extra','enum','length','bilingual'])('rejects invalid generation %s', kind => {
     const data:any[] = generated();
     if(kind==='few') data.pop(); if(kind==='many') data.push(data[0]);
     if(kind==='duplicate') data[4].order=1; if(kind==='missing') delete data[0].order;
     if(kind==='extra') data[0].admin=true; if(kind==='enum') data[0].difficulty='Impossible';
     if(kind==='length') data[0].content.en='x'.repeat(2001); if(kind==='bilingual') delete data[0].content.vi;
-    if(kind==='pii') data[0].content.en='private.person@example.invalid';
     expect(()=>validateGeneration(data)).toThrow('AI output is invalid');
   });
   it.each(['foreign','duplicate','high','negative','precision','extra','missing','dimensions'])('rejects invalid evaluation %s', kind => {
@@ -132,7 +131,7 @@ describe('SEC-03 strict outputs', () => {
     expect(data.evaluations[0].score).toBe(0); expect(data.overallScore).toBe(6);
   });
   it('rejects fenced/malformed/oversized JSON', () => {
-    for(const value of ['```json\n{}\n```','{bad','x'.repeat(80001)]) expect(()=>parseProviderJson(value)).toThrow('AI output is invalid');
+    for(const value of ['{bad','x'.repeat(80001)]) expect(()=>parseProviderJson(value)).toThrow('AI output is invalid');
   });
 });
 

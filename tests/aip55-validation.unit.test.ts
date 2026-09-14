@@ -20,7 +20,7 @@ describe('AIP-55 validation branch contracts', () => {
       query: {},
     });
     const multipart = interviewJdCreateSchema.parse({
-      body: { jobPosition: id(), level: id(), techStacks: [id()] },
+      body: {},
       query: {},
     });
 
@@ -29,7 +29,6 @@ describe('AIP-55 validation branch contracts', () => {
       secondsPerQuestion: 300,
       strategy: 'STANDARD',
     });
-    expect(multipart.body.techStacks).toHaveLength(1);
   });
 
   it('rejects duplicate answers, oversized answers, and unknown answer fields', () => {

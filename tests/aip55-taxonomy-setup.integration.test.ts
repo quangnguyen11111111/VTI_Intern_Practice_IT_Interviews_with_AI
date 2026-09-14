@@ -262,9 +262,6 @@ describe('AIP-55 interview setup and ownership contracts', () => {
     const response = await request(app)
       .post('/api/v1/interviews/generate-from-jd')
       .set(bearer(candidate))
-      .field('jobPosition', taxonomy.role._id.toString())
-      .field('level', taxonomy.level._id.toString())
-      .field('techStacks', JSON.stringify([taxonomy.technology._id.toString()]))
       .field('language', 'EN')
       .field('secondsPerQuestion', '180')
       .field('strategy', 'STANDARD')
@@ -301,13 +298,11 @@ describe('AIP-55 interview setup and ownership contracts', () => {
     expect(oversized.body.code).toBe('UPLOAD_TOO_LARGE');
   });
 
-  it('rejects malformed multipart technology JSON before parsing the JD', async () => {
+  it('rejects extra fields in JD setup before parsing the JD', async () => {
     const parser = vi.spyOn(PdfParser.prototype, 'parse');
     const response = await request(app)
       .post('/api/v1/interviews/generate-from-jd')
       .set(bearer(candidate))
-      .field('jobPosition', taxonomy.role._id.toString())
-      .field('level', taxonomy.level._id.toString())
       .field('techStacks', 'not-json')
       .attach('jdFile', Buffer.from('%PDF-1.7 local fixture'), {
         filename: 'fixture.pdf',
