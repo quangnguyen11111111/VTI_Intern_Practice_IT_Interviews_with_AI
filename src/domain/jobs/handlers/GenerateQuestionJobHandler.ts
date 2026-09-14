@@ -7,11 +7,15 @@ import { InterviewContext } from '../../interview/InterviewContext';
 import { IEventPublisher } from '../../events/IEventPublisher';
 import { logger } from '../../../infrastructure/logging/logger';
 import { generateSafely } from '../../../services/ai/prompt-security';
-import { interviewJobData, resolveGenerationSetup } from '../../../services/ai/job-security';
+import {
+  interviewJobData,
+  operationJobData,
+  resolveGenerationSetup,
+} from '../../../services/ai/job-security';
 
 type GenerateQuestionData =
-  | { operationId: string }
-  | { interviewId: string; ownerId: string; requestId?: string };
+  | { operationId: string; requestId?: string | null }
+  | { interviewId: string; ownerId: string; requestId?: string | null };
 
 @injectable()
 export class GenerateQuestionJobHandler
@@ -31,8 +35,9 @@ export class GenerateQuestionJobHandler
 
   async handle(data: GenerateQuestionData): Promise<void> {
     if ('operationId' in data) {
+      const normalized = operationJobData(data);
       await (this.processorOrProvider as InterviewOperationProcessor).process(
-        data.operationId,
+        normalized.operationId,
         'GENERATE_QUESTIONS',
       );
       return;

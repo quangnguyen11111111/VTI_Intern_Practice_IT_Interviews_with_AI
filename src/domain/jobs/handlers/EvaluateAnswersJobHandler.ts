@@ -7,11 +7,11 @@ import { InterviewContext } from '../../interview/InterviewContext';
 import { IEventPublisher } from '../../events/IEventPublisher';
 import { logger } from '../../../infrastructure/logging/logger';
 import { evaluateSafely } from '../../../services/ai/prompt-security';
-import { interviewJobData } from '../../../services/ai/job-security';
+import { interviewJobData, operationJobData } from '../../../services/ai/job-security';
 
 type EvaluateAnswersData =
-  | { operationId: string }
-  | { interviewId: string; ownerId: string; requestId?: string };
+  | { operationId: string; requestId?: string | null }
+  | { interviewId: string; ownerId: string; requestId?: string | null };
 
 @injectable()
 export class EvaluateAnswersJobHandler implements IJobHandler<EvaluateAnswersData> {
@@ -28,8 +28,9 @@ export class EvaluateAnswersJobHandler implements IJobHandler<EvaluateAnswersDat
 
   async handle(input: EvaluateAnswersData): Promise<void> {
     if ('operationId' in input) {
+      const normalized = operationJobData(input);
       await (this.processorOrProvider as InterviewOperationProcessor).process(
-        input.operationId,
+        normalized.operationId,
         'SUBMIT_ANSWERS',
       );
       return;

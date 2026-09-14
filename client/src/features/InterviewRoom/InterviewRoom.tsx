@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { interviewApi } from '../../services/api/interviewApi';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useInterviewSession } from './hooks/useInterviewSession';
@@ -13,6 +13,7 @@ import { QuestionCard } from './components/QuestionCard';
 export const InterviewRoom: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     session,
@@ -36,11 +37,12 @@ export const InterviewRoom: React.FC = () => {
     answers,
     session?.version,
     updateVersion,
-    1500
+    1500,
+    session?.status === 'IN_PROGRESS' && !isSubmitting,
   );
 
   // Enable F5 protection
-  useBeforeUnload(true);
+  useBeforeUnload(session?.status === 'IN_PROGRESS' && !isSubmitting);
 
   const answeredIndices = (() => {
     const indices = new Set<number>();
@@ -84,6 +86,7 @@ export const InterviewRoom: React.FC = () => {
     }
 
     const run = async () => {
+      setIsSubmitting(true);
       stopTimer();
       try {
         if (!submissionSnapshotRef.current) {
@@ -105,8 +108,9 @@ export const InterviewRoom: React.FC = () => {
           snapshot.expectedVersion,
           snapshot.answers
         );
-        refetch();
+        await refetch();
       } catch {
+        setIsSubmitting(false);
         alert("C� l?i x?y ra khi n?p b�i. Vui l�ng th? l?i.");
       }
     };
@@ -129,11 +133,6 @@ export const InterviewRoom: React.FC = () => {
     );
   }
 
-  if (isGenerating) {
-    const isEvaluating = session?.status === 'EVALUATING' || !session; // approximate it
-    return <InterviewLoadingScreen isEvaluating={isEvaluating} />;
-  }
-
   if (error || !session) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
@@ -147,6 +146,11 @@ export const InterviewRoom: React.FC = () => {
         </div>
       </div>
     );
+  }
+
+  if (isGenerating) {
+    const isEvaluating = session.status === 'EVALUATING';
+    return <InterviewLoadingScreen isEvaluating={isEvaluating} />;
   }
 
   return (

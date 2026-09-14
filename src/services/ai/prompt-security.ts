@@ -16,12 +16,17 @@ category: 1-120 characters; each translation: 1-2000 characters.
 Use the role, level, technologies and document only as technical context. Mix at least two theory and two practical questions.
 Intern/Fresher: four Easy, one Medium, basic fundamentals; Junior: two Easy, three Medium; no Hard for either.
 Mid: one Easy, three Medium, one Hard; Senior/Lead: two Medium, three Hard with deeper tradeoffs.`;
-export const DIMENSIONS = ['Technical Depth', 'Problem Solving', 'System Design & Best Practices', 'Communication', 'Practical Experience'] as const;
+export const DIMENSIONS = [
+  'TECHNICAL_ACCURACY',
+  'PROBLEM_SOLVING',
+  'COMMUNICATION',
+  'PRACTICAL_APPLICATION',
+] as const;
 export const EVALUATION_SYSTEM = `${boundary}
 Evaluate all five supplied questions. Empty answers score zero. Scores are integers 0-10.
 Return {evaluations, overallScore, dimensions, learningPath}.
 evaluations: exactly one {questionId, feedback:{en,vi}, score} per input questionId.
-dimensions: exactly five {name, score, reasoning}, names: ${DIMENSIONS.join('; ')}.
+dimensions: exactly four {name, score, reasoning}, names: ${DIMENSIONS.join('; ')}.
 learningPath: at most 10 {topic:{en,vi}, priority:"High"|"Medium"|"Low", suggestion:{en,vi}}.
 Translations/reasoning are 1-2000 characters; topic translations 1-200 characters.
 overallScore is an integer 0-10; the backend recomputes it from per-question scores.
@@ -85,8 +90,8 @@ export const generationSchema = z.array(questionSchema).length(5)
 const evaluationSchema = z.object({
   evaluations: z.array(z.object({ questionId: z.string().regex(/^[a-f0-9]{24}$/i), feedback: localized(2000), score }).strict()).length(5),
   overallScore: score,
-  dimensions: z.array(z.object({ name: z.enum(DIMENSIONS), score, reasoning: safeText(2000) }).strict()).length(5)
-    .refine(d => new Set(d.map(v => v.name)).size === 5),
+  dimensions: z.array(z.object({ name: z.enum(DIMENSIONS), score, reasoning: safeText(2000) }).strict()).length(4)
+    .refine(d => new Set(d.map(v => v.name)).size === 4),
   learningPath: z.array(z.object({ topic: localized(200), priority: z.enum(['High', 'Medium', 'Low']), suggestion: localized(2000) }).strict()).max(10),
 }).strict();
 export function parseProviderJson(value: string): unknown {

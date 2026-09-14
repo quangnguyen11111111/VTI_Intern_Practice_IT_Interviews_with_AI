@@ -124,7 +124,7 @@ describe('SEC-03 strict outputs', () => {
     if(kind==='high') data.evaluations[0].score=11; if(kind==='negative') data.evaluations[0].score=-1;
     if(kind==='precision') data.evaluations[0].score=5.5; if(kind==='extra') data.evaluations[0].token='bad';
     if(kind==='missing') delete data.evaluations[0].feedback.vi;
-    if(kind==='dimensions') data.dimensions[4].name=data.dimensions[0].name;
+    if(kind==='dimensions') data.dimensions[3].name=data.dimensions[0].name;
     expect(()=>validateEvaluation(data,questions(),answers())).toThrow('AI output is invalid');
   });
   it('recomputes overall score and enforces zero for skipped answers', () => {
