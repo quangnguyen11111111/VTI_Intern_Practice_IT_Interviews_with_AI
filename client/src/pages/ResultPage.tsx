@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { interviewApi, BaseEntity } from '../services/api/interviewApi';
+import { interviewApi, type BaseEntity } from '../services/api/interviewApi';
 import type { InterviewSession } from '../features/InterviewRoom/types';
 import { RadarScoreChart } from '../features/ResultScreen/components/RadarScoreChart';
 import { FeedbackList } from '../features/ResultScreen/components/FeedbackList';
