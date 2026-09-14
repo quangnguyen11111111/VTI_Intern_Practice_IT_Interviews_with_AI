@@ -1,0 +1,280 @@
+openapi: 3.0.3
+info:
+  title: VTI AI Interview API
+  description: RESTful API cho hệ thống mô phỏng phỏng vấn IT bằng AI
+  version: 1.0.0
+servers:
+  - url: /api/v1
+    description: Phiên bản API v1
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "error"
+        message:
+          type: string
+        code:
+          type: string
+          example: "AI_OUTPUT_INVALID"
+      required:
+        - status
+        - message
+        
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+        email:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+          enum: [ADMIN, INTERVIEWER, CANDIDATE]
+        avatarUrl:
+          type: string
+        currentLevel:
+          type: string
+          
+    Interview:
+      type: object
+      properties:
+        _id:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, GENERATING, IN_PROGRESS, EVALUATING, COMPLETED, FAILED]
+        targetLevel:
+          type: string
+        score:
+          type: number
+        failureReason:
+          type: string
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/InterviewQuestion'
+
+    InterviewQuestion:
+      type: object
+      properties:
+        id:
+          type: string
+        content:
+          type: string
+        contentVi:
+          type: string
+        candidateAnswer:
+          type: string
+        score:
+          type: number
+        feedback:
+          type: string
+        feedbackVi:
+          type: string
+
+paths:
+  /auth/login:
+    post:
+      summary: Đăng nhập người dùng
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Sai thông tin đăng nhập
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /interviews:
+    post:
+      summary: Tạo phiên phỏng vấn mới
+      tags:
+        - Interview
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targetLevel:
+                  type: string
+                requiredSkills:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Tạo thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Interview'
+        '400':
+          description: Lỗi dữ liệu đầu vào (Zod Validation)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Chưa xác thực (Unauthorized)
+
+  /interviews/{id}:
+    get:
+      summary: Lấy chi tiết phiên phỏng vấn
+      tags:
+        - Interview
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thông tin phỏng vấn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Interview'
+        '404':
+          description: Không tìm thấy phiên phỏng vấn
+
+  /interviews/{id}/generate:
+    post:
+      summary: Kích hoạt sinh câu hỏi bằng AI
+      tags:
+        - Interview
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sinh câu hỏi thành công
+        '400':
+          description: Sai trạng thái (Không phải PENDING)
+        '502':
+          description: Lỗi từ AI Provider (Ví dụ AI_OUTPUT_INVALID)
+        '503':
+          description: AI Provider không phản hồi (AI_PROVIDER_UNAVAILABLE)
+
+  /interviews/{id}/submit:
+    post:
+      summary: Nộp bài và yêu cầu AI chấm điểm
+      tags:
+        - Interview
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                answers:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      questionId:
+                        type: string
+                      answer:
+                        type: string
+      responses:
+        '200':
+          description: Bắt đầu chấm điểm
+        '400':
+          description: Sai trạng thái (Không phải IN_PROGRESS)
+        '502':
+          description: Lỗi từ AI Provider
+
+  /history/interviews:
+    get:
+      summary: Lấy lịch sử phỏng vấn của ứng viên
+      tags:
+        - History
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Danh sách các phiên phỏng vấn
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Interview'
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      totalPages:
+                        type: integer

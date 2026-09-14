@@ -154,12 +154,29 @@ export function ProfilePage() {
     }`;
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 sm:py-12">
-      <div className="mx-auto max-w-3xl">
+    <div className="w-full flex-grow animate-fade-in-up">
+      <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
         <div className="mb-5 flex items-center justify-between">
-          <Link to="/" className="inline-flex rounded-lg px-2 py-1 font-semibold text-slate-600 hover:text-indigo-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-100">
-            ← Về trang chủ
-          </Link>
+          <nav className="flex text-sm font-medium text-slate-500" aria-label="Breadcrumb">
+            <ol className="inline-flex items-center space-x-1 md:space-x-3">
+              <li className="inline-flex items-center">
+                <Link to="/" className="inline-flex items-center hover:text-indigo-600 transition-colors">
+                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                  </svg>
+                  Trang chủ
+                </Link>
+              </li>
+              <li>
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="ml-1 md:ml-2 text-slate-700 font-semibold">Hồ sơ cá nhân</span>
+                </div>
+              </li>
+            </ol>
+          </nav>
           <button
             id="btn-logout"
             type="button"
@@ -273,7 +290,7 @@ export function ProfilePage() {
             )}
           </div>
         </section>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

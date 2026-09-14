@@ -31,7 +31,7 @@ Return {evaluations, overallScore, dimensions, learningPath}.
 evaluations: exactly one {questionId, feedback:{en,vi}, score} per input questionId.
 dimensions: exactly four {name, score, reasoning}, names: ${DIMENSIONS.join('; ')}.
 learningPath: at most 10 {topic:{en,vi}, priority:"High"|"Medium"|"Low", suggestion:{en,vi}}.
-Translations/reasoning are 1-2000 characters; topic translations 1-200 characters.
+Translations are 1-2000 characters (topic translations 1-200 chars); reasoning is a single string of 1-2000 characters.
 overallScore is an integer 0-10; the backend recomputes it from per-question scores.
 Give constructive technical feedback without quoting personal data or the raw answer.`;
 

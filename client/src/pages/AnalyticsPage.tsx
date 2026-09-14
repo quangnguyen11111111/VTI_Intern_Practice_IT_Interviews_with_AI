@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { interviewApi, type BaseEntity } from '../services/api/interviewApi';
 import { AnalyticsFilters } from '../features/InterviewAnalytics/AnalyticsFilters';
 import { AnalyticsChart } from '../features/InterviewAnalytics/AnalyticsChart';
@@ -46,14 +47,40 @@ export const AnalyticsPage = () => {
   const dimensionScores = useMemo(() => new Map(data?.summary.dimensions.map((dimension) => [dimension.name, dimension.score]) ?? []), [data]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="w-full flex-grow animate-fade-in-up">
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Breadcrumbs */}
+        <nav className="flex mb-6 text-sm font-medium text-slate-500" aria-label="Breadcrumb">
+          <ol className="inline-flex items-center space-x-1 md:space-x-3">
+            <li className="inline-flex items-center">
+              <Link to="/" className="inline-flex items-center hover:text-indigo-600 transition-colors">
+                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+                </svg>
+                Trang chủ
+              </Link>
+            </li>
+            <li>
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                </svg>
+                <span className="ml-1 md:ml-2 text-slate-700 font-semibold">Thống kê</span>
+              </div>
+            </li>
+          </ol>
+        </nav>
+
         <header className="mb-8">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-sm font-bold text-indigo-700">
-            <span className="h-2 w-2 rounded-full bg-indigo-600" />Analytics
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">Tiến bộ phỏng vấn</h1>
-          <p className="mt-2 max-w-2xl text-slate-600">Theo dõi xu hướng điểm số của các phiên phỏng vấn đã hoàn thành theo thời gian.</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl flex items-center gap-3">
+            <div className="p-2 bg-indigo-100 rounded-xl">
+              <svg className="w-7 h-7 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            Tiến bộ phỏng vấn
+          </h1>
+          <p className="mt-4 max-w-2xl text-slate-600 text-lg">Theo dõi xu hướng điểm số của các phiên phỏng vấn đã hoàn thành theo thời gian.</p>
         </header>
 
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/50">

@@ -26,118 +26,121 @@ import { ResultPage } from './pages/ResultPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import AdminSystemPromptsPage from './pages/AdminSystemPromptsPage';
+import { MainLayout } from './components/layout/MainLayout';
 
 function App() {
   return (
     <Router>
       <AuthBootstrap>
         <Routes>
-          <Route
-            path="/"
-            element={<HomePage />}
-          />
-
-          <Route element={<GuestRoute />}>
+          <Route element={<MainLayout />}>
             <Route
-              path="/login"
-              element={<LoginPage />}
+              path="/"
+              element={<HomePage />}
             />
 
-            <Route
-              path="/register"
-              element={<RegisterPage />}
-            />
-
-            <Route
-              path="/forgot-password"
-              element={<ForgotPasswordPage />}
-            />
-
-            <Route
-              path="/reset-password"
-              element={<ResetPasswordPage />}
-            />
-          </Route>
-
-          <Route
-            element={
-              <ProtectedRoute
-                allowedRoles={[
-                  'CANDIDATE',
-                  'INTERVIEWER',
-                  'ADMIN'
-                ]}
+            <Route element={<GuestRoute />}>
+              <Route
+                path="/login"
+                element={<LoginPage />}
               />
-            }
-          >
-            <Route
-              path="/profile"
-              element={<ProfilePage />}
-            />
 
-            <Route
-              path="/change-password"
-              element={<ChangePasswordPage />}
-            />
-
-            <Route
-              path="/admin/users"
-              element={<AdminUsersPage />}
-            />
-          </Route>
-
-          <Route
-            element={
-              <ProtectedRoute
-                allowedRoles={['ADMIN']}
+              <Route
+                path="/register"
+                element={<RegisterPage />}
               />
-            }
-          >
-            <Route
-              path="/admin/metrics"
-              element={<AdminMetricsPage />}
-            />
 
-            <Route
-              path="/admin/system-prompts"
-              element={<AdminSystemPromptsPage />}
-            />
-          </Route>
-
-          <Route
-            element={
-              <ProtectedRoute
-                allowedRoles={[
-                  'CANDIDATE',
-                  'INTERVIEWER'
-                ]}
+              <Route
+                path="/forgot-password"
+                element={<ForgotPasswordPage />}
               />
-            }
-          >
-            <Route
-              path="/setup"
-              element={<InterviewSetupPage />}
-            />
+
+              <Route
+                path="/reset-password"
+                element={<ResetPasswordPage />}
+              />
+            </Route>
 
             <Route
-              path="/history"
-              element={<HistoryPage />}
-            />
+              element={
+                <ProtectedRoute
+                  allowedRoles={[
+                    'CANDIDATE',
+                    'INTERVIEWER',
+                    'ADMIN'
+                  ]}
+                />
+              }
+            >
+              <Route
+                path="/profile"
+                element={<ProfilePage />}
+              />
+
+              <Route
+                path="/change-password"
+                element={<ChangePasswordPage />}
+              />
+
+              <Route
+                path="/admin/users"
+                element={<AdminUsersPage />}
+              />
+            </Route>
 
             <Route
-              path="/analytics"
-              element={<AnalyticsPage />}
-            />
+              element={
+                <ProtectedRoute
+                  allowedRoles={['ADMIN']}
+                />
+              }
+            >
+              <Route
+                path="/admin/metrics"
+                element={<AdminMetricsPage />}
+              />
+
+              <Route
+                path="/admin/system-prompts"
+                element={<AdminSystemPromptsPage />}
+              />
+            </Route>
 
             <Route
-              path="/interview/:sessionId"
-              element={<InterviewRoomPage />}
-            />
+              element={
+                <ProtectedRoute
+                  allowedRoles={[
+                    'CANDIDATE',
+                    'INTERVIEWER'
+                  ]}
+                />
+              }
+            >
+              <Route
+                path="/setup"
+                element={<InterviewSetupPage />}
+              />
 
-            <Route
-              path="/interview/:sessionId/result"
-              element={<ResultPage />}
-            />
+              <Route
+                path="/history"
+                element={<HistoryPage />}
+              />
+
+              <Route
+                path="/analytics"
+                element={<AnalyticsPage />}
+              />
+
+              <Route
+                path="/interview/:sessionId"
+                element={<InterviewRoomPage />}
+              />
+
+              <Route
+                path="/interview/:sessionId/result"
+                element={<ResultPage />}
+              />
+            </Route>
           </Route>
         </Routes>
       </AuthBootstrap>
