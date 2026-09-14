@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { interviewApi } from '../services/api/interviewApi';
+import { interviewApi, BaseEntity } from '../services/api/interviewApi';
 import type { InterviewSession } from '../features/InterviewRoom/types';
 import { RadarScoreChart } from '../features/ResultScreen/components/RadarScoreChart';
 import { FeedbackList } from '../features/ResultScreen/components/FeedbackList';
@@ -10,8 +10,8 @@ export const ResultPage: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const [session, setSession] = useState<InterviewSession | null>(null);
-  const [roles, setRoles] = useState<any[]>([]);
-  const [levels, setLevels] = useState<any[]>([]);
+  const [roles, setRoles] = useState<BaseEntity[]>([]);
+  const [levels, setLevels] = useState<BaseEntity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState<'vi' | 'en'>('vi');
