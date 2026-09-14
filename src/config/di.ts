@@ -1,36 +1,57 @@
 import { container } from 'tsyringe';
 import { getEnv } from './env';
 import { AgendaJobScheduler } from '../infrastructure/jobs/AgendaJobScheduler';
+
 import { GenerateQuestionJobHandler } from '../domain/jobs/handlers/GenerateQuestionJobHandler';
 
 import { InterviewEventBus } from '../infrastructure/events/InterviewEventBus';
 
 // Repositories
+
 import { RoleRepository } from '../repositories/role.repository';
+
 import { LevelRepository } from '../repositories/level.repository';
+
 import { TechnologyRepository } from '../repositories/technology.repository';
+
 import { MongoInterviewRepository } from '../repositories/MongoInterviewRepository';
+
 import { UserRepository } from '../repositories/user.repository';
+
 import { AuditRepository } from '../repositories/audit.repository';
+
 import { SystemPromptRepository } from '../repositories/system-prompt.repository';
+
 import { AdminMetricsRepository } from '../repositories/admin-metrics.repository';
+
 import { ApiRateLimitRepository } from '../repositories/api-rate-limit.repository';
+
 import { InterviewQuotaRepository } from '../repositories/interview-quota.repository';
 
 // Services
+
 import { RoleService } from '../services/role.service';
+
 import { LevelService } from '../services/level.service';
+
 import { TechnologyService } from '../services/technology.service';
+
 import { InterviewService } from '../services/InterviewService';
+
 import { SystemPromptService } from '../services/system-prompt.service';
+
 import { AdminMetricsService } from '../services/admin-metrics.service';
+
 import { InterviewQuotaService } from '../services/interview-quota.service';
 
 // AI Providers
+
 import { MockAiProvider } from '../services/ai/providers/MockAiProvider';
+
 import { GeminiAiProvider } from '../services/ai/providers/GeminiAiProvider';
 
 import { AdminUserService } from '../services/admin-user.service';
+
 import { AuditService } from '../services/audit.service';
 
 import { EvaluateAnswersJobHandler } from '../domain/jobs/handlers/EvaluateAnswersJobHandler';
@@ -38,6 +59,7 @@ import { InterviewOperationProcessor } from '../services/InterviewOperationProce
 import { OutboxDispatcher } from '../infrastructure/jobs/OutboxDispatcher';
 
 // Register Repositories
+
 container.register('IRoleRepository', {
   useClass: RoleRepository
 });
@@ -58,6 +80,10 @@ container.register('IInterviewHistoryRepository', {
   useFactory: () => new MongoInterviewRepository()
 });
 
+container.register('IInterviewAnalyticsRepository', {
+  useFactory: () => new MongoInterviewRepository()
+});
+
 container.register('IApiRateLimitRepository', {
   useClass: ApiRateLimitRepository
 });
@@ -67,10 +93,15 @@ container.register('IInterviewQuotaRepository', {
 });
 
 // Register AI Provider based on .env
+
 const env = getEnv();
+
 container.register('AppEnv', { useValue: env });
+
 if (env.NODE_ENV === 'test') {
-  container.register('IAiProvider', { useClass: MockAiProvider });
+  container.register('IAiProvider', {
+    useClass: MockAiProvider
+  });
 } else {
   container.register('IAiProvider', {
     useClass: GeminiAiProvider
@@ -78,15 +109,34 @@ if (env.NODE_ENV === 'test') {
 }
 
 // Background Jobs
+
 container.register('OperationProcessorOptions', { useValue: {} });
+
 container.register('OutboxDispatcherOptions', { useValue: {} });
-container.registerSingleton('IJobScheduler', AgendaJobScheduler);
-container.registerSingleton(InterviewOperationProcessor);
-container.registerSingleton(OutboxDispatcher);
-container.registerSingleton(GenerateQuestionJobHandler);
-container.registerSingleton(EvaluateAnswersJobHandler);
+
+container.registerSingleton(
+  'IJobScheduler',
+  AgendaJobScheduler
+);
+
+container.registerSingleton(
+  InterviewOperationProcessor
+);
+
+container.registerSingleton(
+  OutboxDispatcher
+);
+
+container.registerSingleton(
+  GenerateQuestionJobHandler
+);
+
+container.registerSingleton(
+  EvaluateAnswersJobHandler
+);
 
 // Event Bus
+
 container.registerSingleton(
   'IEventPublisher',
   InterviewEventBus
@@ -109,6 +159,7 @@ container.register('IAdminMetricsRepository', {
 });
 
 // Register Services
+
 container.register('IRoleService', {
   useClass: RoleService
 });
@@ -140,4 +191,5 @@ container.register('IAdminMetricsService', {
 container.register('IInterviewQuotaService', {
   useClass: InterviewQuotaService
 });
+
 export { container };
