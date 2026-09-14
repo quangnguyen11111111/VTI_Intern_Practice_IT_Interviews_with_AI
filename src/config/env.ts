@@ -132,7 +132,7 @@ const envSchema = z
     JWT_ACCESS_EXPIRES_IN: z
       .string()
       .regex(expiresInRegex, 'JWT_ACCESS_EXPIRES_IN must be a valid duration (e.g. 15m, 1h, 7d)')
-      .default('15m'),
+      .default('1d'),
     JWT_REFRESH_EXPIRES_IN: z
       .string()
       .regex(expiresInRegex, 'JWT_REFRESH_EXPIRES_IN must be a valid duration (e.g. 7d, 30d, 1y)')

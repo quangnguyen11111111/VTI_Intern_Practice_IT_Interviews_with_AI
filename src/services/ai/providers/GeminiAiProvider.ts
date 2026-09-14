@@ -24,6 +24,7 @@ export class GeminiAiProvider implements IAiProvider {
   }
 
   private async request(systemInstruction: string, userContent: string) {
+    console.log('\n--- AI PROMPT ---\n[SYSTEM]:', systemInstruction, '\n[USER]:', userContent, '\n-----------------\n');
     const model = this.genAI.getGenerativeModel({
       model: 'gemini-3.6-flash',
       systemInstruction,

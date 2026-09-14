@@ -13,21 +13,29 @@ export const GENERATION_SYSTEM = `${boundary}
 Generate exactly 5 distinct bilingual technical interview questions, order 1 through 5 once each.
 Each object: {order, difficulty: "Easy"|"Medium"|"Hard", category, content: {en,vi}}.
 category: 1-120 characters; each translation: 1-2000 characters.
-Use the role, level, technologies and document only as technical context. Mix at least two theory and two practical questions.
-Intern/Fresher: four Easy, one Medium, basic fundamentals; Junior: two Easy, three Medium; no Hard for either.
-Mid: one Easy, three Medium, one Hard; Senior/Lead: two Medium, three Hard with deeper tradeoffs.`;
-export const DIMENSIONS = ['Technical Depth', 'Problem Solving', 'System Design & Best Practices', 'Communication', 'Practical Experience'] as const;
+Use the role, level, technologies and document as technical context. Questions MUST explicitly test the provided technologies and align with the document if provided. Mix at least two theory and two practical questions.
+Fresher / Intern: four Easy, one Medium, basic fundamentals.
+Junior: two Easy, three Medium; no Hard for either.
+Middle: one Easy, three Medium, one Hard.
+Senior, Lead, Manager / Director: two Medium, three Hard with deeper tradeoffs.
+If level is not specified, default to: two Easy, two Medium, one Hard.`;
+export const DIMENSIONS = [
+  'TECHNICAL_ACCURACY',
+  'PROBLEM_SOLVING',
+  'COMMUNICATION',
+  'PRACTICAL_APPLICATION',
+] as const;
 export const EVALUATION_SYSTEM = `${boundary}
 Evaluate all five supplied questions. Empty answers score zero. Scores are integers 0-10.
 Return {evaluations, overallScore, dimensions, learningPath}.
 evaluations: exactly one {questionId, feedback:{en,vi}, score} per input questionId.
-dimensions: exactly five {name, score, reasoning}, names: ${DIMENSIONS.join('; ')}.
+dimensions: exactly four {name, score, reasoning}, names: ${DIMENSIONS.join('; ')}.
 learningPath: at most 10 {topic:{en,vi}, priority:"High"|"Medium"|"Low", suggestion:{en,vi}}.
 Translations/reasoning are 1-2000 characters; topic translations 1-200 characters.
 overallScore is an integer 0-10; the backend recomputes it from per-question scores.
 Give constructive technical feedback without quoting personal data or the raw answer.`;
 
-const unsafe = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:\+?\d[\s().-]?){9,}|https?:\/\/\S+|www\.\S+|\b(?:bearer|basic)\s+\S+|\b(?:password|secret|token|api[_ -]?key|otp)\s*[:=]\s*\S+|AIza[\w-]{20,}|eyJ[\w-]+\.[\w-]+\.[\w-]+/gi;
+const unsafe = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:\+?\d[\s().-]?){9,}|https?:\/\/\S+|www\.\S+|\b(?:bearer|basic)\s+(?:[A-Za-z0-9+/=]{16,}|eyJ[\w-]+\.[\w-]+\.[\w-]+)|\b(?:password|secret|token|api[_ -]?key|otp)\s*[:=]\s*\S+|AIza[\w-]{20,}|eyJ[\w-]+\.[\w-]+\.[\w-]+/gi;
 export function minimizeText(value: string): string {
   return value.normalize('NFKC')
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, '')
@@ -40,6 +48,10 @@ function textInput(value: unknown, max: number): string {
   if (typeof value !== 'string' || value.length > max) throw inputError();
   return minimizeText(value);
 }
+function idInput(value: unknown): string {
+  if (typeof value !== 'string' || value.length > 120) throw inputError();
+  return value.trim();
+}
 function delimit(data: unknown): string {
   // Encode every delimiter character, including input attempting to close and reopen a role.
   const encoded = JSON.stringify(data).replace(/[<>&\u2028\u2029]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
@@ -48,12 +60,12 @@ function delimit(data: unknown): string {
 }
 export function generationPrompt(setup: InterviewSetupPayload) {
   const data: InterviewSetupPayload = {};
-  if (setup.jobPosition !== undefined) data.jobPosition = textInput(setup.jobPosition, 120);
-  if (setup.level !== undefined) data.level = textInput(setup.level, 120);
+  if (setup.jobPosition !== undefined) data.jobPosition = idInput(setup.jobPosition);
+  if (setup.level !== undefined) data.level = idInput(setup.level);
   if (setup.jdText !== undefined) data.jdText = textInput(setup.jdText, INPUT_LIMITS.document);
   if (setup.techStacks !== undefined) {
     if (!Array.isArray(setup.techStacks) || setup.techStacks.length > 10) throw inputError();
-    data.techStacks = setup.techStacks.map(t => textInput(t, 120));
+    data.techStacks = setup.techStacks.map(t => idInput(t));
   }
   return { systemInstruction: GENERATION_SYSTEM, userContent: delimit(data), data };
 }
@@ -74,7 +86,7 @@ export function evaluationPrompt(questions: EvaluationQuestion[], answers: Answe
   return { systemInstruction: EVALUATION_SYSTEM, userContent: delimit(data), questions: safeQuestions, answers: safeAnswers };
 }
 
-const safeText = (max: number) => z.string().trim().min(1).max(max).refine(v => minimizeText(v) === v);
+const safeText = (max: number) => z.string().trim().min(1).max(max).transform(v => minimizeText(v)).refine(v => v.length > 0);
 const localized = (max: number) => z.object({ en: safeText(max), vi: safeText(max) }).strict();
 const score = z.number().int().min(0).max(10);
 const questionSchema = z.object({ order: z.number().int().min(1).max(5), difficulty: z.enum(['Easy', 'Medium', 'Hard']),
@@ -85,25 +97,50 @@ export const generationSchema = z.array(questionSchema).length(5)
 const evaluationSchema = z.object({
   evaluations: z.array(z.object({ questionId: z.string().regex(/^[a-f0-9]{24}$/i), feedback: localized(2000), score }).strict()).length(5),
   overallScore: score,
-  dimensions: z.array(z.object({ name: z.enum(DIMENSIONS), score, reasoning: safeText(2000) }).strict()).length(5)
-    .refine(d => new Set(d.map(v => v.name)).size === 5),
+  dimensions: z.array(z.object({ name: z.enum(DIMENSIONS), score, reasoning: safeText(2000) }).strict()).length(4)
+    .refine(d => new Set(d.map(v => v.name)).size === 4),
   learningPath: z.array(z.object({ topic: localized(200), priority: z.enum(['High', 'Medium', 'Low']), suggestion: localized(2000) }).strict()).max(10),
 }).strict();
 export function parseProviderJson(value: string): unknown {
-  if (typeof value !== 'string' || value.length > INPUT_LIMITS.output) throw outputError();
-  try { return JSON.parse(value); } catch { throw outputError(); }
+  if (typeof value !== 'string' || value.length > INPUT_LIMITS.output) {
+    console.error('Invalid provider JSON length or type:', typeof value);
+    throw outputError();
+  }
+  
+  let cleanedValue = value.trim();
+  if (cleanedValue.startsWith('```')) {
+    cleanedValue = cleanedValue.replace(/^```(json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  }
+
+  try { return JSON.parse(cleanedValue); } catch (e) {
+    console.error('Failed to parse provider JSON:', cleanedValue);
+    throw outputError();
+  }
 }
 export function validateGeneration(value: unknown) {
   const result = generationSchema.safeParse(value);
-  if (!result.success) throw outputError();
+  if (!result.success) {
+    console.error('Generation validation failed:', result.error.format());
+    console.error('Raw AI output:', JSON.stringify(value, null, 2));
+    throw outputError();
+  }
   return result.data.sort((a,b) => a.order - b.order);
 }
 export function validateEvaluation(value: unknown, questions: EvaluationQuestion[], answers: AnswerPayload[]) {
   const result = evaluationSchema.safeParse(value);
   const expected = new Set(questions.map(q => q.id));
-  if (!result.success || expected.size !== 5) throw outputError();
+  if (!result.success || expected.size !== 5) {
+    if (!result.success) {
+      console.error('Evaluation validation failed:', result.error.format());
+      console.error('Raw AI Output:', JSON.stringify(value, null, 2));
+    }
+    throw outputError();
+  }
   const data = result.data;
-  if (new Set(data.evaluations.map(e => e.questionId)).size !== 5 || data.evaluations.some(e => !expected.has(e.questionId))) throw outputError();
+  if (new Set(data.evaluations.map(e => e.questionId)).size !== 5 || data.evaluations.some(e => !expected.has(e.questionId))) {
+     console.error('Question IDs mismatch in evaluation');
+     throw outputError();
+  }
   for (const evaluation of data.evaluations) {
     if (!answers.find(a => a.questionId === evaluation.questionId)?.candidateAnswer.trim()) evaluation.score = 0;
   }

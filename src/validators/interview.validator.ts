@@ -18,22 +18,10 @@ const setupBodySchema = z
   })
   .strict();
 
-const multipartTechStacksSchema = z.preprocess((value) => {
-  if (typeof value !== 'string') {
-    return value;
-  }
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
-}, uniqueObjectIds.optional().default([]));
+
 
 const jdSetupBodySchema = z
   .object({
-    jobPosition: objectIdSchema,
-    level: objectIdSchema,
-    techStacks: multipartTechStacksSchema,
     language: z.enum(['VI', 'EN']).default('VI'),
     secondsPerQuestion: z.coerce.number().int().min(60).max(600).default(300),
     strategy: z.enum(['STANDARD', 'ADAPTIVE']).default('STANDARD'),

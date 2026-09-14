@@ -77,9 +77,10 @@ export const ManualSetupTab: React.FC<ManualSetupTabProps> = ({
                   >
                     <input
                       type="radio"
-                      {...field}
+                      name={field.name}
                       value={level._id}
                       checked={isSelected}
+                      onChange={() => field.onChange(level._id)}
                       className="sr-only"
                       disabled={isLoading}
                     />

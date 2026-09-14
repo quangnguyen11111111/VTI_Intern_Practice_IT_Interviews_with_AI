@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { interviewApi } from '../services/api/interviewApi';
+import { interviewApi, type BaseEntity } from '../services/api/interviewApi';
 import type { InterviewSession } from '../features/InterviewRoom/types';
 import { RadarScoreChart } from '../features/ResultScreen/components/RadarScoreChart';
 import { FeedbackList } from '../features/ResultScreen/components/FeedbackList';
@@ -10,6 +10,8 @@ export const ResultPage: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const [session, setSession] = useState<InterviewSession | null>(null);
+  const [roles, setRoles] = useState<BaseEntity[]>([]);
+  const [levels, setLevels] = useState<BaseEntity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [language, setLanguage] = useState<'vi' | 'en'>('vi');
@@ -19,13 +21,19 @@ export const ResultPage: React.FC = () => {
       if (!sessionId) return;
       try {
         setIsLoading(true);
-        const data = await interviewApi.fetchInterviewSession(sessionId);
+        const [data, fetchedRoles, fetchedLevels] = await Promise.all([
+          interviewApi.fetchInterviewSession(sessionId),
+          interviewApi.fetchRoles(),
+          interviewApi.fetchLevels()
+        ]);
         if (data.status !== 'COMPLETED') {
           // If not completed, maybe redirect to room
           navigate(`/interview/${sessionId}`);
           return;
         }
         setSession(data);
+        setRoles(fetchedRoles);
+        setLevels(fetchedLevels);
       } catch {
         setError('Không thể tải kết quả đánh giá.');
       } finally {
@@ -65,8 +73,8 @@ export const ResultPage: React.FC = () => {
           <div>
             <h1 className="text-3xl font-black text-slate-800 mb-2">Kết quả phỏng vấn</h1>
             <p className="text-slate-500">
-              Vị trí: <span className="font-semibold text-slate-700">{session.setupData.jobPosition || 'Không rõ'}</span> - 
-              Level: <span className="font-semibold text-slate-700">{session.setupData.level || 'Không rõ'}</span>
+              Vị trí: <span className="font-semibold text-slate-700">{roles.find(r => r._id === session.setupData.jobPosition)?.name || 'Không xác định'}</span> - 
+              Level: <span className="font-semibold text-slate-700">{levels.find(l => l._id === session.setupData.level)?.name || 'Không xác định'}</span>
             </p>
           </div>
           

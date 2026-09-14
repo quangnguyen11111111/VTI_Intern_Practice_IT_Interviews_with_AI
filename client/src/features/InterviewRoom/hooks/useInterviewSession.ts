@@ -1,8 +1,32 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { interviewApi } from '../../../services/api/interviewApi';
 import type { InterviewSession, AnswerState } from '../types';
 import { useInterviewSSE } from './useInterviewSSE';
+
+const getApiErrorDetails = (error: unknown): { message?: string; code?: string } => {
+  if (error instanceof Error) {
+    const cause = error.cause;
+    if (cause && typeof cause === 'object') {
+      const details = cause as { message?: unknown; code?: unknown };
+      return {
+        message: error.message,
+        code: typeof details.code === 'string' ? details.code : undefined,
+      };
+    }
+    return { message: error.message };
+  }
+
+  if (error && typeof error === 'object') {
+    const details = error as { message?: unknown; code?: unknown };
+    return {
+      message: typeof details.message === 'string' ? details.message : undefined,
+      code: typeof details.code === 'string' ? details.code : undefined,
+    };
+  }
+
+  return {};
+};
 
 export const useInterviewSession = (sessionId: string) => {
   const [session, setSession] = useState<InterviewSession | null>(null);
@@ -11,11 +35,12 @@ export const useInterviewSession = (sessionId: string) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pollingInFlightRef = useRef(false);
 
   const { sseStatus, sseVersion } = useInterviewSSE(sessionId);
 
-  const fetchSession = useCallback(async () => {
-    setIsLoading(true);
+  const fetchSession = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
     setError(null);
     try {
       let data = await interviewApi.fetchInterviewSession(sessionId);
@@ -29,11 +54,15 @@ export const useInterviewSession = (sessionId: string) => {
           data = await interviewApi.fetchInterviewSession(sessionId);
         } catch (genErr) {
           console.error('Failed to generate questions:', genErr);
-          throw new Error('Không thể khởi tạo câu hỏi phỏng vấn bằng AI.', { cause: genErr });
+          const details = getApiErrorDetails(genErr);
+          const message = details.code === 'QUOTA_EXCEEDED'
+            ? 'Bạn đã hết lượt tạo phỏng vấn trong ngày. Vui lòng thử lại vào ngày mai.'
+            : details.message || 'Không thể khởi tạo câu hỏi phỏng vấn bằng AI.';
+          throw new Error(message, { cause: genErr });
         }
       }
 
-      if (data.status === 'GENERATING' || data.status === 'EVALUATING') {
+      if (data.status === 'PENDING' || data.status === 'GENERATING' || data.status === 'EVALUATING') {
         setIsGenerating(true);
       } else {
         setIsGenerating(false);
@@ -86,6 +115,7 @@ export const useInterviewSession = (sessionId: string) => {
       setAnswers(initialAnswers);
     } catch (err: any) {
       console.error('Failed to load session:', err);
+      setIsGenerating(false);
       setError(err.message || 'Không thể tải phiên phỏng vấn. Vui lòng kiểm tra kết nối.');
     } finally {
       setIsLoading(false);
@@ -96,6 +126,22 @@ export const useInterviewSession = (sessionId: string) => {
     // Avoid calling setState synchronously within an effect body
     setTimeout(() => fetchSession(), 0);
   }, [fetchSession]);
+
+  // SSE is the fast path, but a dropped connection must not leave the room
+  // permanently on the loading screen after the worker has committed questions.
+  useEffect(() => {
+    if (isLoading || !isGenerating || error) return;
+
+    const pollTimer = window.setInterval(() => {
+      if (pollingInFlightRef.current) return;
+      pollingInFlightRef.current = true;
+      void fetchSession(false).finally(() => {
+        pollingInFlightRef.current = false;
+      });
+    }, 3_000);
+
+    return () => window.clearInterval(pollTimer);
+  }, [error, fetchSession, isGenerating, isLoading]);
 
   // Handle SSE state changes
   useEffect(() => {
@@ -133,11 +179,8 @@ export const useInterviewSession = (sessionId: string) => {
   const answeredCount = answers.filter(a => a.candidateAnswer.trim().length > 0).length;
 
   const refetch = useCallback(() => {
-    // A trick to trigger the useEffect by not changing sessionId but calling the internal fetch again
-    // But since the useEffect has fetchSession inside, we can just reload the page for simplicity, 
-    // or we can extract fetchSession outside.
-    window.location.reload();
-  }, []);
+    return fetchSession();
+  }, [fetchSession]);
 
   const updateVersion = useCallback((version: number) => {
     setSession((current) => current && version > current.version ? { ...current, version } : current);

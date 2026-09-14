@@ -8,7 +8,8 @@ export const useAutosave = (
   answers: AnswerState[],
   version: number | undefined,
   onVersion: (version: number) => void,
-  debounceMs: number = 2000
+  debounceMs: number = 2000,
+  enabled: boolean = true,
 ) => {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -56,7 +57,7 @@ export const useAutosave = (
   }, [onVersion, sessionId]);
 
   useEffect(() => {
-    if (!sessionId || answers.length === 0) return;
+    if (!enabled || !sessionId || answers.length === 0) return;
 
     const abortController = new AbortController();
     
@@ -82,7 +83,7 @@ export const useAutosave = (
       clearTimeout(timeoutId);
       abortController.abort();
     };
-  }, [answers, sessionId, debounceMs, saveSnapshot]);
+  }, [answers, debounceMs, enabled, saveSnapshot, sessionId]);
 
   // Manually force a save if needed (e.g. before submitting)
   const forceSave = async () => {

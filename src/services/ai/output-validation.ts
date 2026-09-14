@@ -60,6 +60,8 @@ const evaluationResultSchema = z.object({
 const parseOrContractError = <T>(schema: z.ZodType<T>, value: unknown): T => {
   const parsed = schema.safeParse(value);
   if (!parsed.success) {
+    console.error('ZOD VALIDATION FAILED:', JSON.stringify(parsed.error.format(), null, 2));
+    console.error('INPUT VALUE:', JSON.stringify(value, null, 2));
     throw new AiProviderContractError();
   }
   return parsed.data;

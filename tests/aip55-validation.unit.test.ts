@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import {
   interviewAnswersSchema,
   interviewCreateSchema,
+  interviewHistoryQuerySchema,
   interviewJdCreateSchema,
 } from '../src/validators/interview.validator';
 import {
@@ -20,7 +21,7 @@ describe('AIP-55 validation branch contracts', () => {
       query: {},
     });
     const multipart = interviewJdCreateSchema.parse({
-      body: { jobPosition: id(), level: id(), techStacks: [id()] },
+      body: {},
       query: {},
     });
 
@@ -29,7 +30,6 @@ describe('AIP-55 validation branch contracts', () => {
       secondsPerQuestion: 300,
       strategy: 'STANDARD',
     });
-    expect(multipart.body.techStacks).toHaveLength(1);
   });
 
   it('rejects duplicate answers, oversized answers, and unknown answer fields', () => {
@@ -75,5 +75,13 @@ describe('AIP-55 validation branch contracts', () => {
     expect(technologyCreateSchema.safeParse({
       body: { code: 'DUP_TECH', name: 'Duplicate', roles: [roleId, roleId] }, query: {},
     }).success).toBe(false);
+  });
+
+  it('parses ISO date-time with timezone for interview history query', () => {
+    const parsed = interviewHistoryQuerySchema.parse({
+      query: { from: '2026-09-14T00:00:00Z', to: '2026-09-15T00:00:00+07:00' },
+    });
+    expect(parsed.query.from).toBeInstanceOf(Date);
+    expect(parsed.query.to).toBeInstanceOf(Date);
   });
 });

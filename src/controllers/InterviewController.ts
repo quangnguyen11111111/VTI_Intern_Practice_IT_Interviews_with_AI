@@ -104,16 +104,8 @@ export class InterviewController {
       throw new AppError('JD file is required', 400, 'JD_FILE_REQUIRED');
     }
 
-    const { jobPosition, level, techStacks, language, secondsPerQuestion, strategy } = req.body;
-
-    const setupData = {
-      jobPosition,
-      level,
-      techStacks,
-      language,
-      secondsPerQuestion,
-      strategy
-    };
+    const { language, secondsPerQuestion, strategy } = req.body;
+    const setupData = { language, secondsPerQuestion, strategy };
 
     try {
       const session = await this.interviewService.createInterviewSessionFromJD(

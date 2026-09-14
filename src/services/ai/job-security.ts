@@ -6,9 +6,28 @@ import Level from '../../models/level.model';
 import Technology from '../../models/technology.model';
 import { Model } from 'mongoose';
 const id = z.string().regex(/^[a-f0-9]{24}$/i);
-const jobSchema = z.object({ interviewId: id, ownerId: id, requestId: z.string().uuid().optional() }).strict();
+const interviewJobSchema = z
+  .object({ interviewId: id, ownerId: id, requestId: z.string().uuid().nullish() })
+  .strict();
+const operationJobSchema = z
+  .object({ operationId: id, requestId: z.string().uuid().nullish() })
+  .strict();
+const schedulerJobSchema = z.union([interviewJobSchema, operationJobSchema]);
+
 export function interviewJobData(value: unknown) {
-  const parsed = jobSchema.safeParse(value);
+  const parsed = interviewJobSchema.safeParse(value);
+  if (!parsed.success) throw new AppError('Invalid job metadata', 400, 'JOB_INPUT_INVALID');
+  return parsed.data;
+}
+
+export function operationJobData(value: unknown) {
+  const parsed = operationJobSchema.safeParse(value);
+  if (!parsed.success) throw new AppError('Invalid job metadata', 400, 'JOB_INPUT_INVALID');
+  return parsed.data;
+}
+
+export function schedulerJobData(value: unknown) {
+  const parsed = schedulerJobSchema.safeParse(value);
   if (!parsed.success) throw new AppError('Invalid job metadata', 400, 'JOB_INPUT_INVALID');
   return parsed.data;
 }

@@ -4,7 +4,7 @@ export const questions = () => QUESTION_IDS.map((id, i) => ({ id, order: i + 1, 
   content: { en: `Explain technical concept ${i + 1}.`, vi: `Giải thích khái niệm ${i + 1}.` } }));
 export const generated = () => questions().map(({ id, ...q }) => q);
 export const answers = () => QUESTION_IDS.map(questionId => ({ questionId, candidateAnswer: 'A technical answer.' }));
-export const dimensions = ['Technical Depth', 'Problem Solving', 'System Design & Best Practices', 'Communication', 'Practical Experience'];
+export const dimensions = ['TECHNICAL_ACCURACY', 'PROBLEM_SOLVING', 'COMMUNICATION', 'PRACTICAL_APPLICATION'];
 export const evaluation = () => ({ evaluations: QUESTION_IDS.map(questionId => ({ questionId, score: 7,
   feedback: { en: 'Explain tradeoffs.', vi: 'Giải thích đánh đổi.' } })), overallScore: 10,
   dimensions: dimensions.map(name => ({ name, score: 7, reasoning: 'Reasonable technical understanding.' })), learningPath: [] });

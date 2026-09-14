@@ -112,7 +112,7 @@ describe('SEC-03 ownership, async boundary and disposable retention', () => {
     const session=await service.createInterviewSession(validSetup(),owner.id);
     const ready=await service.generateQuestions(session.id,owner.id); expect(ready.questions).toHaveLength(5);
     const result=await service.submitAnswers(session.id,ready.questions!.map(q=>({questionId:q.id,candidateAnswer:'Technical evidence'})),owner.id);
-    expect(result.status).toBe('COMPLETED'); expect(result.overallScore).toBe(8); expect(result.dimensions).toHaveLength(5);
+    expect(result.status).toBe('COMPLETED'); expect(result.overallScore).toBe(8); expect(result.dimensions).toHaveLength(4);
     expect(result.contentPurgeAt!.getTime()-result.terminalAt!.getTime()).toBe(30*DAY_MS);
     expect(result.recordPurgeAt!.getTime()-result.terminalAt!.getTime()).toBe(365*DAY_MS);
     await repo.forOwner(owner.id).updateStatus(session.id,'FAILED');

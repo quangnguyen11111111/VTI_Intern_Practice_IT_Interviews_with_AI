@@ -120,12 +120,10 @@ export class InterviewService {
     }
   }
 
-  async createInterviewSession(
-    setupData: InterviewSetupPayload,
-    userId: string,
-  ) {
-    await this.validateSetupTaxonomy(setupData);
-
+  async createInterviewSession(setupData: InterviewSetupPayload, userId: string) {
+    if (!setupData.jdText) {
+      await this.validateSetupTaxonomy(setupData);
+    }
     const safeSetupData = {
       ...generationPrompt(setupData).data,
 
