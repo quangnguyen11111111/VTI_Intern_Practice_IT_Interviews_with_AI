@@ -1,21 +1,14 @@
 import React from 'react';
-import { Controller, useFormContext } from 'react-hook-form';
-import type { BaseEntity } from '../../../services/api/interviewApi';
+import { useFormContext } from 'react-hook-form';
 import type { JDUploadFormData } from '../types';
 
 interface JdUploadTabProps {
   isLoading: boolean;
-  roles: BaseEntity[];
-  levels: BaseEntity[];
-  technologies: BaseEntity[];
   onSubmit: (data: JDUploadFormData) => void;
 }
 
 export const JdUploadTab: React.FC<JdUploadTabProps> = ({
   isLoading,
-  roles,
-  levels,
-  technologies,
   onSubmit,
 }) => {
   const form = useFormContext<JDUploadFormData>();
@@ -24,73 +17,6 @@ export const JdUploadTab: React.FC<JdUploadTabProps> = ({
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 animate-in fade-in duration-300">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label htmlFor="jdJobPosition" className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider">
-            Chức danh cho JD
-          </label>
-          <select
-            id="jdJobPosition"
-            {...form.register('jobPosition', { required: 'Vui lòng chọn chức danh' })}
-            className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50"
-            disabled={isLoading}
-          >
-            <option value="">-- Chọn chức danh --</option>
-            {roles.map((role) => <option key={role._id} value={role._id}>{role.name}</option>)}
-          </select>
-          {form.formState.errors.jobPosition && (
-            <p className="mt-2 text-sm text-red-500">{form.formState.errors.jobPosition.message}</p>
-          )}
-        </div>
-        <div>
-          <label htmlFor="jdLevel" className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider">
-            Trình độ cho JD
-          </label>
-          <select
-            id="jdLevel"
-            {...form.register('level', { required: 'Vui lòng chọn cấp độ' })}
-            className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50"
-            disabled={isLoading}
-          >
-            <option value="">-- Chọn cấp độ --</option>
-            {levels.map((level) => <option key={level._id} value={level._id}>{level.name}</option>)}
-          </select>
-          {form.formState.errors.level && (
-            <p className="mt-2 text-sm text-red-500">{form.formState.errors.level.message}</p>
-          )}
-        </div>
-      </div>
-
-      <div>
-        <p className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider">Công nghệ cho JD</p>
-        <Controller
-          name="techStacks"
-          control={form.control}
-          render={({ field }) => (
-            <div className="flex flex-wrap gap-2">
-              {technologies.map((technology) => {
-                const selected = field.value.includes(technology._id);
-                return (
-                  <label key={technology._id} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2">
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      onChange={() => field.onChange(
-                        selected
-                          ? field.value.filter((id) => id !== technology._id)
-                          : [...field.value, technology._id]
-                      )}
-                      disabled={isLoading}
-                    />
-                    {technology.name}
-                  </label>
-                );
-              })}
-            </div>
-          )}
-        />
-      </div>
-      
       {/* File Upload Area */}
       <div>
         <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider">

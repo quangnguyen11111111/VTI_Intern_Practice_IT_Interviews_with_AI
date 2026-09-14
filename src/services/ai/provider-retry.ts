@@ -15,6 +15,7 @@ export async function providerRetry<T>(operation: (signal: AbortSignal) => Promi
         timer = setTimeout(() => { timedOut = true; controller.abort(); reject(unavailable()); }, Math.min(remaining, RETRY_LIMITS.attemptMs));
       })]);
     } catch (error) {
+      console.error('Provider error attempt', attempt, error);
       const status = (error as {status?: number})?.status;
       const transient = timedOut || status === 429 || [500, 502, 503, 504].includes(status ?? 0);
       if (!transient || attempt + 1 === RETRY_LIMITS.attempts) throw unavailable();

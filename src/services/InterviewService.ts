@@ -64,7 +64,9 @@ export class InterviewService {
   }
 
   async createInterviewSession(setupData: InterviewSetupPayload, userId: string) {
-    await this.validateSetupTaxonomy(setupData);
+    if (!setupData.jdText) {
+      await this.validateSetupTaxonomy(setupData);
+    }
     const safeSetupData = {
       ...generationPrompt(setupData).data,
       ...(setupData.language !== undefined ? { language: setupData.language } : {}),

@@ -17,7 +17,6 @@ export const InterviewSetupForm: React.FC = () => {
     roles,
     levels,
     technologies,
-    jdTechnologies,
     onSubmitManual,
     onSubmitJd,
   } = useInterviewSetup();
@@ -90,9 +89,6 @@ export const InterviewSetupForm: React.FC = () => {
             <FormProvider {...jdForm}>
               <JdUploadTab
                 isLoading={isLoading}
-                roles={roles}
-                levels={levels}
-                technologies={jdTechnologies}
                 onSubmit={onSubmitJd}
               />
             </FormProvider>
