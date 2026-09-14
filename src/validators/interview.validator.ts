@@ -18,16 +18,7 @@ const setupBodySchema = z
   })
   .strict();
 
-const multipartTechStacksSchema = z.preprocess((value) => {
-  if (typeof value !== 'string') {
-    return value;
-  }
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
-}, uniqueObjectIds.optional().default([]));
+
 
 const jdSetupBodySchema = z
   .object({
